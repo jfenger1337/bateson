@@ -114,6 +114,9 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
 
   const choose = (oi: number, clicked = false) => {
     if (!q) return;
+    // Picking the option you picked takes it back. The recommendation, set for you, is only confirmed.
+    const d = drafts[q.id];
+    if (d.touched && !d.writing && d.choice === oi) { clearTimeout(advanceTimer.current); set(q.id, { choice: null }); return; }
     set(q.id, { choice: oi, writing: false });
     if (!clicked) document.querySelector(`.interview .opt[data-oi="${oi}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     if (!last && (clicked || !compared)) {
@@ -122,10 +125,18 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
     }
   };
 
-  const write = () => {
+  // `typed`: the key that started it, when you began writing without choosing Write your own first.
+  const write = (typed = '') => {
     if (!q) return;
-    set(q.id, { writing: true, choice: null });
-    window.setTimeout(() => otherRef.current?.focus(), 0);
+    clearTimeout(advanceTimer.current);
+    const id = q.id;
+    setDrafts((ds) => ({ ...ds, [id]: { ...ds[id], writing: true, choice: null, other: ds[id].other + typed, touched: true } }));
+    window.setTimeout(() => {
+      const f = otherRef.current;
+      if (!f) return;
+      f.focus();
+      f.setSelectionRange(f.value.length, f.value.length);
+    }, 0);
   };
 
   const send = () => {
@@ -191,7 +202,9 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       else if (e.key === 'ArrowLeft' || e.key === 'k') { e.preventDefault(); go(at - 1); }
       else if (LETTERS.includes(e.key) && order[LETTERS.indexOf(e.key)] != null) { e.preventDefault(); choose(order[LETTERS.indexOf(e.key)]); hear(order[LETTERS.indexOf(e.key)]); }
       else if (e.key === 'w') { e.preventDefault(); write(); }
-      else if (e.key === 'D') { e.preventDefault(); onDecide(item, { decision: 'drop' }); }
+      // Any other character starts your own answer with it, so ending the interview has no key: a capital D
+      // would end it mid-sentence.
+      else if (e.key.length === 1 && e.key !== ' ') { e.preventDefault(); write(e.key); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -338,7 +351,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
                 />
               </>
             ) : (
-              <button className="own-open" onClick={write}>
+              <button className="own-open" onClick={() => write()}>
                 <span className="opt-ring"><Ring kind="open" size={20} letter="W" /></span>
                 <span className="opt-label muted">Write your own</span>
               </button>
@@ -373,7 +386,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
             {!answered(q.id) ? 'Pick one, or write your own, to go on.' : last && open ? `“${open.title}” (${open.id}) has no answer yet.` : ''}
           </p>
           <div className="decide-actions">
-            <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="End the interview (shift D)">End interview</button>
+            <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="End the interview">End interview</button>
             {at > 0 && <button className="btn-pill lg" onClick={() => go(at - 1)}>Back <span className="key">←</span></button>}
             {last ? (
               // The last question sends the round. If an earlier one is still open, the button says so first.
