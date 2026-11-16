@@ -147,7 +147,7 @@ this removes the command, the skills, the hooks and the login item, and puts bac
 
 MIT, see [LICENSE](LICENSE).
 
-asking in rounds grew out of matt pocock's `grilling` skill. thank you, matt.
+asking in rounds grew out of matt pocock's `grilling` skill. thank you, matt. the way `/ama` opens with the frame, sorts what to ask from what to settle, and stops when the frame is off comes from poteto's pstack. thank you, poteto.
 
 named after gregory bateson, who saw a mind as a loop that includes the things it works on.
 
