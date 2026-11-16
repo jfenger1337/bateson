@@ -1,0 +1,581 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
+import { Markdown } from './Markdown';
+import { Ring } from './Ring';
+import { isTyping } from './App';
+import { ArrowRight, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { keptKey, useKept, useKeptRef } from './lib/kept';
+
+// One question at a time. Choosing moves you on; the recommendation comes first as A and is preselected (dashed) until you touch it.
+
+interface Draft { choice: number | null; other: string; writing: boolean; touched: boolean }
+
+const ADVANCE_MS = 260;
+// How long the pointer rests on an option before its sound plays: crossing the list on the way somewhere stays silent.
+const REST_MS = 150;
+
+export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Item; steps: HTMLElement | null; panel: boolean; onDecide: (i: Item, d: Decision) => void; onFirst: (first: boolean) => void }) {
+  const round = item.version.body as Round;
+  const qs = round.questions ?? [];
+  // The rounds you already answered in this interview, for the dots.
+  const past = useMemo(() => item.history
+    .filter((h) => h.bodyType === 'questions' && h.body?.questions?.length && h.decision?.answers)
+    .map((h) => ({ n: h.n, questions: h.body!.questions, answers: h.decision!.answers! })), [item.history]);
+  const kk = keptKey(item);
+  const [drafts, setDrafts] = useKept<Record<string, Draft>>(`${kk}:drafts`, () =>
+    Object.fromEntries(qs.map((q) => [q.id, { choice: q.recommended ?? null, other: '', writing: false, touched: false }])),
+  );
+  const [kept, setAt] = useKept(`${kk}:at`, () => 0);
+  // Kept from before the answers screen went, a place past the last question means the last one.
+  const at = Math.min(kept, Math.max(0, qs.length - 1));
+  useEffect(() => { onFirst(at === 0); }, [at, onFirst]);
+  const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
+  // The option under the pointer or the focus: the preview shows what it would look like.
+  const [peek, setPeek] = useState<string | null>(null);
+  const [replay, setReplay] = useState(0);
+  // A picture opened large, over everything, until a click or a key puts it back.
+  const [zoom, setZoom] = useState<string | null>(null);
+  const otherRef = useRef<HTMLTextAreaElement | null>(null);
+  const advanceTimer = useRef<number | undefined>(undefined);
+
+  const answered = (id: string) => {
+    const d = drafts[id];
+    return d.writing ? d.other.trim().length > 0 : d.choice != null;
+  };
+  const ready = qs.every((q) => answered(q.id));
+  const last = at === qs.length - 1;
+  const q = qs[at] as (typeof qs)[number] | undefined;
+  const d = q ? drafts[q.id] : null;
+
+  // The recommendation comes first, so it is always A; the rest keep the order they were written in.
+  const order = q ? displayOrder(q) : [];
+  const filesBase = `/api/items/${item.id}/files/${item.version.n}/`;
+
+  // Sounds are heard, not shown: an option's sound plays when the pointer rests on it or you press its letter, and
+  // the panel keeps only what can be looked at. The rest starts on pointer movement, never on the page appearing
+  // under a still pointer, so opening a question is always silent.
+  const sound = useSound();
+  // Options with something to see or hear are compared by letter, so a letter does not move on: ⏎ does. Pointing
+  // already showed the option, so a click picks it and moves on, as it does everywhere else.
+  const compared = !!q?.options.some((o) => o.show?.some((s) => panel || isSound(s)));
+  const rest = useRef<{ oi: number; timer: number } | null>(null);
+  const hear = (oi: number) => {
+    const s = q?.options[oi]?.show?.find(isSound);
+    if (q && s) sound.play(`${q.id}:${oi}`, filesBase + encodeURIComponent(s.audio));
+  };
+  const restOn = (oi: number) => {
+    if (rest.current?.oi === oi || !q?.options[oi]?.show?.some(isSound)) return;
+    clearTimeout(rest.current?.timer);
+    rest.current = { oi, timer: window.setTimeout(() => hear(oi), REST_MS) };
+  };
+  const restOff = (oi: number) => {
+    if (rest.current?.oi !== oi) return;
+    clearTimeout(rest.current.timer);
+    rest.current = null;
+  };
+  useEffect(() => () => { clearTimeout(rest.current?.timer); rest.current = null; }, [q?.id]);
+  // A recording's sound, once turned on, stays on while you compare this question's options.
+  const [videoSound, setVideoSound] = useState(false);
+  useEffect(() => setVideoSound(false), [q?.id]);
+
+  const set = (id: string, patch: Partial<Draft>) => setDrafts((ds) => ({ ...ds, [id]: { ...ds[id], ...patch, touched: true } }));
+
+  // A question marked `opens` decides later ones: its answer goes to the agent as you move past it, so the
+  // agent can draft the follow-ups while you answer the rest.
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+  // Kept across a reload too, so an early answer already sent is not sent again.
+  const { ref: reported, save: saveReported } = useKeptRef<Record<string, string>>(`${kk}:reported`, () => ({}));
+  const reportEarly = (qi: number) => {
+    const x = qs[qi];
+    if (!x?.opens) return;
+    const a = answerOf(x, draftsRef.current[x.id]);
+    if (a.choice == null && !a.other) return;
+    const key = JSON.stringify(a);
+    if (reported.current[x.id] === key) return;
+    reported.current[x.id] = key;
+    saveReported();
+    fetch(`/api/items/${item.id}/early`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ n: item.version.n, answer: a }),
+    }).catch(() => {});
+  };
+
+  const go = (i: number) => {
+    clearTimeout(advanceTimer.current);
+    const n = Math.max(0, Math.min(qs.length - 1, i));
+    if (n === at) return;
+    if (n > at) reportEarly(at);
+    setDir(n > at ? 'fwd' : 'back');
+    setAt(n);
+    window.scrollTo({ top: 0 });
+  };
+
+  const choose = (oi: number, clicked = false) => {
+    if (!q) return;
+    set(q.id, { choice: oi, writing: false });
+    if (!clicked) document.querySelector(`.interview .opt[data-oi="${oi}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!last && (clicked || !compared)) {
+      clearTimeout(advanceTimer.current);
+      advanceTimer.current = window.setTimeout(() => go(at + 1), ADVANCE_MS);
+    }
+  };
+
+  const write = () => {
+    if (!q) return;
+    set(q.id, { writing: true, choice: null });
+    window.setTimeout(() => otherRef.current?.focus(), 0);
+  };
+
+  const send = () => {
+    if (!ready) { go(qs.findIndex((x) => !answered(x.id))); return; }
+    const answers: Answer[] = qs.map((x) => answerOf(x, drafts[x.id]));
+    onDecide(item, { decision: 'answer', answers });
+  };
+
+  // Enter: accept what is chosen here and go on; on the last question, send.
+  const next = () => {
+    if (!q || !answered(q.id)) return;
+    if (last) send(); else go(at + 1);
+  };
+
+  useEffect(() => () => clearTimeout(advanceTimer.current), []);
+
+  // Two-finger swipe on a trackpad: left for the next question, right for the one before. The question follows
+  // the fingers a little, and one swipe moves one question however long the gesture runs on.
+  const step = useRef((by: number) => go(at + by));
+  step.current = (by: number) => go(at + by);
+  const qRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    let acc = 0;
+    let fired = false;
+    let idle: number | undefined;
+    const settle = () => {
+      acc = 0;
+      fired = false;
+      if (qRef.current) { qRef.current.style.transition = ''; qRef.current.style.transform = ''; }
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      clearTimeout(idle);
+      idle = window.setTimeout(settle, 180);
+      if (fired) return;
+      acc += e.deltaX;
+      if (qRef.current) {
+        qRef.current.style.transition = 'none';
+        qRef.current.style.transform = `translateX(${Math.max(-40, Math.min(40, -acc * 0.25))}px)`;
+      }
+      if (Math.abs(acc) > 90) {
+        fired = true;
+        if (qRef.current) { qRef.current.style.transition = ''; qRef.current.style.transform = ''; }
+        step.current(acc > 0 ? 1 : -1);
+      }
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => { window.removeEventListener('wheel', onWheel); clearTimeout(idle); };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (zoom) { e.preventDefault(); setZoom(null); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); if (isTyping(e)) { (e.target as HTMLElement).blur(); next(); } else next(); return; }
+      if (isTyping(e)) {
+        if (e.key === 'Escape') (e.target as HTMLElement).blur();
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Enter') { e.preventDefault(); next(); }
+      else if (e.key === 'ArrowRight' || e.key === 'j') { e.preventDefault(); go(at + 1); }
+      else if (e.key === 'ArrowLeft' || e.key === 'k') { e.preventDefault(); go(at - 1); }
+      else if (LETTERS.includes(e.key) && order[LETTERS.indexOf(e.key)] != null) { e.preventDefault(); choose(order[LETTERS.indexOf(e.key)]); hear(order[LETTERS.indexOf(e.key)]); }
+      else if (e.key === 'w') { e.preventDefault(); write(); }
+      else if (e.key === 'D') { e.preventDefault(); onDecide(item, { decision: 'drop' }); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+
+  if (!q || !d) return null;
+  const open = qs.find((x) => x.id !== q.id && !answered(x.id));
+  // What this question is about, when the agent sent it along: shown beside the question, which moves to the left.
+  // An option with its own picture takes the panel while it is pointed at or chosen.
+  // With the panel off in Settings (`preview`), nothing is looked at: every question is centred, and sounds still play.
+  const look = (shows?: Show[]) => (panel ? seen(shows) : null);
+  const optShows = q ? q.options.map((o) => look(o.show)) : [];
+  const peeked = q && peek?.startsWith(`${q.id}:`) ? Number(peek.slice(q.id.length + 1)) : null;
+  const active = [peeked, d && !d.writing ? d.choice : null, optShows.findIndex(Boolean)].find((i) => i != null && i >= 0 && optShows[i]) ?? null;
+  // Pictures attached to the round as a whole (--attach) stand in where a question has nothing of its own.
+  const attached: Show[] = !panel ? [] : item.version.files.filter((f) => /\.(png|jpe?g|gif|webp|svg|mp4|webm|mov|m4v)$/i.test(f) && !/^show\d+-/.test(f))
+    .map((f) => (/\.(mp4|webm|mov|m4v)$/i.test(f) ? { video: f } : { image: f }));
+  const preview = !q ? null : active != null ? optShows[active] : look(q.show) ?? (attached.length ? attached : null);
+  const qSound = q.show?.find(isSound);
+  const qSoundKey = `${q.id}:q`;
+  // A live page starts again each time it is shown, so pointing at an option plays that option from the start.
+  const live = !!preview?.some((p) => 'url' in p);
+  // A question with something to look at has the panel beside it; one with nothing keeps the normal layout.
+
+  return (
+    <article className={`page interview asks arrive hue-${item.hue}${preview ? ' with-preview' : ''}`}>
+      <div className="iv-main">
+        {(qs.length > 1 || past.length > 0) && steps && createPortal(
+          <nav className="iv-steps" aria-label="Questions">
+            {/* Earlier rounds first, a little apart, so you see where one round ended and this one began. */}
+            {past.map((r) => (
+              <span key={r.n} className="iv-round">
+                {r.questions.map((x) => {
+                  const answer = pastAnswer(x, r.answers.find((a) => a.id === x.id));
+                  return (
+                    <span key={x.id} className="iv-step past" aria-label={`${x.title} ${answer}`}>
+                      <Ring kind="dot" size={10} />
+                      <span className="iv-step-tip" aria-hidden>
+                        <span className="iv-step-q">{x.title}</span>
+                        <span className="iv-step-a">{answer}</span>
+                      </span>
+                    </span>
+                  );
+                })}
+              </span>
+            ))}
+            <span className="iv-round">
+            {qs.map((x, i) => {
+              const answer = shownAnswer(x, drafts[x.id]);
+              return (
+                <button
+                  key={x.id}
+                  className={`iv-step${i === at ? ' here' : ''}`}
+                  onClick={() => go(i)}
+                  aria-current={i === at ? 'step' : undefined}
+                  aria-label={`${x.title} ${answer || 'Not answered'}`}
+                >
+                  <Ring kind={i !== at && answered(x.id) && drafts[x.id].touched ? 'dot' : i !== at && answered(x.id) ? 'dashed' : 'open'} size={10} />
+                  {/* Pointing at a dot shows that question and your answer, so you can check one without leaving this one. */}
+                  <span className="iv-step-tip" aria-hidden>
+                    <span className="iv-step-q">{x.title}</span>
+                    <span className={`iv-step-a${answer ? '' : ' none'}`}>{answer || 'Not answered'}</span>
+                  </span>
+                </button>
+              );
+            })}
+            </span>
+          </nav>,
+          steps,
+        )}
+      {(
+      <section key={q.id} ref={qRef} className={`iv-q iv-${dir}`}>
+        <div className="iv-text">
+        {at === 0 && round.context && <Markdown className="prose context" text={round.context} />}
+        <h1 className="iv-title">{q.title}</h1>
+        {q.body && <Markdown className="prose q-body" text={q.body} />}
+        {q.recommendation && (
+          <div className="iv-rec">
+            <ArrowRight className="iv-rec-arrow" size={16} aria-label="Recommended" />
+            <Markdown className="prose iv-rec-body" text={q.recommendation} />
+          </div>
+        )}
+        {qSound && (
+          <button
+            className="btn-pill iv-sound"
+            onClick={() => (sound.on === qSoundKey ? sound.stop() : sound.play(qSoundKey, filesBase + encodeURIComponent(qSound.audio)))}
+          >
+            {sound.on === qSoundKey ? <><Pause size={14} /> Stop</> : <><Play size={14} /> Play</>}
+          </button>
+        )}
+        </div>
+        <div className="options" role="radiogroup" aria-label={q.title}>
+          {order.map((oi, pos) => {
+            const o = q.options[oi];
+            const chosen = !d.writing && d.choice === oi;
+            return (
+              <button
+                key={oi}
+                role="radio"
+                data-oi={oi}
+                aria-checked={chosen}
+                className={`opt${chosen ? ' chosen' : ''}${chosen && !d.touched ? ' assumed' : ''}`}
+                onClick={() => choose(oi, true)}
+                onMouseEnter={() => setPeek(`${q.id}:${oi}`)}
+                onPointerMove={() => restOn(oi)}
+                onMouseLeave={() => { setPeek(null); restOff(oi); }}
+                onFocus={() => setPeek(`${q.id}:${oi}`)}
+                onBlur={() => setPeek(null)}
+              >
+                <span className="opt-ring"><Ring kind={chosen ? (d.touched ? 'dot' : 'dashed') : 'open'} size={20} letter={LETTERS[pos]?.toUpperCase()} /></span>
+                <span className="opt-text">
+                  <span className="opt-label">
+                    <span className="opt-name">
+                      <span>{o.label}</span>
+                      {q.recommended === oi && <span className="opt-rec">Recommended</span>}
+                      {sound.on === `${q.id}:${oi}` && <Volume2 className="opt-sounding" size={15} aria-label="Playing" />}
+                    </span>
+                  </span>
+                  {o.description && <span className="opt-desc">{o.description}</span>}
+                </span>
+              </button>
+            );
+          })}
+          <div className={`opt own${d.writing ? ' chosen' : ''}`}>
+            {d.writing ? (
+              <>
+                <span className="opt-ring"><Ring kind={d.other.trim() ? 'dot' : 'open'} size={20} /></span>
+                <textarea
+                  ref={otherRef}
+                  className="own-field"
+                  rows={2}
+                  placeholder="Your answer"
+                  value={d.other}
+                  onChange={(e) => set(q.id, { other: e.target.value })}
+                  onKeyDown={(e) => {
+                    // ⏎ settles the answer and moves on; ⇧⏎ is a new line.
+                    if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (d.other.trim()) { e.currentTarget.blur(); next(); }
+                    }
+                  }}
+                />
+              </>
+            ) : (
+              <button className="own-open" onClick={write}>
+                <span className="opt-ring"><Ring kind="open" size={20} letter="W" /></span>
+                <span className="opt-label muted">Write your own</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+      )}
+      </div>
+
+      {preview && q && (
+        <aside className={`iv-preview${preview.every((p) => 'text' in p || 'markdown' in p || 'html' in p) ? ' fit' : ''}`} aria-label="What this is about">
+          <Stage key={`${q.id}:${active}`} shows={preview} base={filesBase} replay={replay} onZoom={setZoom} sound={videoSound} onSound={setVideoSound} />
+          {(active != null || live) && (
+            <p className="iv-preview-cap">
+              {active != null && q.options[active].label}
+              {live && <button className="btn-quiet" onClick={() => setReplay((n) => n + 1)}>Replay</button>}
+            </p>
+          )}
+        </aside>
+      )}
+
+      {zoom && (
+        <div className="zoomed" role="dialog" aria-label="Picture, full size" onClick={() => setZoom(null)}>
+          <img src={zoom} alt="" />
+        </div>
+      )}
+
+      <footer className="decide">
+        <div className="decide-in">
+          <p className="decide-sentence">
+            {!answered(q.id) ? 'Pick one, or write your own, to go on.' : last && open ? `“${open.title}” (${open.id}) has no answer yet.` : ''}
+          </p>
+          <div className="decide-actions">
+            <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="End the interview (shift D)">End interview</button>
+            {at > 0 && <button className="btn-pill lg" onClick={() => go(at - 1)}>Back <span className="key">←</span></button>}
+            {last ? (
+              // The last question sends the round. If an earlier one is still open, the button says so first.
+              <button className="btn-primary" onClick={send} aria-disabled={!open && !answered(q.id)}>
+                {open ? `Answer ${open.id} first` : qs.length === 1 ? 'Send answer' : `Send ${qs.length} answers`} <span className="key on-ink">⏎</span>
+              </button>
+            ) : (
+              <button className="btn-primary" onClick={next} aria-disabled={!q || !answered(q.id)}>
+                Next <span className="key on-ink">⏎</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </footer>
+    </article>
+  );
+}
+
+// Your answer as the dots show it: the letter and label you picked, or what you wrote.
+function shownAnswer(x: Question, d: Draft): string {
+  if (d.writing) return d.other.trim();
+  if (d.choice == null) return '';
+  const letter = LETTERS[displayOrder(x).indexOf(d.choice)]?.toUpperCase();
+  return `${letter ? `${letter}  ` : ''}${x.options[d.choice]?.label ?? ''}`;
+}
+
+// An earlier round's answer, as the dots show it.
+function pastAnswer(x: Question, a?: Answer): string {
+  if (!a) return 'Not answered';
+  if (a.other) return a.other;
+  return a.choice != null ? x.options[a.choice]?.label ?? '' : 'Not answered';
+}
+
+// Options are picked by letter, a to i; j, k, l and w already have jobs here.
+const LETTERS = 'abcdefghi';
+
+function displayOrder(x: Question): number[] {
+  const all = x.options.map((_, i) => i);
+  const r = x.recommended;
+  return r != null && x.options[r] ? [r, ...all.filter((i) => i !== r)] : all;
+}
+
+function answerOf(x: Question, d: Draft): Answer {
+  return d.writing
+    ? { id: x.id, choice: null, other: d.other.trim() }
+    : { id: x.id, choice: d.choice, accepted: !d.touched && d.choice === x.recommended };
+}
+
+const isSound = (s: Show): s is Extract<Show, { audio: string }> => 'audio' in s;
+// What a question or an option has to look at, leaving its sounds out; null when there is nothing.
+const seen = (shows?: Show[]) => { const v = shows?.filter((s) => !isSound(s)); return v?.length ? v : null; };
+
+/** One sound at a time: a new one cuts in, and `on` names what is playing until it ends. */
+function useSound() {
+  const el = useRef<HTMLAudioElement | null>(null);
+  const [on, setOn] = useState<string | null>(null);
+  const done = (a: HTMLAudioElement) => { if (el.current === a) { el.current = null; setOn(null); } };
+  const play = (key: string, src: string) => {
+    el.current?.pause();
+    const a = new Audio(src);
+    el.current = a;
+    a.onended = () => done(a);
+    setOn(key);
+    a.play().catch(() => done(a));
+  };
+  const stop = () => { if (el.current) { el.current.pause(); done(el.current); } };
+  useEffect(() => () => el.current?.pause(), []);
+  return { on, play, stop };
+}
+
+const KIND = (s: Show) => ('video' in s ? 'Recording' : 'file' in s ? 'Code' : 'url' in s ? 'Live' : 'html' in s ? 'Example' : 'Copy');
+
+/** The panel's contents. Several things are shown one at a time, large, with a strip under them to pick from. */
+function Stage({ shows, base, replay, onZoom, sound, onSound }: { shows: Show[]; base: string; replay: number; onZoom: (src: string) => void; sound: boolean; onSound: (on: boolean) => void }) {
+  const [at, setAt] = useState(0);
+  const s = shows[Math.min(at, shows.length - 1)];
+  return (
+    <>
+      <div className={`iv-preview-stage${'file' in s ? ' top' : ''}`}>
+        <Shown key={`${at}:${replay}`} show={s} base={base} onZoom={onZoom} sound={sound} onSound={onSound} />
+      </div>
+      {shows.length > 1 && (
+        <nav className="iv-strip" aria-label="What to look at">
+          {shows.map((x, i) => (
+            <button key={i} className={`iv-thumb${i === at ? ' here' : ''}`} onClick={() => setAt(i)} aria-current={i === at} aria-label={`${i + 1} of ${shows.length}`}>
+              {'image' in x ? <img src={base + encodeURIComponent(x.image)} alt="" /> : <span>{KIND(x)}</span>}
+            </button>
+          ))}
+        </nav>
+      )}
+    </>
+  );
+}
+
+// The example reports its height, so the frame around it is as tall as it is (min 200px) rather than the panel.
+const FRAME = '<!doctype html><meta charset="utf-8"><meta name="color-scheme" content="light dark"><style>body{margin:0;padding:32px;box-sizing:border-box;display:grid;place-items:center;font:14px/1.5 system-ui,sans-serif}</style>'
+  + '<script>addEventListener("load",()=>{const say=()=>parent.postMessage({batesonHeight:document.documentElement.scrollHeight},"*");new ResizeObserver(say).observe(document.body);say()})</script>';
+
+/** One thing a question or an option is about: the image, or the lines, the agent sent along with it. */
+function Shown({ show: s, base, onZoom, sound, onSound }: { show: Show; base: string; onZoom: (src: string) => void; sound: boolean; onSound: (on: boolean) => void }) {
+  if ('image' in s) {
+    const src = base + encodeURIComponent(s.image);
+    return <img src={src} alt="" title="Click to see it large" onClick={() => onZoom(src)} />;
+  }
+  if ('video' in s) return <Video src={base + encodeURIComponent(s.video)} sound={sound} onSound={onSound} />;
+  if ('markdown' in s) return <Markdown className="prose shown-copy" text={s.markdown} />;
+  if ('text' in s) return <div className="prose plain shown-copy">{s.text}</div>;
+  if ('html' in s) return <Example html={s.html} />;
+  if ('url' in s) return <iframe className="shown-live" src={s.url} title="Live preview" sandbox="allow-scripts allow-same-origin allow-forms" />;
+  if ('audio' in s) return null; // heard on its option or the question, never in the panel
+  return <Lines show={s} />;
+}
+
+/** A component example: the agent's markup runs in a sandbox with no access to bateson, in the system's light or dark. */
+function Example({ html }: { html: string }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    const on = (e: MessageEvent) => {
+      if (e.source === ref.current?.contentWindow && typeof e.data?.batesonHeight === 'number') setH(e.data.batesonHeight);
+    };
+    window.addEventListener('message', on);
+    return () => window.removeEventListener('message', on);
+  }, []);
+  return <iframe ref={ref} className="shown-live" srcDoc={FRAME + html} title="Example" sandbox="allow-scripts" style={{ '--fit-h': `${Math.max(200, h)}px` } as React.CSSProperties} />;
+}
+
+// highlight.js is a third of the app's library code, and only lines shown with a question use it: it is fetched
+// the first time some are, and they show plain until it arrives (a moment, from this machine).
+let highlighter: typeof import('./lib/highlight') | null = null;
+let fetching: Promise<void> | null = null;
+
+/** Lines of a file, in colour. Coloured once per excerpt, not on every keystroke in the answer below them. */
+function Lines({ show: s }: { show: Extract<Show, { lines: string[] }> }) {
+  const [, arrived] = useState(!!highlighter);
+  useEffect(() => {
+    if (!highlighter) (fetching ??= import('./lib/highlight').then((m) => { highlighter = m; })).then(() => arrived(true), () => {});
+  }, []);
+  const hl = highlighter;
+  const html = useMemo(() => s.lines.map((l) => (l && hl ? hl.highlightLine(s.file, l) : null)), [s.file, s.lines, hl]);
+  return (
+    <figure className="shown-text">
+      <figcaption className="rec">{s.file}</figcaption>
+      <div className="fd-code" aria-label={`${s.file} from line ${s.start}`}>
+        {s.lines.map((l, k) => (
+          <div key={k} className="fd-line" data-n={s.start + k}>
+            {html[k] != null ? <code dangerouslySetInnerHTML={{ __html: html[k]! }} /> : <code>{l || '\u200b'}</code>}
+          </div>
+        ))}
+      </div>
+    </figure>
+  );
+}
+
+/** A recording, with a quiet timeline: play or pause, drag to any moment, and the seconds. It plays once as it appears,
+ * muted until you turn its sound on. */
+function Video({ src, sound, onSound }: { src: string; sound: boolean; onSound: (on: boolean) => void }) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  // Set on the element: React's muted prop only takes effect when the video first mounts.
+  useEffect(() => { if (ref.current) ref.current.muted = !sound; }, [sound]);
+  const [t, setT] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  // The timeline moves with the frames while it plays, not four times a second.
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    const tick = () => { if (ref.current) setT(ref.current.currentTime); raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
+
+  const toggle = () => {
+    const v = ref.current;
+    if (!v) return;
+    if (v.paused) { if (v.ended || v.currentTime >= v.duration) v.currentTime = 0; void v.play().catch(() => {}); } else v.pause();
+  };
+  const seek = (to: number) => { if (ref.current) { ref.current.currentTime = to; setT(to); } };
+
+  return (
+    <figure className="shown-video">
+      <video
+        ref={ref} src={src} muted playsInline autoPlay preload="auto" onClick={toggle}
+        onLoadedMetadata={(e) => setDur(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
+        onDurationChange={(e) => setDur(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
+        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+        onEnded={(e) => { setPlaying(false); setT(e.currentTarget.duration); }}
+        onSeeked={(e) => setT(e.currentTarget.currentTime)}
+      />
+      <figcaption className="vid-bar">
+        <button className="btn-icon" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>{playing ? <Pause size={16} /> : <Play size={16} />}</button>
+        <input
+          className="vid-line" type="range" min={0} max={dur || 1} step={0.01} value={Math.min(t, dur || 1)} aria-label="Timeline"
+          style={{ '--at': `${dur ? (t / dur) * 100 : 0}%` } as React.CSSProperties}
+          onChange={(e) => seek(Number(e.target.value))} onPointerUp={(e) => e.currentTarget.blur()}
+        />
+        <span className="rec vid-time">{t.toFixed(1)} / {dur.toFixed(1)}s</span>
+        <button className="btn-icon" onClick={() => onSound(!sound)} aria-label={sound ? 'Turn sound off' : 'Turn sound on'} aria-pressed={sound}>
+          {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
+        </button>
+      </figcaption>
+    </figure>
+  );
+}

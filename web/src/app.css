@@ -1,0 +1,621 @@
+/* bateson: one thing at a time. Bateson's tokens (base.css); the work in Newsreader, the chrome in Schibsted. */
+
+.frame { min-height: 100dvh; display: flex; flex-direction: column; }
+
+/* ---- The bar: where you are, in a sentence, and where the work came from. */
+.bar {
+  position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: var(--space-16);
+  height: 52px; padding: 0 var(--space-24); background: color-mix(in srgb, var(--work) 90%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.bar-left, .bar-right { display: flex; align-items: center; gap: var(--space-16); min-width: 0; }
+.bar-left { flex: 1; }
+/* The item in front, by name, in the same place for every kind of item. It arrives with a tint in the item's colour
+   when the item changes and is still otherwise. Short of room, the project goes first, then the name shortens. */
+.bar-name {
+  display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-8); height: calc(1.5em + 4px); line-height: 1.5; overflow: hidden;
+  min-width: 0; margin: 0 calc(-1 * var(--space-6)); padding: 2px var(--space-6);
+  border-radius: var(--radius-sm); font-size: var(--text-meta); color: var(--text-2);
+  animation: bt-rise var(--dur-arrive) var(--ease-out), bt-tint 1.4s var(--ease-out);
+}
+/* One line high and wrapping: what does not fit beside the name drops out of sight whole, never cut in half. */
+.bar-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-project, .bar-round { color: var(--muted); white-space: nowrap; }
+.bar-project::before, .bar-round::before { content: '·'; margin-right: var(--space-8); color: var(--faint-3); }
+.wordmark { font-size: var(--text-body); font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+/* An interview's or findings' dots sit in the bar, after the name of the item they belong to. */
+.bar-steps { display: flex; flex: none; margin-left: calc(-1 * var(--space-6)); }
+.bar-steps[hidden] { display: none; }
+.bar-sentence { font-size: var(--text-meta); color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: var(--space-6); }
+.bar-sentence.late { color: var(--late); }
+.bar-sentence.waiting { color: var(--ink); }
+/* Where an answer goes when nothing is waiting for it: one line, cut short in a narrow window (the title has it whole). */
+.bar-sentence.reach { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A decision on hold: what you did, and the way back, in the line that otherwise counts what is left. Nothing
+   floats over the next item. The shortcut reads as a key and is always there. */
+.bar-sentence.said { color: var(--text-2); gap: var(--space-8); }
+.bar-sentence .bar-undo { font-weight: 600; color: var(--ink); }
+.bar-key { margin-left: calc(-1 * var(--space-2)); padding: 1px var(--space-4); border-radius: var(--radius-sm); background: var(--hover); font-size: var(--text-micro); color: var(--muted); }
+
+/* Room under the work for the decision bar and a gap, no more: extra room makes a page that fits scroll anyway. */
+.work { flex: 1; padding: var(--space-40) var(--space-24) calc(var(--decide-h, 60px) + var(--space-24)); }
+/* One column for every kind of item, so the left edge never moves between them. --cols is that column with its
+   two gutters; the decision bar lays its contents out on the same three, so its words and buttons start and end
+   where the work does. */
+.page {
+  --main-w: 800px; --cols: minmax(0, 1fr) minmax(0, var(--main-w)) minmax(0, 1fr);
+  max-width: var(--main-w); margin: 0 auto;
+}
+
+/* ---- The head of an item */
+.kicker { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-size: var(--text-meta); color: var(--muted); }
+.kicker span + span::before { content: '·'; margin-right: var(--space-8); color: var(--faint-3); }
+.work-title {
+  margin: var(--space-10) 0 var(--space-14); font-family: var(--serif); font-size: var(--work-title); font-weight: 400;
+  line-height: 1.12; letter-spacing: -0.012em; color: var(--ink);
+}
+.commentable { cursor: pointer; border-radius: var(--radius-sm); }
+.commentable:hover { text-decoration: underline dotted var(--faint-3); text-underline-offset: 7px; text-decoration-thickness: 1.5px; }
+.note {
+  max-width: 62ch;
+  font-size: var(--text-title); line-height: 1.55; color: var(--text-2); white-space: pre-line;
+}
+
+/* ---- The work's prose */
+/* Reading text in the plain sans: the serif stays for headings, where it reads well large. */
+.prose { font-family: var(--sans); font-size: 16px; line-height: 1.65; color: var(--ink-body); }
+.prose > * + * { margin-top: 0.75em; }
+.prose h1, .prose h2, .prose h3, .prose h4 { font-family: var(--serif); font-weight: 500; line-height: 1.25; color: var(--ink); margin-top: 1.4em; }
+.prose h1 { font-size: var(--work-xl); }
+.prose h2 { font-size: var(--work-lg); }
+.prose h3, .prose h4 { font-size: var(--work-md); }
+.prose ul, .prose ol { padding-left: 1.3em; margin-bottom: 0; }
+.prose li + li { margin-top: 0.25em; }
+/* Schibsted's default figures are tabular, which leaves a gap between a narrow 1 and its full stop. */
+.prose ol > li::marker { font-variant-numeric: proportional-nums; }
+.prose a { text-underline-offset: 3px; }
+.prose code { font-family: var(--mono); font-size: 0.8em; padding: 0.1em 0.35em; border-radius: var(--radius-sm); background: var(--tint); }
+.prose pre { padding: var(--space-14) var(--space-16); border-radius: var(--radius); background: var(--linen); overflow-x: auto; }
+.prose pre code { padding: 0; background: none; font-size: 0.74em; line-height: 1.6; }
+.prose blockquote { margin-left: 0; padding-left: var(--space-16); border-left: 2px solid var(--border-strong); color: var(--text-2); }
+.prose table { border-collapse: collapse; font-family: var(--sans); font-size: var(--text-body); }
+.prose th, .prose td { padding: var(--space-6) var(--space-10); border-bottom: 1px solid var(--border-soft); text-align: left; vertical-align: top; }
+.prose th { font-weight: 500; color: var(--text-2); }
+.prose hr { border: 0; height: 1px; background: var(--border); }
+.prose.plain { white-space: pre-wrap; }
+.context { margin-top: var(--space-32); }
+
+/* ---- An interview round */
+.questions { list-style: none; margin: var(--space-40) 0 0; padding: 0; display: flex; flex-direction: column; }
+.q { padding: var(--space-28) 0 var(--space-32); border-top: 1px solid var(--border-soft); scroll-margin: 80px 0 120px; }
+.q:first-child { border-top: 0; padding-top: 0; }
+.q-body { margin: var(--space-8) 0 0 40px; font-size: var(--work-sm); color: var(--ink-body); }
+.q-body > * + * { margin-top: 0.6em; }
+
+.options { margin: var(--space-16) 0 0 28px; display: flex; flex-direction: column; gap: var(--space-2); }
+.opt, .own-open {
+  display: grid; grid-template-columns: 30px 1fr auto; align-items: start; width: 100%; padding: var(--space-10) var(--space-12);
+  border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.opt:hover, .own-open:hover { background: var(--hover); }
+.opt.chosen { background: var(--surface); border-color: var(--border); box-shadow: 0 1px 2px rgba(30, 33, 38, 0.04); }
+/* The recommendation, preselected but not yet yours: the dashed ring and the word say so; the row itself stays bare. */
+.opt.assumed { background: transparent; border-color: transparent; box-shadow: none; }
+.opt.assumed:hover { background: var(--hover); }
+.opt-ring { display: flex; padding-top: 1px; color: var(--faint); }
+.opt.chosen .opt-ring { color: var(--ink); }
+/* The letter that picks the option sits in its ring: what you read is the key you press. Muted until you point
+   at the option or it is yours. */
+.ring-letter { fill: var(--muted); font-family: var(--sans); font-size: 10.5px; font-weight: 600; }
+.opt:hover .opt-ring, .own-open:hover .opt-ring, .opt:focus-visible .opt-ring, .own-open:focus-visible .opt-ring { color: var(--ink); }
+.opt:hover .ring-letter, .own-open:hover .ring-letter, .opt.chosen .ring-letter { fill: var(--ink); }
+.opt.chosen .opt-ring .ring-dot { animation: bt-settle var(--dur-settle) var(--ease-out); }
+.opt-text { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.opt-label { display: flex; align-items: baseline; font-size: var(--text-title); font-weight: 500; line-height: 1.4; }
+/* The label stays in one piece: the pill sits beside it when there is room and takes the next line when there is not. */
+.opt-name { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-8); min-width: 0; }
+.opt-label.muted { font-weight: 400; color: var(--muted); }
+/* While an option's sound plays: a small speaker after its name, gone when the sound ends. */
+.opt-sounding { align-self: center; flex: none; color: var(--muted); animation: qr-fade var(--dur-fast) var(--ease-out); }
+/* A sound on the question itself: a play button under its text, where you are reading. */
+.iv-sound { margin-top: var(--space-12); gap: var(--space-6); }
+/* The agent's own answer, after the question and before the choices, the way you would say it across a table:
+   an arrow, then the words. The answer ⏎ accepts, conditions and all. */
+.iv-rec { display: flex; gap: var(--space-10); margin-top: var(--space-28); }
+.iv-rec-arrow { flex: none; margin-top: 4px; color: var(--muted); }
+.interview .iv-rec-body { color: var(--ink); }
+.iv-rec-body > * + * { margin-top: 0.6em; }
+.opt-rec { display: inline-block; padding: 1px var(--space-8); border-radius: var(--radius-full); background: var(--highlight); font-size: var(--text-label); font-weight: 500; color: var(--ink); vertical-align: 1px; }
+.opt-desc { font-size: var(--text-meta); line-height: 1.5; color: var(--muted); }
+.opt.chosen .opt-desc { color: var(--text-2); }
+/* An interview is set in one reading size (--iv-text) under its title: the question's words, the recommendation,
+   each choice and what it costs. What separates them is weight, not size. */
+.interview { --iv-text: 16px; --iv-leading: 1.55; }
+.interview .iv-text .prose, .interview .opt-label, .interview .opt-desc, .interview .own-field { font-size: var(--iv-text); line-height: var(--iv-leading); }
+/* Two inks: everything you read is ink, and grey is for hints (Write your own, a label). The reading text is a
+   notch over regular (450), because regular looks thin under antialiased smoothing on a bright ground, so a
+   choice's name is semibold to stay clear of it. */
+.interview .iv-text .prose, .interview .opt-desc, .interview .opt.chosen .opt-desc { font-weight: 450; color: var(--ink); }
+.interview .opt-label { font-weight: 600; }
+.interview .opt-label.muted { font-weight: 450; }
+.opt-key { align-self: center; margin-left: var(--space-12); }
+
+.opt.own { padding: 0; cursor: default; }
+.opt.own:not(.chosen) { display: block; border: 0; }
+.opt.own.chosen { padding: var(--space-10) var(--space-12); }
+.opt.own:hover { background: transparent; }
+.own-field {
+  width: 100%; min-height: 24px; padding: 0; border: 0; background: transparent;
+  font-family: var(--sans); font-size: var(--text-title); font-weight: 500; line-height: 1.4; color: var(--ink); resize: none; field-sizing: content;
+}
+
+.iv-steps { display: flex; align-items: center; gap: var(--space-2); flex: none; }
+.iv-step { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--faint); cursor: pointer; }
+.iv-step:hover { color: var(--muted); }
+.iv-step.here { color: var(--ink); }
+/* The dots are in the item's colour, each round a little apart from the next. The question you are on is in the
+   colour's ink, a step stronger than the rest. */
+.iv-round { display: flex; align-items: center; gap: var(--space-2); color: rgb(var(--hue-rgb)); }
+/* On dark ground the mid-tone hues turn muddy; their light inks read clearly. */
+[data-theme='dark'] .iv-round { color: var(--hue-ink); }
+.iv-round + .iv-round { margin-left: var(--space-6); }
+.iv-round .iv-step { color: inherit; }
+.iv-round .iv-step.here { color: var(--hue-ink); }
+/* The page wears its item's colour in its accents: the Recommended tag. The words and the buttons stay ink. */
+.interview .opt-rec { background: rgba(var(--hue-rgb), 0.22); color: var(--hue-ink); }
+.iv-step.past { cursor: default; }
+.interview .note { margin-bottom: var(--space-24); }
+.iv-q { animation: qr-in-fwd var(--dur-base) var(--ease-out); }
+.iv-q.iv-back { animation-name: qr-in-back; }
+@keyframes qr-in-fwd { from { opacity: 0; transform: translateX(8px); } }
+@keyframes qr-in-back { from { opacity: 0; transform: translateX(-8px); } }
+.iv-title { font-family: var(--serif); font-size: 32px; font-weight: 400; line-height: 1.2; letter-spacing: -0.012em; color: var(--ink); }
+.interview .context, .interview .q-body { margin: var(--space-12) 0 0; }
+/* A long question keeps every word, so the page does the work: paragraphs and bullets get room so the detail
+   does not run together.
+   The words keep a reading measure while the choices use the full column. The round's context is background
+   for every question, so it comes before the first one, quieter, and the question starts clear of it. */
+.interview .iv-text .prose, .interview .opt-desc { max-width: 68ch; }
+.interview .context { margin: 0 0 var(--space-40); color: var(--text-2); }
+.interview .q-body > * + *, .interview .context > * + * { margin-top: 1em; }
+.interview .q-body li + li, .interview .context li + li { margin-top: 0.5em; }
+.interview .options { margin: 0 0 0 -13px; }
+/* A question is one page in reading order: the title, the words, the recommendation, the choices. A long one
+   scrolls as a whole, and only the decision bar stays put. A choice picked by key scrolls into view clear of
+   the two bars. */
+.asks .options { padding-top: var(--space-24); }
+.asks .opt { scroll-margin: calc(52px + var(--space-16)) 0 calc(var(--decide-h, 60px) + var(--space-24)); }
+/* Beside a preview the question has a pane of its own: its words scroll there, fading where they meet the
+   choices, which sit at the foot of the pane. */
+.with-preview .iv-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.with-preview .iv-q { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.with-preview .iv-text {
+  flex: 1 1 0; min-height: 33%; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--space-12) var(--space-32) 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-32)), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-32)), transparent);
+}
+.with-preview .options { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding-top: var(--space-16); }
+
+/* A question about something you can look at: the question on the left, the thing itself beside it. The two
+   panes fill the window between the bar and the decision bar; the page itself does not scroll, and the question
+   scrolls on its own only when it is longer than the window. */
+.work:has(.with-preview) { padding-bottom: 0; }
+.page.interview.with-preview {
+  --decide-h: calc(var(--control-page) + var(--space-24) + 1px);
+  --main-w: 1680px; height: calc(100vh - 52px - var(--space-40) - var(--decide-h) - var(--space-24)); min-height: 360px;
+  display: grid; grid-template-columns: minmax(440px, 1fr) minmax(0, 3fr); gap: var(--space-32);
+}
+/* A small example (a sketch, a wording) does not need three quarters of the window: the question keeps its
+   reading width and the example sits beside it at about its own size. Pictures, recordings and live pages keep the wide pane. */
+.page.interview.with-preview:has(.iv-preview.fit) { --main-w: 1432px; grid-template-columns: minmax(440px, 720px) minmax(320px, 680px); }
+.with-preview .iv-main { min-width: 0; min-height: 0; padding: 0 var(--space-16) var(--space-24) var(--space-14); margin-left: calc(-1 * var(--space-14)); }
+.with-preview .iv-title { font-size: 28px; line-height: 1.2; }
+.with-preview .context, .with-preview .q-body { margin-top: var(--space-8); }
+.iv-preview {
+  min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--space-16);
+}
+.iv-preview-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: var(--space-16); overflow: auto; }
+.iv-preview-stage img { max-width: 100%; max-height: 100%; min-height: 0; object-fit: contain; border-radius: var(--radius); }
+.iv-preview-stage img[src$='.svg'] { min-width: 96px; min-height: 96px; }
+/* Several things: one large, and a strip of thumbnails to pick from. */
+.iv-strip { flex: none; display: flex; justify-content: center; gap: var(--space-8); }
+.iv-thumb {
+  width: 72px; height: 48px; padding: 0; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--surface);
+  overflow: hidden; cursor: pointer; opacity: 0.6; transition: opacity var(--dur-fast), border-color var(--dur-fast);
+  display: flex; align-items: center; justify-content: center; font-size: var(--text-micro); color: var(--muted);
+}
+.iv-thumb:hover { opacity: 1; }
+.iv-thumb.here { opacity: 1; border-color: var(--ink); }
+.iv-thumb img { width: 100%; height: 100%; object-fit: cover; }
+/* Code starts at the top, at the panel's width, under its file name. */
+.iv-preview-stage.top { justify-content: flex-start; align-items: stretch; }
+.iv-preview-stage.top .shown-text { max-width: none; }
+.iv-preview-stage.top .shown-text figcaption { margin: 0 0 var(--space-8); }
+.fd-line .hljs-comment, .fd-line .hljs-quote { color: var(--code-comment); font-style: italic; }
+.fd-line .hljs-keyword, .fd-line .hljs-selector-tag, .fd-line .hljs-literal, .fd-line .hljs-built_in, .fd-line .hljs-type { color: var(--code-keyword); }
+.fd-line .hljs-string, .fd-line .hljs-regexp, .fd-line .hljs-attr, .fd-line .hljs-attribute, .fd-line .hljs-symbol { color: var(--code-string); }
+.fd-line .hljs-number, .fd-line .hljs-variable, .fd-line .hljs-template-variable { color: var(--code-number); }
+.fd-line .hljs-title, .fd-line .hljs-name, .fd-line .hljs-selector-class, .fd-line .hljs-selector-id, .fd-line .hljs-section { color: var(--code-name); }
+:root { --code-comment: #8A8D93; --code-keyword: #8B4A9E; --code-string: #3E7A4E; --code-number: #A8642A; --code-name: #2F6690; }
+[data-theme='dark'] { --code-comment: #77746E; --code-keyword: #C79BD6; --code-string: #9CC7A4; --code-number: #DDAE7C; --code-name: #8FBEE0; }
+.iv-preview-stage img { cursor: zoom-in; }
+.zoomed {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: var(--space-24);
+  background: color-mix(in srgb, var(--work) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  cursor: zoom-out; animation: zoomed-in var(--dur-base) var(--ease-out);
+}
+.zoomed img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius); box-shadow: var(--shadow-menu); }
+@keyframes zoomed-in { from { opacity: 0; } }
+.iv-preview-stage .shown-text { margin: 0; width: 100%; max-width: 860px; }
+.iv-preview-stage .fd-code { margin-top: 0; }
+.shown-text figcaption { margin-top: var(--space-6); font-size: var(--text-label); color: var(--muted); }
+.iv-preview-cap { display: flex; align-items: center; justify-content: center; gap: var(--space-16); min-height: var(--space-20); font-size: var(--text-meta); color: var(--muted); }
+/* A small example starts level with the question's title, so the two read as one row however short the question is. */
+.iv-preview.fit { justify-content: flex-start; padding-top: var(--space-40); }
+.iv-preview.fit .iv-preview-stage { flex: 0 1 auto; }
+.iv-preview-stage .shown-copy { width: 100%; max-width: 680px; padding: var(--space-32) var(--space-40); border: 1px solid var(--border-soft); border-radius: var(--radius-lg); background: var(--surface); }
+.iv-preview.fit .shown-live { flex: none; height: var(--fit-h, 200px); max-height: 100%; }
+.shown-video { margin: 0; width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-12); }
+.shown-video video { flex: 1; min-height: 0; max-width: 100%; object-fit: contain; border-radius: var(--radius); cursor: pointer; }
+.vid-bar { width: 100%; max-width: 560px; display: flex; align-items: center; gap: var(--space-12); }
+.vid-line { flex: 1; min-width: 0; height: var(--space-16); margin: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; }
+.vid-line::-webkit-slider-runnable-track { height: 2px; border-radius: var(--radius-full); background: linear-gradient(to right, var(--ink) var(--at, 0%), var(--border-strong) var(--at, 0%)); }
+.vid-line::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; margin-top: -4px; border-radius: var(--radius-full); background: var(--ink); }
+.vid-line::-moz-range-track { height: 2px; border-radius: var(--radius-full); background: var(--border-strong); }
+.vid-line::-moz-range-progress { height: 2px; background: var(--ink); }
+.vid-line::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: var(--radius-full); background: var(--ink); }
+.vid-time { flex: none; min-width: 84px; text-align: right; font-size: var(--text-label); color: var(--muted); font-variant-numeric: tabular-nums; }
+.shown-live { flex: 1; align-self: stretch; min-height: 0; width: 100%; border: 1px solid var(--border-soft); border-radius: var(--radius); background: var(--work); }
+
+/* The summary after the last finding: each one and your call; click one to change it. */
+/* Set as one sheet, not as loose rows, so it never reads as another set of options. */
+.iv-sum-hint { margin-top: var(--space-8); font-size: var(--text-meta); color: var(--muted); }
+.iv-summary {
+  list-style: none; margin: var(--space-28) 0 0; padding: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden;
+}
+.iv-summary li + li { border-top: 1px solid var(--border-soft); }
+.iv-sum-row {
+  display: grid; grid-template-columns: var(--space-20) minmax(0, 1fr) auto; column-gap: var(--space-12); row-gap: var(--space-4);
+  width: 100%; padding: var(--space-14) var(--space-16);
+  border: 0; background: transparent; font: inherit; text-align: left; color: var(--ink); cursor: pointer;
+}
+.iv-sum-row:hover { background: var(--hover); }
+.iv-sum-row:focus-visible { outline-offset: -2px; border-radius: var(--radius-lg); }
+.iv-sum-n { grid-column: 1; grid-row: 1 / 3; padding-top: 1px; font-size: var(--text-meta); font-variant-numeric: tabular-nums; color: var(--muted); }
+.iv-sum-q { grid-column: 2; grid-row: 1; font-size: var(--text-meta); color: var(--muted); }
+.iv-sum-a { grid-column: 2; grid-row: 2; font-size: var(--text-title); font-weight: 500; line-height: 1.4; }
+.iv-sum-a.none { color: var(--late); font-weight: 400; }
+.iv-sum-edit { grid-column: 3; grid-row: 1 / 3; align-self: center; font-size: var(--text-meta); color: var(--muted); opacity: 0; transition: opacity var(--dur-fast); }
+.iv-sum-row:hover .iv-sum-edit, .iv-sum-row:focus-visible .iv-sum-edit { opacity: 1; }
+
+/* Pointing at a dot shows that question and your answer, under the dots in the bar, left-aligned with them. */
+.iv-step { position: relative; }
+.iv-step-tip {
+  position: absolute; top: calc(100% + 6px); left: -8px; z-index: 30; display: none; flex-direction: column; gap: var(--space-2);
+  width: max-content; max-width: 320px; padding: var(--space-8) var(--space-12); border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow-card); text-align: left; white-space: normal; pointer-events: none;
+}
+.iv-step:hover .iv-step-tip { display: flex; }
+.iv-step-q { font-size: var(--text-label); color: var(--muted); }
+.iv-step-a { font-size: var(--text-meta); font-weight: 500; color: var(--ink); white-space: pre-wrap; }
+.iv-step-a.none { font-weight: 400; color: var(--late); }
+
+/* ---- Rings */
+.ring { flex: none; display: block; }
+.ring-pulse { animation: qr-pulse 1.8s ease-in-out infinite; }
+@keyframes qr-pulse { 50% { opacity: 0.35; } }
+
+/* ---- Keys */
+.key {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 var(--space-4);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--mono); font-size: var(--text-micro); line-height: 1; color: var(--muted);
+}
+.key.on-ink { border-color: rgba(255, 255, 255, 0.28); color: rgba(255, 255, 255, 0.78); }
+/* Hints stay out of sight until you hold ⌘. They fade in place and never take or give up room, so nothing
+   moves when they appear: in a row they keep their slot, on a button they float just above it. */
+.key { visibility: hidden; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), visibility 0s linear var(--dur-fast); }
+:root.keys .key { visibility: visible; opacity: 1; transition: opacity var(--dur-fast) var(--ease-out); }
+/* The gear in the bottom left corner, there only while ⌘ is held. Off-scale left: its icon lines up with the wordmark above.
+   On an item it sits in the decision bar, centred on the bar's height, and the bar's sentence steps aside for it. */
+.corner-gear { position: fixed; left: var(--space-4); bottom: var(--space-8); z-index: 21; visibility: hidden; opacity: 0; }
+:root.keys .decide-sentence { opacity: 0; }
+:root.keys .corner-gear { visibility: visible; opacity: 1; transition: opacity var(--dur-fast) var(--ease-out); }
+:where(.btn-primary, .btn-pill, .btn-ghost, .pick-btn, .toast-undo) { position: relative; }
+button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, button.pick-btn > .key, button.toast-undo > .key {
+  position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
+  border-color: var(--border-strong); background: var(--surface); color: var(--text-2); box-shadow: var(--shadow-card);
+}
+
+/* ---- The decision bar: always in reach, at the foot of the window. */
+.decide {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  padding: var(--space-12) var(--space-24);
+  background: color-mix(in srgb, var(--work) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-soft);
+}
+.decide { display: grid; grid-template-columns: var(--cols); }
+.decide-in { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-24); }
+/* In the work's column the longest sentence takes two lines, which is the height of the buttons beside it. */
+.decide-sentence { min-width: 0; max-width: var(--main-w); font-size: var(--text-meta); line-height: 1.4; color: var(--muted); text-wrap: balance; }
+.decide-actions { display: flex; align-items: center; gap: var(--space-8); flex: none; }
+.decide-actions .btn-quiet { margin-right: var(--space-8); }
+/* Not yet: an outline in ink you can read, not a pale fill. */
+.btn-primary:is([aria-disabled='true'], :disabled), .btn-primary:is([aria-disabled='true'], :disabled):hover { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--border-strong); }
+
+/* ---- Review: the work, and your notes under what they are about */
+/* A diff gets a wider column, since code wraps badly at prose width. */
+.page.review:has(.body-diff) { --main-w: 880px; }
+/* flow-root: room made under the last block for a note stays inside the body. */
+.body { display: flow-root; margin-top: var(--space-32); }
+/* Selection: the native one is hidden and redrawn on the text only (App.tsx). Fields keep the native one. */
+:root.own-selection ::selection { background: transparent; }
+:root.own-selection :is(textarea, input)::selection { background: var(--highlight); }
+::highlight(qr-selection) { background-color: color-mix(in srgb, var(--highlight) 75%, transparent); color: var(--ink); }
+::highlight(qr-new) { background-color: rgba(141, 165, 131, 0.24); color: var(--ink); }
+::highlight(qr-new-hot) { background-color: rgba(141, 165, 131, 0.5); color: var(--ink); }
+::highlight(qr-note) { background-color: var(--highlight); color: var(--ink); }
+::highlight(qr-note-active) { background-color: #EACF72; color: var(--ink); }
+::highlight(qr-pointed) { background-color: color-mix(in srgb, var(--highlight) 60%, transparent); color: var(--ink); }
+
+/* Each note sits under its block, in the room Review.tsx makes there: a layer over the page, open to the pointer
+   only where a note is. */
+.page.review { position: relative; }
+.notes { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
+.notes > [data-slot] { position: absolute; left: 0; right: 0; pointer-events: auto; }
+.note-card.mine { cursor: text; }
+/* Beside the bullet or paragraph you point at: comment on the whole of it. */
+.point-mark {
+  position: fixed; z-index: 20; display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface); color: var(--muted); cursor: pointer;
+  animation: bt-fade var(--dur-fast) var(--ease-out);
+}
+.point-mark:hover { border-color: var(--border-strong); color: var(--ink); }
+@keyframes bt-fade { from { opacity: 0; } }
+.note-card { padding: var(--space-12) var(--space-14); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); transition: border-color var(--dur-fast); }
+.note-card.active, .note-card.composing { border-color: var(--border-strong); box-shadow: var(--shadow-card); }
+.note-where { font-size: var(--text-label); color: var(--muted); line-height: 1.45; }
+.note-where q { font-size: var(--text-meta); font-style: italic; color: var(--text-2); }
+.note-text { margin-top: var(--space-6); font-size: var(--text-body); line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.note-remove { position: absolute; top: var(--space-8); right: var(--space-8); opacity: 0; transition: opacity var(--dur-fast); }
+.note-card:hover .note-remove, .note-remove:focus-visible { opacity: 1; }
+.note-field { width: 100%; margin-top: var(--space-8); padding: 0; border: 0; background: transparent; font-size: var(--text-body); line-height: 1.5; color: var(--ink); resize: none; field-sizing: content; min-height: 60px; }
+.note-actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-12); margin-top: var(--space-8); }
+
+.pick-btn {
+  position: fixed; z-index: 30; display: inline-flex; align-items: center; gap: var(--space-8); height: 30px; padding: 0 var(--space-6) 0 var(--space-10);
+  border: 0; border-radius: var(--radius); background: var(--ink); color: var(--surface); font-size: var(--text-meta); cursor: pointer; box-shadow: var(--shadow-menu);
+}
+.pick-btn:hover { background: var(--ink-hover); }
+
+.files { margin-top: var(--space-32); display: flex; flex-direction: column; gap: var(--space-16); }
+.files figure { margin: 0; }
+.files img { max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius); display: block; }
+.files figcaption { margin-top: var(--space-6); font-size: var(--text-label); color: var(--muted); }
+.file-link { font-size: var(--text-meta); }
+
+/* ---- Findings: one at a time, the code around the line, then keep, comment or dismiss. */
+.fd-kicker { margin-bottom: var(--space-10); }
+.fd-sev { font-weight: 500; color: var(--text-2); }
+.fd-sev.fd-high { color: #8A4A32; }
+.findings .iv-title { font-size: var(--text-heading); line-height: 1.25; }
+.fd-code { margin-top: var(--space-20); padding: var(--space-8) 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow-x: auto; }
+.fd-line { display: grid; grid-template-columns: 48px 1fr; font-family: var(--mono); font-size: 12.5px; line-height: 20px; }
+.fd-line::before { content: attr(data-n); padding-right: var(--space-12); text-align: right; font-size: var(--text-micro); color: var(--faint-3); user-select: none; -webkit-user-select: none; }
+.fd-line code { padding-right: var(--space-16); white-space: pre; color: var(--ink-body); }
+.fd-line.here { background: var(--highlight); }
+.fd-line.here::before { color: var(--ink); }
+.findings .fd-code + .q-body { margin-top: var(--space-20); }
+.fd-fix { margin-top: var(--space-20); padding: var(--space-12) var(--space-16); border-radius: var(--radius-lg); background: var(--linen); }
+.fd-fix-head { margin-bottom: var(--space-6); font-size: var(--text-label); color: var(--muted); }
+.fd-fix .prose { font-size: var(--work-sm); }
+.fd-dismissed { width: 100%; }
+.fd-reason { margin-top: var(--space-4); font-weight: 400; font-size: var(--text-body); color: var(--text-2); outline: none; }
+.fd-reason::placeholder { color: var(--placeholder); }
+.iv-step.gone { opacity: 0.45; }
+.fd-summary .iv-sum-a { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-title); }
+.fd-summary .fd-gone { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint-3); }
+.fd-sum-mark { font-size: var(--text-meta); font-weight: 400; color: var(--muted); }
+
+/* ---- A revision: your comments on the version before, each beside the change it made: what you said, what it
+   said before, and the agent's answer. Pointing at one lights the other. */
+.asked-card { background: var(--linen); border-color: transparent; }
+.asked-card.hot { border-color: rgba(141, 165, 131, 0.8); }
+.asked-card .note-text { margin-top: 0; }
+.asked-card .note-where + .note-text { margin-top: var(--space-6); }
+.asked-comment { margin-top: var(--space-4); font-size: var(--text-meta); line-height: 1.5; color: var(--text-2); white-space: pre-wrap; }
+.asked-was { margin-top: var(--space-6); font-size: var(--text-meta); line-height: 1.45; color: var(--muted); }
+.asked-was s { text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.reply { margin-top: var(--space-8); padding-top: var(--space-8); border-top: 1px solid var(--border-soft); font-size: var(--text-meta); line-height: 1.5; color: var(--ink); }
+.reply-mark { display: block; font-size: var(--text-label); color: var(--muted); }
+.is-done .reply-mark { color: #4E6346; }
+.is-done .reply-mark::before { content: '✓ '; }
+.is-not .reply-mark { color: #8A5A3F; }
+
+/* ---- Diffs: line numbers are drawn from data attributes, so they are never part of a selection. */
+.diff-sum { margin-bottom: var(--space-12); font-size: var(--text-meta); color: var(--muted); }
+.diff-file { margin-bottom: var(--space-20); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.diff-path { padding: var(--space-10) var(--space-14); border-bottom: 1px solid var(--border-soft); background: var(--linen); font-size: var(--text-label); color: var(--ink); }
+.diff-status { margin-left: var(--space-8); color: var(--muted); }
+.diff-gap { height: 12px; background: var(--linen); border-block: 1px solid var(--border-soft); }
+.dl { display: grid; grid-template-columns: 44px 44px 1fr; grid-template-areas: 'o n c'; font-family: var(--mono); font-size: 12.5px; line-height: 20px; }
+.dl::before, .dl::after { color: var(--faint-3); text-align: right; padding-right: var(--space-10); user-select: none; -webkit-user-select: none; font-size: var(--text-micro); }
+.dl::before { content: attr(data-o); grid-area: o; }
+.dl::after { content: attr(data-n); grid-area: n; }
+.dl code { grid-area: c; padding: 0 var(--space-16) 0 var(--space-4); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-body); }
+.dl code::before { display: inline-block; width: 14px; color: var(--faint); user-select: none; -webkit-user-select: none; content: ' '; }
+.dl-add { background: rgba(141, 165, 131, 0.16); }
+.dl-add code::before { content: '+'; color: var(--hue-ink); }
+.dl-del { background: rgba(201, 137, 107, 0.13); }
+.dl-del code::before { content: '−'; }
+.dl-note code { color: var(--muted); font-style: italic; }
+.dl-add { --hue-ink: #4E6346; }
+.dl-add.dl-fresh { background: rgba(141, 165, 131, 0.3); }
+.dl-del.dl-fresh { background: rgba(201, 137, 107, 0.24); }
+
+/* ---- Toast */
+/* Sonner places and times the toasts; this is how they look. It lays toasts out at a fixed width from the left,
+   so ours sit centred at the width of their words, and move at our pace rather than its 400ms. */
+:root [data-sonner-toaster] { font-family: inherit; }
+[data-sonner-toaster] [data-sonner-toast].toast {
+  left: 50%; right: auto; width: max-content; max-width: calc(100vw - 32px); translate: -50% 0;
+  transition: transform var(--dur-settle) var(--ease-out), opacity var(--dur-settle) var(--ease-out), height var(--dur-settle) var(--ease-out);
+}
+.toast {
+  display: flex; align-items: center; gap: var(--space-14);
+  padding: var(--space-10) var(--space-14); border-radius: var(--radius-lg); background: var(--ink); color: var(--surface);
+  font-size: var(--text-meta); box-shadow: var(--shadow-menu); white-space: nowrap;
+}
+.toast .toast-undo { color: var(--surface); gap: var(--space-6); display: inline-flex; align-items: center; text-decoration: none; }
+.toast .toast-undo:hover { color: var(--surface); text-decoration: underline; }
+.toast .key { border-color: rgba(255, 255, 255, 0.28); color: rgba(255, 255, 255, 0.78); }
+
+/* ---- Narrow */
+@media (max-width: 1000px) {
+  .work:has(.with-preview) { padding-bottom: calc(var(--decide-h, 60px) + var(--space-24)); }
+  .page.interview.with-preview { --main-w: 720px; display: flex; flex-direction: column; height: auto; gap: var(--space-24); }
+  .with-preview .iv-main { display: contents; }
+  /* Narrow, the page scrolls as a whole again: the words and the choices follow one another. */
+  .work:has(.asks) { padding-bottom: calc(var(--decide-h, 60px) + var(--space-24)); }
+  .page.interview.asks { height: auto; }
+  .page.interview.asks:not(.with-preview), .asks:not(.with-preview) .iv-main, .asks .iv-q { display: block; }
+  .asks .iv-text { overflow: visible; min-height: 0; padding-bottom: var(--space-16); -webkit-mask-image: none; mask-image: none; }
+  .asks .options { overflow: visible; }
+  .iv-preview { order: -1; height: 40vh; }
+  .iv-preview.fit { height: auto; max-height: 40vh; padding-top: 0; }
+}
+@media (max-width: 760px) {
+  .work { padding: var(--space-24) var(--space-16) 200px; }
+  .bar { padding: 0 var(--space-16); }
+  .work-title { font-size: var(--work-xl); }
+  .iv-title { font-size: var(--text-heading); }
+  .q-body { margin-left: 32px; }
+  .options { margin-left: 0; }
+  .opt-key { display: none; }
+  .decide { padding: var(--space-12) var(--space-16); }
+  .decide-in { flex-direction: column; align-items: stretch; gap: var(--space-12); }
+  .decide-actions { justify-content: flex-end; flex-wrap: wrap; }
+}
+
+/* ---- The empty queue: the day so far, and who is at work. */
+/* Anchored from the top, not centred: agents coming and going below never move what is above. */
+.calm { max-width: 720px; margin: 0 auto; padding-top: clamp(48px, 16vh, 180px); display: flex; flex-direction: column; }
+.calm-head { font-family: var(--serif); font-size: var(--work-title); font-weight: 400; line-height: 1.15; letter-spacing: -0.012em; color: var(--ink); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+
+@keyframes qr-fade { from { opacity: 0; } } /* base.css's .page-loading */
+
+.agents { list-style: none; margin: var(--space-48) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-10); }
+.agents li { display: flex; align-items: center; gap: var(--space-10); font-size: var(--text-body); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+.agents .ring { color: var(--ink); }
+.agent-repo { color: var(--ink); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-where { flex-shrink: 0; white-space: nowrap; }
+.agent-what { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agents .ink { color: var(--ink); }
+
+/* ---- Settings (⌘,) */
+.set-head { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--space-24); }
+/* The arrow hangs into the margin, so the title stays on the column's edge; below 800px there is no margin to hang in. */
+.set-back { margin-left: calc(-1 * (var(--control) + var(--space-8))); }
+@media (max-width: 800px) { .set-back { margin-left: calc(-1 * var(--space-8)); } }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-24); padding: var(--space-16) 0; border-top: 1px solid var(--border-soft); }
+.set-text { min-width: 0; }
+.set-title { font-size: var(--text-title); color: var(--ink); }
+.set-hint { margin-top: var(--space-2); font-size: var(--text-meta); line-height: 1.45; color: var(--muted); max-width: 44ch; }
+.set-control { flex: none; }
+.set-file { margin-top: var(--space-32); font-size: var(--text-label); color: var(--muted); }
+.set-input { width: 200px; height: 32px; padding: 0 var(--space-10); border: 0; border-radius: var(--radius); background: var(--hover); color: var(--ink); font: inherit; font-size: var(--text-meta); outline: none; }
+.set-input::placeholder { color: var(--placeholder); }
+.set-input:focus { box-shadow: 0 0 0 2px var(--border-soft); background: var(--surface); }
+.seg { display: inline-flex; padding: 2px; border-radius: var(--radius); background: var(--hover); }
+.seg-item { height: 28px; padding: 0 var(--space-10); border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-2); font-size: var(--text-meta); cursor: pointer; white-space: nowrap; }
+.seg-item:hover { color: var(--ink); }
+.seg-item.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(30, 33, 38, 0.08); }
+.switch { position: relative; width: 36px; height: 22px; padding: 0; border: 0; border-radius: var(--radius-full); background: var(--switch-off); cursor: pointer; transition: background var(--dur-base) var(--ease-out); }
+.switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); transition: transform var(--dur-base) var(--ease-out); }
+.switch.on { background: var(--ink); }
+.switch:disabled { opacity: 0.4; cursor: default; }
+.set-row:has(.switch:disabled) .set-title { color: var(--muted); }
+.switch.on span { transform: translateX(14px); }
+/* Quiet headings over each group of rows: a label, not a title. */
+.set-group { margin: var(--space-40) 0 var(--space-8); font-size: var(--text-label); font-weight: 500; color: var(--muted); }
+.set-head + .set-group, .set-warn + .set-group { margin-top: 0; }
+/* One row, two controls: the title and hint above, then each control on its own line with its label. */
+.set-row.set-send { flex-direction: column; align-items: stretch; gap: var(--space-12); }
+.set-sub { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8) var(--space-16); font-size: var(--text-meta); color: var(--text-2); }
+/* There only when Claude Code's settings have lost bateson's hooks, above everything else. */
+.set-warn { display: flex; align-items: center; justify-content: space-between; gap: var(--space-24); margin-bottom: var(--space-32); padding: var(--space-14) var(--space-16); border: 1px solid var(--border-soft); border-radius: var(--radius); background: var(--tint); }
+.set-warn:not(.fixed) .set-title { color: var(--late); }
+@media (max-width: 760px) { .set-row { flex-direction: column; align-items: flex-start; gap: var(--space-10); } }
+/* An agent at work: Bateson's dashed ring for something automatic, turning slowly (as a running check does). */
+.agents .ring-dashed { color: var(--ink); animation: check-spin 3.2s linear infinite, qr-arrive-ring var(--dur-arrive) var(--ease-out); }
+@keyframes qr-arrive-ring { from { opacity: 0; scale: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .agents .ring-dashed { animation: none; } }
+/* Back on this page after the first time (Empty.tsx): nothing arrives again, it is simply there. The ring keeps turning. */
+.calm.again :is(.calm-head, .agents li) { animation: none; }
+.calm.again .agents .ring-dashed { animation: check-spin 3.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .calm.again .agents .ring-dashed { animation: none; } }
+
+/* The launch splash (Splash.tsx): Bateson's mark drawn with a drying felt-tip, alone, then the app. */
+.splash {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding-bottom: 4vh; cursor: pointer; background: var(--work); transition: opacity var(--dur-arrive) var(--ease-out);
+}
+.splash-leaving { opacity: 0; pointer-events: none; }
+.splash-mark { width: 168px; height: auto; overflow: visible; fill: var(--ink); }
+
+/* Dark, when <html data-theme="dark">: the Appearance setting, or the system's look when that is "system"
+   (lib/theme.ts). bateson's own: Bateson has no dark side yet, so these live here and not in base.css. The
+   palette starts from Zen Linen's dark half (21st.dev): near-black grounds, a warm off-white for ink, no
+   accent hue. Ink and surface swap, so the dark button becomes the light one and everything drawn "on ink"
+   (a toast, a key cap) is drawn on light. */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --work: #141414;
+  --paper: #0F0F0F;
+  --linen: #191919;
+  --linen-selected: #262626;
+  --surface: #1C1C1C;
+  --ink: #E8E3DA;
+  --ink-body: #DDD8CF;
+  --text-2: #B5B0A7;
+  --muted: #99948C;      /* 5:1 on the selected sidebar row, more elsewhere */
+  --faint: #8E8A83;
+  --faint-2: #7A766F;
+  --faint-3: #55524D;
+  --placeholder: #807C75;
+  --border: rgba(232, 227, 218, 0.12);
+  --border-soft: rgba(232, 227, 218, 0.09);
+  --border-strong: rgba(232, 227, 218, 0.16);
+  --border-input: rgba(232, 227, 218, 0.2);
+  --hover: rgba(232, 227, 218, 0.07);
+  --ghost-hover: #262626;
+  --tint: #222222;
+  --highlight: #5C4B16;  /* the highlighter, dimmed so light ink reads on it */
+  --late: #E08A5F;
+  --initials: #C9C5BC;
+  --bottle: #6FB899;
+  --ink-hover: #FFFFFF;
+  --switch-off: #3A3A3A;
+  --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+/* The people's hues keep their tint; the ink of each lightens to read on it. */
+[data-theme='dark'], [data-theme='dark'] .hue-stone { --hue-ink: #B8B5A9; }
+[data-theme='dark'] .hue-terracotta { --hue-ink: #DDA084; }
+[data-theme='dark'] .hue-slate { --hue-ink: #9DB4D6; }
+[data-theme='dark'] .hue-plum { --hue-ink: #C3A8CE; }
+[data-theme='dark'] .hue-moss, [data-theme='dark'] .dl-add { --hue-ink: #A9C09F; }
+[data-theme='dark'] .hue-ochre { --hue-ink: #D6BB74; }
+[data-theme='dark'] .fd-sev.fd-high { color: #DDA084; }
+[data-theme='dark'] .is-done .reply-mark { color: #A9C09F; }
+[data-theme='dark'] .is-not .reply-mark { color: #D0A084; }
+[data-theme='dark']::highlight(qr-note-active), [data-theme='dark'] ::highlight(qr-note-active) { background-color: #7D651C; }
+[data-theme='dark'] .key.on-ink, [data-theme='dark'] .toast .key { border-color: rgba(20, 20, 20, 0.3); color: rgba(20, 20, 20, 0.75); }
+/* The knob is the opposite of its track: light on the grey one, dark on the lit one. */
+[data-theme='dark'] .switch span { background: var(--ink); }
+[data-theme='dark'] .switch.on span { background: var(--surface); }
+/* A light picture on the dark ground glares: it rests a step dimmer and comes to its true colours under the pointer. */
+[data-theme='dark'] .iv-preview-stage img { filter: brightness(0.86); transition: filter var(--dur-base) var(--ease-out); }
+[data-theme='dark'] .iv-preview-stage:hover img { filter: none; }
