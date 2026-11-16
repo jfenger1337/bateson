@@ -83,7 +83,6 @@
 .prose th { font-weight: 500; color: var(--text-2); }
 .prose hr { border: 0; height: 1px; background: var(--border); }
 .prose.plain { white-space: pre-wrap; }
-.context { margin-top: var(--space-32); }
 
 /* ---- An interview round */
 .questions { list-style: none; margin: var(--space-40) 0 0; padding: 0; display: flex; flex-direction: column; }
@@ -121,17 +120,16 @@
 .opt-sounding { align-self: center; flex: none; color: var(--muted); animation: qr-fade var(--dur-fast) var(--ease-out); }
 /* A sound on the question itself: a play button under its text, where you are reading. */
 .iv-sound { margin-top: var(--space-12); gap: var(--space-6); }
-/* The agent's own answer, after the question and before the choices, the way you would say it across a table:
-   an arrow, then the words. The answer ⏎ accepts, conditions and all. */
-.iv-rec { display: flex; gap: var(--space-10); margin-top: var(--space-28); }
-.iv-rec-arrow { flex: none; margin-top: 4px; color: var(--muted); }
-.interview .iv-rec-body { color: var(--ink); }
-.iv-rec-body > * + * { margin-top: 0.6em; }
+/* The agent's reason sits under the choice it argues for, after the description: an arrow, then the words. */
+.opt-why { display: flex; gap: var(--space-8); max-width: 68ch; margin-top: var(--space-8); }
+.opt-why-arrow { flex: none; margin-top: 4px; color: var(--muted); }
+.opt-why .prose { font-size: var(--iv-text); line-height: var(--iv-leading); font-weight: 450; color: var(--ink); }
+.opt-why .prose > * + * { margin-top: 0.6em; }
 .opt-rec { display: inline-block; padding: 1px var(--space-8); border-radius: var(--radius-full); background: var(--highlight); font-size: var(--text-label); font-weight: 500; color: var(--ink); vertical-align: 1px; }
 .opt-desc { font-size: var(--text-meta); line-height: 1.5; color: var(--muted); }
 .opt.chosen .opt-desc { color: var(--text-2); }
-/* An interview is set in one reading size (--iv-text) under its title: the question's words, the recommendation,
-   each choice and what it costs. What separates them is weight, not size. */
+/* An interview is set in one reading size (--iv-text) under its title: the question's words, each
+   choice and what it costs, and the reason under the recommended one. What separates them is weight, not size. */
 .interview { --iv-text: 16px; --iv-leading: 1.55; }
 .interview .iv-text .prose, .interview .opt-label, .interview .opt-desc, .interview .own-field { font-size: var(--iv-text); line-height: var(--iv-leading); }
 /* Two inks: everything you read is ink, and grey is for hints (Write your own, a label). The reading text is a
@@ -172,15 +170,13 @@
 @keyframes qr-in-fwd { from { opacity: 0; transform: translateX(8px); } }
 @keyframes qr-in-back { from { opacity: 0; transform: translateX(-8px); } }
 .iv-title { font-family: var(--serif); font-size: 32px; font-weight: 400; line-height: 1.2; letter-spacing: -0.012em; color: var(--ink); }
-.interview .context, .interview .q-body { margin: var(--space-12) 0 0; }
+.interview .q-body { margin: var(--space-12) 0 0; }
 /* A long question keeps every word, so the page does the work: paragraphs and bullets get room so the detail
    does not run together.
-   The words keep a reading measure while the choices use the full column. The round's context is background
-   for every question, so it comes before the first one, quieter, and the question starts clear of it. */
+   The words keep a reading measure while the choices use the full column. */
 .interview .iv-text .prose, .interview .opt-desc { max-width: 68ch; }
-.interview .context { margin: 0 0 var(--space-40); color: var(--text-2); }
-.interview .q-body > * + *, .interview .context > * + * { margin-top: 1em; }
-.interview .q-body li + li, .interview .context li + li { margin-top: 0.5em; }
+.interview .q-body > * + * { margin-top: 1em; }
+.interview .q-body li + li { margin-top: 0.5em; }
 .interview .options { margin: 0 0 0 -13px; }
 /* A question is one page in reading order: the title, the words, the recommendation, the choices. A long one
    scrolls as a whole, and only the decision bar stays put. A choice picked by key scrolls into view clear of
@@ -212,7 +208,7 @@
 .page.interview.with-preview:has(.iv-preview.fit) { --main-w: 1432px; grid-template-columns: minmax(440px, 720px) minmax(320px, 680px); }
 .with-preview .iv-main { min-width: 0; min-height: 0; padding: 0 var(--space-16) var(--space-24) var(--space-14); margin-left: calc(-1 * var(--space-14)); }
 .with-preview .iv-title { font-size: 28px; line-height: 1.2; }
-.with-preview .context, .with-preview .q-body { margin-top: var(--space-8); }
+.with-preview .q-body { margin-top: var(--space-8); }
 .iv-preview {
   min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--space-16);
 }

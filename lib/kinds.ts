@@ -209,6 +209,7 @@ const SHOW_LINES = 60;
  */
 export function validateQuestions(body: unknown, cwd?: string): Round & { readonly files: Attachment[] } {
   if (!body || typeof body !== 'object' || !('questions' in body) || !Array.isArray(body.questions) || !body.questions.length) throw new Error('--questions needs { "questions": [ ... ] } with at least one question.');
+  if ('context' in body && body.context != null) throw new Error('a round has no "context" any more: write each fact into the question that needs it, and send again.');
   const files: Attachment[] = [];
   const shown = (owner: Loose, what: string) => {
     if (owner.show == null) return;
@@ -220,8 +221,9 @@ export function validateQuestions(body: unknown, cwd?: string): Round & { readon
     q.id = q.id || `Q${i + 1}`;
     if (!q.title) throw new Error(`question ${q.id} needs a title.`);
     if (!/\?\s*$/.test(String(q.title))) throw new Error(`question ${q.id}: the title is the question itself and ends in a question mark ("Which turns should get the reminder?", not "Which turns get checked"). See "Writing for him" in the bateson skill.`);
-    if (!Array.isArray(q.options) || q.options.length < 2) throw new Error(`question ${q.id} needs at least two options.`);
+    if (!Array.isArray(q.options) || !q.options.length) throw new Error(`question ${q.id} needs options: two to four, or for a yes or no question one, your answer.`);
     const options = q.options as Loose[];
+    if (options.length === 1 && q.recommended !== 0) throw new Error(`question ${q.id}: a single option is your answer to a yes or no question, so set "recommended": 0.`);
     if (q.recommended != null && !options[q.recommended as number]) throw new Error(`question ${q.id}: recommended must be an option index.`);
     if (q.recommendation != null && (typeof q.recommendation !== 'string' || !q.recommendation.trim())) throw new Error(`question ${q.id}: recommendation is your answer written out, as markdown.`);
     if (q.recommendation && q.recommended == null) throw new Error(`question ${q.id}: a recommendation needs "recommended", the option it leans to.`);

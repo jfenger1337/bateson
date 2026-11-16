@@ -12,7 +12,7 @@ export type Show =
   | { text: string } | { markdown: string } | { html: string };
 export interface Option { label: string; description?: string; show?: Show[] }
 export interface Question { id: string; title: string; body?: string; options: Option[]; recommended?: number; recommendation?: string; opens?: boolean; show?: Show[] }
-export interface Round { context?: string; questions: Question[] }
+export interface Round { questions: Question[] }
 
 export interface Answer { id: string; choice: number | null; other?: string; accepted?: boolean }
 

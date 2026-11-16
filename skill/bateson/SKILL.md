@@ -33,12 +33,11 @@ The CLI captures the body itself. You write only the title and the note.
 ```bash
 # An interview round (decisions or context). JSON on stdin.
 bateson send --title "Auth for the admin area" --questions - <<'EOF'
-{ "context": "Optional markdown above the first question, only if it is needed to answer.",
-  "questions": [
+{ "questions": [
     { "id": "Q1", "title": "Who should be able to sign in?", "body": "Markdown: the question, the trade-offs, what each choice costs.",
       "options": [ { "label": "Email code", "description": "No passwords. One more step each time." },
                    { "label": "Passkeys", "description": "Fastest after setup. Needs a fallback." } ],
-      "recommended": 0, "show": "shots/sign-in.png" } ] }
+      "recommended": 1, "recommendation": "Why you lean to it, and on what conditions.", "show": "shots/sign-in.png" } ] }
 EOF
 
 bateson send --title "Onboarding copy" --note "Is the second screen too chatty?" --file docs/onboarding.md
@@ -92,16 +91,19 @@ They come to each item cold, between other work, and has not read your session. 
 **Body**, in this order, about 80 words at most:
 1. *Now*: what happens today, in one or two sentences, with a concrete case they will recognise ("Your last request touched 4 files, so the agent had to stop and say it had nothing to send").
 2. *The choice*: what changes depending on their answer.
-3. *Recommendation*: one sentence, and why.
+
+Write every fact the question needs into its body. A round has no shared background, and one sent with `context` is refused.
+
+**Recommendation** (`recommendation`): one sentence on why you lean to the option `recommended` points at, and on what conditions. It shows under that option, so never repeat the option's name, and keep it out of the body.
 
 If it takes more than that, it is two questions, or it needs `show`. Interview rounds from the `ama` skill are the exception: they run as long as the thinking needs.
 
 **Options.** 2 to 4, mutually exclusive, alike in form.
+- Order them naturally (smallest change first, cheapest first, the order things happen), never by preference. The recommended one lands wherever it falls, and ⏎ still accepts it.
+- Only a yes or no question may have a single option: your answer, with `recommended` 0. They accept it or write their own.
 - The `label` is the outcome in their words and must make sense on its own: it comes back on the summary of their answers and in the message you receive. "Keep reminding on big edits you asked for", not "Keep as it is".
 - The `description` is one full sentence: what they will notice afterwards, then what it costs.
 - Set `recommended` whenever you have a view. They can always write their own answer, so never add an "Other" option.
-
-**Context** (`context`, interview rounds only): facts that several questions need, shown once above the first. Not a recap of your work.
 
 **Language.** Their words, not the code's: "when an agent finishes" rather than "the Stop hook", "an agent your answer woke up" rather than "a rewake turn". If a technical term is unavoidable, say what it is the first time. Full sentences, no fragments ("Today: every turn that..."). Numbers with their unit. British English, no em dashes.
 
@@ -109,7 +111,7 @@ An example, before and after:
 
 > **Which turns get checked** · Today: every turn that edits files, except your own prompts touching 3 files or fewer. · Options: "Only turns you did not start" (Wake-ups and follow-ons.), "Keep as it is".
 
-> **Which agent turns should get the reminder?** · Right now an agent is asked about your calls after any turn that changes files, unless you asked for the change and it touched 3 files or fewer. The calls worth catching happen when an agent carries on by itself, for example after your answer wakes it. I recommend leaving out every turn you started: you asked for that work, so the direction was already yours. · Options: "Only turns you did not start" (An agent doing what you asked is never reminded; one that carries on by itself is.), "Keep reminding on big edits you asked for" (Requests that touch more than 3 files still get the reminder, as now.)
+> **Which agent turns should get the reminder?** · Right now an agent is asked about your calls after any turn that changes files, unless you asked for the change and it touched 3 files or fewer. The calls worth catching happen when an agent carries on by itself, for example after your answer wakes it. · Options: "Only turns you did not start" (An agent doing what you asked is never reminded; one that carries on by itself is.), "Keep reminding on big edits you asked for" (Requests that touch more than 3 files still get the reminder, as now.) · Recommendation, under the first: You asked for that work, so the direction was already yours.
 
 ## Good interview rounds
 

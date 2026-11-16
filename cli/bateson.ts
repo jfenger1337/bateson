@@ -37,12 +37,12 @@ const HELP = `bateson: a review queue for what needs human judgment.
   bateson serve             run the app on http://localhost:${PORT}
 
 Interview round JSON:
-  { "context": "optional markdown above the questions",
-    "questions": [ { "id": "Q1", "title": "Install scope", "body": "markdown: the question and its trade-offs",
+  { "questions": [ { "id": "Q1", "title": "Install scope", "body": "markdown: the question and its trade-offs",
                      "options": [ { "label": "Global", "description": "why" }, ... ], "recommended": 0,
-                     "recommendation": "markdown: your answer written out, conditions and all, and why",
+                     "recommendation": "markdown: why, and on what conditions, without repeating the option's name",
                      "opens": true, "show": "shots/install.png" } ] }
-  "recommendation" shows under the options; picking the recommended option accepts it whole, and the answer quotes it.
+  Options come in a natural order (smallest change first, cheapest first), never by preference. A yes or no question
+  has one option, your answer. "recommendation" shows under the recommended option; picking the recommended option accepts it whole, and the answer quotes it.
   "opens": true marks a question whose answer decides later questions. Its answer reaches you early.
   "show", on a question or on an option: the thing the question is about, shown with it. A path to an image (png, jpg,
   gif, webp, svg), a recording (mp4, webm, mov: played with a timeline) or a sound (wav, mp3, m4a, aiff: played when

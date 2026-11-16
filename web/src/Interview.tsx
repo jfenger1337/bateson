@@ -7,7 +7,7 @@ import { isTyping } from './App';
 import { ArrowRight, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { keptKey, useKept, useKeptRef } from './lib/kept';
 
-// One question at a time. Choosing moves you on; the recommendation comes first as A and is preselected (dashed) until you touch it.
+// One question at a time. Choosing moves you on; the recommendation is preselected (dashed) until you touch it.
 
 interface Draft { choice: number | null; other: string; writing: boolean; touched: boolean }
 
@@ -48,8 +48,6 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
   const q = qs[at] as (typeof qs)[number] | undefined;
   const d = q ? drafts[q.id] : null;
 
-  // The recommendation comes first, so it is always A; the rest keep the order they were written in.
-  const order = q ? displayOrder(q) : [];
   const filesBase = `/api/items/${item.id}/files/${item.version.n}/`;
 
   // Sounds are heard, not shown: an option's sound plays when the pointer rests on it or you press its letter, and
@@ -200,7 +198,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       if (e.key === 'Enter') { e.preventDefault(); next(); }
       else if (e.key === 'ArrowRight' || e.key === 'j') { e.preventDefault(); go(at + 1); }
       else if (e.key === 'ArrowLeft' || e.key === 'k') { e.preventDefault(); go(at - 1); }
-      else if (LETTERS.includes(e.key) && order[LETTERS.indexOf(e.key)] != null) { e.preventDefault(); choose(order[LETTERS.indexOf(e.key)]); hear(order[LETTERS.indexOf(e.key)]); }
+      else if (LETTERS.includes(e.key) && q?.options[LETTERS.indexOf(e.key)]) { e.preventDefault(); choose(LETTERS.indexOf(e.key)); hear(LETTERS.indexOf(e.key)); }
       else if (e.key === 'w') { e.preventDefault(); write(); }
       // Any other character starts your own answer with it, so ending the interview has no key: a capital D
       // would end it mid-sentence.
@@ -279,15 +277,8 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       {(
       <section key={q.id} ref={qRef} className={`iv-q iv-${dir}`}>
         <div className="iv-text">
-        {at === 0 && round.context && <Markdown className="prose context" text={round.context} />}
         <h1 className="iv-title">{q.title}</h1>
         {q.body && <Markdown className="prose q-body" text={q.body} />}
-        {q.recommendation && (
-          <div className="iv-rec">
-            <ArrowRight className="iv-rec-arrow" size={16} aria-label="Recommended" />
-            <Markdown className="prose iv-rec-body" text={q.recommendation} />
-          </div>
-        )}
         {qSound && (
           <button
             className="btn-pill iv-sound"
@@ -298,8 +289,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
         )}
         </div>
         <div className="options" role="radiogroup" aria-label={q.title}>
-          {order.map((oi, pos) => {
-            const o = q.options[oi];
+          {q.options.map((o, oi) => {
             const chosen = !d.writing && d.choice === oi;
             return (
               <button
@@ -315,7 +305,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
                 onFocus={() => setPeek(`${q.id}:${oi}`)}
                 onBlur={() => setPeek(null)}
               >
-                <span className="opt-ring"><Ring kind={chosen ? (d.touched ? 'dot' : 'dashed') : 'open'} size={20} letter={LETTERS[pos]?.toUpperCase()} /></span>
+                <span className="opt-ring"><Ring kind={chosen ? (d.touched ? 'dot' : 'dashed') : 'open'} size={20} letter={LETTERS[oi]?.toUpperCase()} /></span>
                 <span className="opt-text">
                   <span className="opt-label">
                     <span className="opt-name">
@@ -325,6 +315,12 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
                     </span>
                   </span>
                   {o.description && <span className="opt-desc">{o.description}</span>}
+                  {q.recommended === oi && q.recommendation && (
+                    <span className="opt-why">
+                      <ArrowRight className="opt-why-arrow" size={16} aria-label="Why" />
+                      <Markdown className="prose" text={q.recommendation} />
+                    </span>
+                  )}
                 </span>
               </button>
             );
@@ -409,7 +405,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
 function shownAnswer(x: Question, d: Draft): string {
   if (d.writing) return d.other.trim();
   if (d.choice == null) return '';
-  const letter = LETTERS[displayOrder(x).indexOf(d.choice)]?.toUpperCase();
+  const letter = LETTERS[d.choice]?.toUpperCase();
   return `${letter ? `${letter}  ` : ''}${x.options[d.choice]?.label ?? ''}`;
 }
 
@@ -423,11 +419,6 @@ function pastAnswer(x: Question, a?: Answer): string {
 // Options are picked by letter, a to i; j, k, l and w already have jobs here.
 const LETTERS = 'abcdefghi';
 
-function displayOrder(x: Question): number[] {
-  const all = x.options.map((_, i) => i);
-  const r = x.recommended;
-  return r != null && x.options[r] ? [r, ...all.filter((i) => i !== r)] : all;
-}
 
 function answerOf(x: Question, d: Draft): Answer {
   return d.writing

@@ -51,8 +51,7 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
 ## body.json (questions)
 
 ```json
-{ "context": "optional markdown",
-  "questions": [ { "id": "Q1", "title": "...", "body": "markdown", "options": [ { "label": "...", "description": "..." } ], "recommended": 0 } ] }
+{ "questions": [ { "id": "Q1", "title": "...", "body": "markdown", "options": [ { "label": "...", "description": "..." } ], "recommended": 0 } ] }
 ```
 
 ## body.json (findings)
