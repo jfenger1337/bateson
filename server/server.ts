@@ -154,6 +154,8 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     // What makes the page installable as an app: the manifest and its icons (web/public).
     app.use('/icons/*', serveStatic({ root }));
     app.get('/manifest.webmanifest', serveStatic({ root }));
+    // The favicon, in the formats browsers ask for (web/public).
+    for (const file of ['/favicon.svg', '/favicon.ico', '/apple-touch-icon.png']) app.get(file, serveStatic({ root }));
     app.get('*', (c) => {
       c.header('cache-control', 'no-store');
       return c.html(fs.readFileSync(path.join(dist, 'index.html'), 'utf8'));
