@@ -306,7 +306,7 @@ export function App() {
               ? <Findings key={viewKey} item={item} onDecide={decide} onLater={later} />
               : <Review key={viewKey} item={item} onDecide={decide} onLater={later} />
         ) : (
-          <Empty agents={state.agents ?? []} writing={state.writing ?? []} update={state.update} onUpdate={() => setSettings(true)} />
+          <Empty agents={state.agents ?? []} writing={state.writing ?? []} amas={state.amas ?? []} update={state.update} onUpdate={() => setSettings(true)} />
         )}
       </main>
 

@@ -129,6 +129,8 @@ export interface State {
   /** Items their agent cancelled in the last ten minutes, because you called them off in its terminal. */
   cancelled: { id: string; title: string; at: string }[];
   agents: { sessionId: string; repo: string; title?: string; since: string }[];
+  /** Interviews (/ama) you have answered, newest first: when the last round was answered, and how many there were. */
+  amas: { id: string; title: string; repo?: string; rounds: number; at: string }[];
   update: UpdateView;
 }
 

@@ -593,6 +593,18 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .agent-what { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agents .ink { color: var(--ink); }
 
+/* The AMAs behind you (Empty.tsx): newest on top, each row fainter than the one above, so the list fades out. */
+.amas { list-style: none; margin: var(--space-48) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-10); }
+.agents + .amas { margin-top: var(--space-32); }
+.amas li { --fade: calc(1 - var(--i, 0) * 0.12); display: flex; align-items: baseline; gap: var(--space-10); font-size: var(--text-body); color: var(--muted); opacity: max(0.12, var(--fade)); animation: ama-rise var(--dur-arrive) var(--ease-out) both; }
+.amas .ring { flex: none; align-self: center; color: var(--faint); }
+.ama-title { color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ama-meta { flex: none; white-space: nowrap; }
+.ama-when { flex: none; margin-left: auto; padding-left: var(--space-16); font-size: var(--text-meta); color: var(--faint); white-space: nowrap; }
+/* bt-rise, but to the row's own faded opacity rather than to full. */
+@keyframes ama-rise { from { opacity: 0; translate: 0 6px; } }
+.calm.again .amas li:not(.new) { animation: none; }
+
 /* ---- Settings (⌘,) */
 .set-head { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--space-24); }
 /* The arrow hangs into the margin, so the title stays on the column's edge; below 800px there is no margin to hang in. */
