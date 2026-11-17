@@ -492,7 +492,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       <footer className="decide">
         <div className="decide-in">
           <p className="decide-sentence">
-            {adding ? 'Adding your screenshot…' : !answered(q.id) ? 'Pick one, or write your own, to go on.' : last && open ? `“${open.title}” (${open.id}) has no answer yet.` : ''}
+            {adding ? 'Adding your screenshot…' : !answered(q.id) ? 'Pick one, or write your own, to go on.' : ''}
           </p>
           <div className="decide-actions">
             <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="Stop this interview and send nothing">End interview</button>
@@ -503,9 +503,10 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
             )}
             {at > 0 && <button className="btn-pill lg" onClick={() => go(at - 1)}>Back <span className="key">←</span></button>}
             {last ? (
-              // The last question sends the round. If an earlier one is still open, the button says so first.
+              // The last question sends the round. If an earlier one is still open, sending takes you to it instead:
+              // the bar does not spell it out, the question itself is where you answer it.
               <button className="btn-primary" onClick={send} aria-disabled={!open && !answered(q.id)}>
-                {open ? `Answer ${open.id} first` : qs.length === 1 ? 'Send answer' : `Send ${qs.length} answers`} <span className="key on-ink">⏎</span>
+                {qs.length === 1 ? 'Send answer' : `Send ${qs.length} answers`} <span className="key on-ink">⏎</span>
               </button>
             ) : (
               <button className="btn-primary" onClick={next} aria-disabled={!q || !answered(q.id)}>
