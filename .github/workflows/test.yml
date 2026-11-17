@@ -49,7 +49,7 @@ jobs:
           # The login item, the skills and the hooks are in place.
           (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run').bateson
           Get-Item "$env:USERPROFILE\.claude\skills\bateson\SKILL.md" | Out-Null
-          if (-not (Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern 'rewake.ts' -Quiet)) { throw 'no hooks' }
+          if (-not (Select-String -Path "$env:USERPROFILE\.claude\settings.json" -Pattern 'rewake.mjs' -Quiet)) { throw 'no hooks' }
           # The command runs from cmd and from Git Bash.
           & "$env:USERPROFILE\.local\bin\bateson.cmd" list
           if ($LASTEXITCODE) { throw 'bateson.cmd failed' }

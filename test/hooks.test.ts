@@ -23,9 +23,9 @@ function item(owner?: string) {
   return it;
 }
 
-/** Run hooks/rewake.ts after a Bash call; resolves with how it exited and what it said. */
+/** Run hooks/rewake.mjs (which runs rewake.ts) after a Bash call; resolves with how it exited and what it said. */
 function rewake(stdout: string, command = 'bateson send --title "Plan" --file plan.md', env: Record<string, string> = {}) {
-  const child = spawn(process.execPath, [path.join(ROOT, 'hooks', 'rewake.ts')], { env: childEnv(env), cwd: REPO });
+  const child = spawn(process.execPath, [path.join(ROOT, 'hooks', 'rewake.mjs')], { env: childEnv(env), cwd: REPO });
   let err = '';
   child.stderr.on('data', (d) => { err += d; });
   child.stdin.end(JSON.stringify({
@@ -133,9 +133,9 @@ test('bateson inbox does not hand over another open session\'s answer', () => {
   assert.match(cli(['inbox'], { CLAUDE_CODE_SESSION_ID: 'P' }).join('\n'), new RegExp(it.id));
 });
 
-/** Run hooks/catchup.ts for session `sessionId` in REPO; what it tells the session ('' for nothing). */
+/** Run hooks/catchup.mjs (which runs catchup.ts) for session `sessionId` in REPO; what it tells the session ('' for nothing). */
 function catchup(event: 'SessionStart' | 'UserPromptSubmit', sessionId: string, extra: Record<string, string> = {}) {
-  const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.ts')], {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.mjs')], {
     env: childEnv(), cwd: REPO, encoding: 'utf8',
     input: JSON.stringify({ hook_event_name: event, session_id: sessionId, cwd: REPO, transcript_path: path.join(TMP, `${sessionId}.jsonl`), ...extra }),
   });
@@ -179,6 +179,18 @@ test('a hook whose Node is gone counts as missing', () => {
   assert.ok(missingHooks(file).includes('PostToolUse'));
 });
 
+test('hooks an install wrote before the launchers, pointing at the .ts files, still count as there', () => {
+  const file = path.join(TMP, 'settings-legacy.json');
+  writeHooks({ file });
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('.mjs\\"', '.ts\\"'));
+  assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /\.mjs/);
+  assert.deepEqual(missingHooks(file), []);
+  writeHooks({ file });
+  const text = fs.readFileSync(file, 'utf8');
+  assert.match(text, /rewake\.mjs/, 'an install puts the launchers in their place');
+  assert.doesNotMatch(text, /hooks\/\w+\.ts/, 'and leaves none of the old entries');
+});
+
 test('the hooks use a link to Node that survives an upgrade, where there is one', { skip: process.platform === 'win32' && 'a symlink needs Developer Mode on Windows' }, () => {
   const bin = path.join(TMP, 'bin');
   fs.mkdirSync(bin, { recursive: true });
@@ -192,7 +204,7 @@ test('a hook that fails lets the session carry on, and writes it down', () => {
   const queue = path.join(TMP, 'broken-queue');
   fs.mkdirSync(queue, { recursive: true });
   fs.writeFileSync(path.join(queue, 'sessions'), '');
-  const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.ts')], {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.mjs')], {
     env: childEnv({ BATESON_HOME: queue }), input: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'x', cwd: REPO }), encoding: 'utf8',
   });
   assert.equal(r.status, 0, 'the session carries on');

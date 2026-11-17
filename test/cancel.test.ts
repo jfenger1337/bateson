@@ -64,7 +64,7 @@ test('an answer given after the cancel is refused, and one given before is never
 test('the hook waiting on it lets go without waking the session', async () => {
   sessionOpen(process.pid, 'S');
   const it = interview();
-  const child = spawn(process.execPath, [path.join(ROOT, 'hooks', 'rewake.ts')], { env: childEnv(), cwd: REPO });
+  const child = spawn(process.execPath, [path.join(ROOT, 'hooks', 'rewake.mjs')], { env: childEnv(), cwd: REPO });
   let err = '';
   child.stderr.on('data', (d) => { err += d; });
   child.stdin.end(JSON.stringify({
@@ -92,7 +92,7 @@ test('without an id, it cancels only what this session has open', () => {
 
 test('when you write in the terminal, the session hears what it still has waiting and how to cancel it', () => {
   const it = interview('S');
-  const prompt = (sessionId: string) => spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.ts')], {
+  const prompt = (sessionId: string) => spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.mjs')], {
     env: childEnv(), cwd: REPO, encoding: 'utf8',
     input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: sessionId, cwd: REPO, prompt: 'stop the interview' }),
   }).stdout;

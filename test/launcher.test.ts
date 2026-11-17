@@ -1,8 +1,10 @@
-// The bateson command and the installer start at plain JavaScript files (cli/bateson.mjs, scripts/install.mjs), so
-// that a Node too old to run TypeScript says why it cannot run bateson instead of "Unknown file extension .ts".
+// The bateson command, the installer and the hooks start at plain JavaScript files (cli/bateson.mjs,
+// scripts/install.mjs, hooks/*.mjs), so that a Node too old to run TypeScript says why it cannot run bateson
+// instead of "Unknown file extension .ts".
 import { childEnv, REPO } from './setup.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -55,5 +57,36 @@ test('on a Node older than 22.18, the installer says so before changing anything
     assert.match(r.stderr, /This is Node 20\.19\.5/);
     assert.match(r.stderr, /run this again with it/);
     assert.doesNotMatch(r.stderr, /ERR_UNKNOWN_FILE_EXTENSION/);
+  }
+});
+
+const HOOK = path.join(ROOT, 'hooks', 'catchup.mjs');
+const hook = (flags: string[], env: Record<string, string> = {}) => spawnSync(process.execPath, [...flags, HOOK], {
+  env: childEnv(env), cwd: REPO, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'L', cwd: REPO, prompt: 'hi' }), encoding: 'utf8',
+});
+
+test('on a Node older than 22.18, a hook tells the person (exit 1, not 2: the agent is not told) and logs it', () => {
+  const log = path.join(process.env.BATESON_HOME!, 'hooks.log');
+  fs.rmSync(log, { force: true });
+  const r = hook(OLD_NODE);
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout, '', 'nothing enters the session');
+  assert.match(r.stderr, /needs Node 22\.18 or newer/);
+  assert.match(r.stderr, /This is Node 20\.19\.5/);
+  assert.match(r.stderr, /scripts[\\/]install\.mjs/);
+  assert.doesNotMatch(r.stderr, /ERR_UNKNOWN_FILE_EXTENSION/);
+  assert.match(fs.readFileSync(log, 'utf8'), /^\S+Z catchup\.ts bateson: needs Node 22\.18 or newer.* \| Install Node/m);
+});
+
+test('outside Claude Code, a hook on an old Node does nothing, as it would on a new one', () => {
+  const r = hook(OLD_NODE, { CLAUDECODE: '' });
+  assert.equal(r.status, 0);
+  assert.equal(r.stderr, '');
+});
+
+test('every hook in the settings is a launcher that runs on this Node', () => {
+  for (const name of ['catchup', 'nudge', 'remind', 'rewake']) {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', `${name}.mjs`)], { env: childEnv(), cwd: REPO, input: '{}', encoding: 'utf8' });
+    assert.equal(r.status, 0, `${name}: ${r.stderr}`);
   }
 });

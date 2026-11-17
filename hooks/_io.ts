@@ -36,7 +36,7 @@ export function guard(fn: () => unknown) {
   // Nothing a hook does wrong may stop a session, so it exits quietly; but it is written down in
   // ~/.bateson/hooks.log, and Settings says when the last day has any.
   Promise.resolve().then(fn).catch((e) => {
-    logHookError(path.basename(process.argv[1] || 'hook'), e);
+    logHookError(path.basename(process.argv[1] || 'hook').replace(/\.mjs$/, '.ts'), e); // hooks/<name>.mjs runs <name>.ts
     if (process.env.BATESON_DEBUG) process.stderr.write(`bateson hook: ${(e as Error).stack}\n`);
     process.exit(0);
   });

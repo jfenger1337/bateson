@@ -52,12 +52,12 @@ export const REWAKE_TIMEOUT_S = 14400;
 const hook = (file: string, extra: Loose = {}): Hook => ({ type: 'command', command: `${NODE}"${HOOKS}/${file}"`, ...extra });
 const ENTRIES: Record<string, Entry | Entry[]> = {
   PostToolUse: [
-    { matcher: 'Bash', hooks: [hook('rewake.ts', { asyncRewake: true, timeout: REWAKE_TIMEOUT_S, rewakeSummary: 'bateson: a response arrived, or a wait was renewed', rewakeMessage: 'From bateson' })] },
-    { matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash', hooks: [hook('remind.ts', { timeout: 10 })] },
+    { matcher: 'Bash', hooks: [hook('rewake.mjs', { asyncRewake: true, timeout: REWAKE_TIMEOUT_S, rewakeSummary: 'bateson: a response arrived, or a wait was renewed', rewakeMessage: 'From bateson' })] },
+    { matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash', hooks: [hook('remind.mjs', { timeout: 10 })] },
   ],
-  UserPromptSubmit: { hooks: [hook('catchup.ts', { timeout: 10 })] },
-  SessionStart: { hooks: [hook('catchup.ts', { timeout: 10 })] },
-  Stop: { hooks: [hook('nudge.ts', { timeout: 10 })] },
+  UserPromptSubmit: { hooks: [hook('catchup.mjs', { timeout: 10 })] },
+  SessionStart: { hooks: [hook('catchup.mjs', { timeout: 10 })] },
+  Stop: { hooks: [hook('nudge.mjs', { timeout: 10 })] },
 };
 
 const commandsOf = (e: unknown) => {
@@ -87,7 +87,9 @@ export function missingHooks(file = SETTINGS) {
     const listed = there[event];
     const commands = Array.isArray(listed) ? listed.flatMap(commandsOf) : [];
     const runs = (c: string) => { const node = nodeOf(c); return !node || fs.existsSync(node); };
-    return [entries].flat().flatMap(commandsOf).some((ours) => !commands.some((c) => c.includes(ours.slice(NODE.length)) && runs(c)));
+    // An install from before the launchers ran hooks/<name>.ts itself, which works as well on a Node that can.
+    const either = (ours: string) => [ours.slice(NODE.length), ours.slice(NODE.length).replace(/\.mjs"$/, '.ts"')];
+    return [entries].flat().flatMap(commandsOf).some((ours) => !commands.some((c) => either(ours).some((o) => c.includes(o)) && runs(c)));
   }).map(([event]) => event);
 }
 

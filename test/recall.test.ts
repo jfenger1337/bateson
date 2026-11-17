@@ -134,7 +134,7 @@ test('the note: one line each, at most five, and nothing at all when there are n
 test('a new session hears the overrides with how they work; a session elsewhere does not', () => {
   interview(REPO, 0);
   const start = (cwd: string) => {
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.ts')], {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.mjs')], {
       env: childEnv(), input: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'x', cwd }), encoding: 'utf8',
     });
     assert.equal(r.status, 0, r.stderr);
