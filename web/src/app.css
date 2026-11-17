@@ -160,6 +160,10 @@
 .opt.own { padding: 0; cursor: default; }
 .opt.own:not(.chosen) { display: block; border: 0; }
 .opt.own.chosen { padding: var(--space-10) var(--space-12); }
+/* Your own answer, kept while another option is chosen: still there to read, greyed until you point into it. */
+.opt.own.kept { display: grid; padding: var(--space-10) var(--space-12); cursor: text; }
+.opt.own.kept .own-field { color: var(--muted); cursor: text; }
+.opt.own.kept:hover { background: var(--hover); }
 .opt.own:hover { background: transparent; }
 .own-field {
   width: 100%; min-height: 24px; padding: 0; border: 0; background: transparent;

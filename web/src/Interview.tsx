@@ -346,16 +346,26 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
               </button>
             );
           })}
-          <div className={`opt own${d.writing ? ' chosen' : ''}`}>
-            {d.writing ? (
+          {/* What you wrote stays on screen when you pick an option instead, and on every question you come back
+              to: pointing into it makes it your answer again. */}
+          <div
+            className={`opt own${d.writing ? ' chosen' : d.other.trim() ? ' kept' : ''}`}
+            onClick={() => { if (!d.writing && d.other.trim()) otherRef.current?.focus(); }}
+          >
+            {d.writing || d.other.trim() ? (
               <>
-                <span className="opt-ring"><Ring kind={d.other.trim() ? 'dot' : 'open'} size={20} /></span>
+                <span className="opt-ring"><Ring kind={d.writing && d.other.trim() ? 'dot' : 'open'} size={20} letter={d.writing ? undefined : 'W'} /></span>
                 <textarea
                   ref={otherRef}
                   className="own-field"
                   rows={2}
                   placeholder="Your answer"
                   value={d.other}
+                  onFocus={() => {
+                    if (d.writing) return;
+                    clearTimeout(advanceTimer.current);
+                    set(q.id, { writing: true, choice: null });
+                  }}
                   onChange={(e) => set(q.id, { other: e.target.value })}
                   onKeyDown={(e) => {
                     // ⏎ settles the answer and moves on; ⇧⏎ is a new line.
