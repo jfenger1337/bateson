@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Decision, Item, State } from '@lib/types';
+import type { Config, Decision, Item, State } from '@lib/types';
 import { Interview } from './Interview';
 import { Review } from './Review';
 import { Findings } from './Findings';
@@ -14,6 +14,7 @@ import { MOD, MOD_KEY, modHeld } from './lib/keys';
 import { setTheme } from '@/lib/theme';
 import { forgetKept } from '@/lib/kept';
 import { Logo } from './Logo';
+import { AppMenu } from './Menu';
 
 
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
@@ -230,7 +231,22 @@ export function App() {
     return () => ro.disconnect();
   }, [viewKey, settings]);
 
+  // The theme from the right-click menu: saved as the Appearance setting is (Settings.tsx).
+  const theme = useCallback(async (t: Config['theme']) => {
+    setTheme(t);
+    setState((s) => s && { ...s, config: { ...s.config, theme: t } });
+    try { await fetch('/api/config', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ theme: t }) }); }
+    catch { toast('The appearance did not save: the server is not answering.'); }
+  }, []);
+
   return (
+    <AppMenu
+      theme={state?.config.theme ?? 'system'}
+      onTheme={theme}
+      onSettings={() => setSettings(true)}
+      later={item && !settings && item.kind !== 'interview' ? () => later(item) : undefined}
+      undo={said?.undo ? { label: said.label, run: said.undo } : undefined}
+    >
     <div className="frame">
       <header className={`bar${item ? ` hue-${item.hue}` : ''}`}>
         <div className="bar-left">
@@ -292,6 +308,7 @@ export function App() {
 
       <Splash />
     </div>
+    </AppMenu>
   );
 }
 
