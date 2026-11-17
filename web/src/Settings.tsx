@@ -124,23 +124,21 @@ export function Settings({ onClose, onChange }: { onClose: () => void; onChange:
         {/* Shown but not offered yet: the side-by-side layout is parked, and `preview` in config.json still turns it on. */}
         <Switch disabled on={c.preview} onChange={(v) => save({ preview: v })} />
       </Row>
-      <Row title="Notification sound">
+      {/* The sound, the hotkey and notifications come from the Mac app. Elsewhere bateson is this page in a browser. */}
+      {MAC && <Row title="Notification sound">
         <Switch on={c.sound} onChange={(v) => save({ sound: v })} />
-      </Row>
-      <Row title="Hotkey" hint="Shows and hides the bateson window.">
-        <Seg value={c.hotkey} onChange={(v) => save({ hotkey: v })} options={MAC
-          ? [['ctrl+option+space', '⌃⌥Space'], ['option+q', '⌥Q'], ['cmd+shift+space', '⌘⇧Space'], ['off', 'Off']]
-          // The same settings in the Windows app: option is Alt, and cmd is Ctrl.
-          : [['ctrl+option+space', 'Ctrl+Alt+Space'], ['option+q', 'Alt+Q'], ['cmd+shift+space', 'Ctrl+Shift+Space'], ['off', 'Off']]} />
-      </Row>
+      </Row>}
+      {MAC && <Row title="Hotkey" hint="Shows and hides the bateson window.">
+        <Seg value={c.hotkey} onChange={(v) => save({ hotkey: v })} options={[['ctrl+option+space', '⌃⌥Space'], ['option+q', '⌥Q'], ['cmd+shift+space', '⌘⇧Space'], ['off', 'Off']]} />
+      </Row>}
       <Row title="Time to undo" hint="The agent hears nothing until this has passed.">
         <Seg value={String(c.undoSeconds)} onChange={(v) => save({ undoSeconds: Number(v) })} options={undoOptions(c.undoSeconds)} />
       </Row>
 
       <h2 className="set-group">Agents</h2>
-      <Row title="When a session is waiting on you">
+      {MAC && <Row title="When a session is waiting on you">
         <Seg value={c.blocked} onChange={(v) => save({ blocked: v })} options={[['notify', 'Notify me'], ['notify-forward', 'Notify and open bateson'], ['none', 'Nothing']]} />
-      </Row>
+      </Row>}
       <div className="set-row set-send">
         <div className="set-text">
           <p className="set-title">What agents send you</p>

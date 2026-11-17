@@ -23,7 +23,7 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 | Appearance | Light, dark or the system's. |
 | Preview beside questions | A panel that shows what a question is about (a screenshot, a component, a live page). Not available for now, so agents ask in words only. A sound on an option still plays. |
 | Notification sound | On or off. |
-| Hotkey | Brings the window forward (Mac and Windows apps). On Windows `⌃⌥Space` is `Ctrl+Alt+Space`. |
+| Hotkey | Brings the window forward (Mac app). |
 | Time to undo | How long a decision can be taken back before the agent hears it. |
 | When a session is waiting on you | Notify, notify and bring the window forward, or nothing. |
 | What agents bring you | Questions and decisions, plans, findings, code. |
@@ -44,7 +44,6 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 | [`server/server.ts`](../server/server.ts) | Hono on `:4848`: the API, live updates, the built UI. Local requests only. |
 | [`web/`](../web) | Vite and React 19. |
 | [`mac/`](../mac) | The Mac shell, AppKit and WKWebView. `./mac/build.sh --install` puts it in `~/Applications`. |
-| [`windows/`](../windows) | The Windows shell, WinForms and WebView2: a window, a tray ring with the count, a count on the taskbar button, notifications and the hotkey. `powershell -ExecutionPolicy Bypass -File windows\build.ps1 -Install` puts it in `%LOCALAPPDATA%\Programs\bateson`. |
 | [`scripts/install.ts`](../scripts/install.ts) | Sets all of it up, and `--uninstall` takes it away. `--login` starts the server at login: a launchd item on a Mac, a value in the user's `Run` key on Windows. |
 | [`scripts/keepalive.ts`](../scripts/keepalive.ts) | On Windows, what the login item runs: it keeps the server running, as launchd does on a Mac. |
 

@@ -42,7 +42,7 @@ you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json
 
 ## get started
 
-1. open http://localhost:4848, or build the app for notifications, a count and a hotkey: `./mac/build.sh --install` on a mac, `powershell -ExecutionPolicy Bypass -File windows\build.ps1 -Install` on windows (needs the [.NET 10 SDK](https://dotnet.microsoft.com/download)).
+1. open http://localhost:4848. on a mac you can build the app for notifications, a count and a hotkey: `./mac/build.sh --install`. on windows bateson is that page in your browser; the windows app is retired for now.
 2. in a new claude code session, run [`/setup-bateson`](./skill/setup-bateson/SKILL.md) to choose what agents bring you.
 3. work as usual. agents send on their own when they hit a call that's yours. you can also ask, e.g. `/ama i want to add team accounts. ask me anything before you build.`
 

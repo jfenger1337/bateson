@@ -1,4 +1,4 @@
-# The tests on each system bateson runs on. On Windows also the installer, end to end, and the app's build.
+# The tests on each system bateson runs on. On Windows also the installer, end to end.
 name: test
 on:
   push:
@@ -85,12 +85,3 @@ jobs:
           if (Test-Path "$env:USERPROFILE\.local\bin\bateson.cmd") { throw 'the command is still there' }
           if (Test-Path "$env:USERPROFILE\.claude\skills\bateson") { throw 'the skill is still there' }
           if ((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run').bateson) { throw 'the login item is still there' }
-
-  windows-app:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-      - run: powershell -ExecutionPolicy Bypass -File windows\build.ps1

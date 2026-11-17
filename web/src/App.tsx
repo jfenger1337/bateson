@@ -164,7 +164,7 @@ export function App() {
     return () => { window.removeEventListener('keydown', on); window.removeEventListener('keyup', off); window.removeEventListener('blur', clear); };
   }, []);
 
-  // ⌘, (Ctrl+, on Windows) opens settings; the Mac and Windows apps' menus send the same through an event.
+  // ⌘, (Ctrl+, on Windows) opens settings; the Mac app's menu sends the same through an event.
   useEffect(() => {
     const open = () => setSettings((v) => !v);
     const onKey = (e: KeyboardEvent) => { if (modHeld(e) && e.key === ',') { e.preventDefault(); open(); } };

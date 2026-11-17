@@ -92,14 +92,14 @@ The CLI writes it from `--done "1: ..."` and `--not "2: ..."`, and refuses a rev
 
 ## config.json
 
-Settings, written by the app's settings page (⌘, or Ctrl+,) and read by the app, the Mac and Windows shells and the hooks. Agents may change it too. Missing keys take these defaults:
+Settings, written by the app's settings page (⌘, or Ctrl+,) and read by the app, the Mac shell and the hooks. Agents may change it too. Missing keys take these defaults:
 
 ```json
 {
   "name": "",                     // what agents call you ("Sam reviews it first"); empty: "the user". BATESON_REVIEWER overrides it
   "blocked": "notify",            // when a session is blocked on you: "notify" | "notify-forward" | "none"
   "sound": true,                  // notification sound
-  "hotkey": "ctrl+option+space",  // "ctrl+option+space" | "option+q" | "cmd+shift+space" | "off" (on Windows option is Alt and cmd is Ctrl)
+  "hotkey": "ctrl+option+space",  // "ctrl+option+space" | "option+q" | "cmd+shift+space" | "off" (Mac app only)
   "undoSeconds": 4,               // how long a decision can be undone before the agent hears it
   "stopCheck": true,              // remind agents, on turns you did not start, that your calls go to the queue (hooks/remind.ts)
   "bring": { "decisions": true, "plans": false, "findings": false, "code": false }, // what agents send you (Settings or /setup-bateson)

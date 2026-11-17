@@ -44,7 +44,7 @@ The installer will:
 - Add a login item and start it straight away. It runs a local server on port 4848. On a Mac it is `~/Library/LaunchAgents/com.bateson.server.plist`. On Windows it is a value named `bateson` in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which starts `scripts/keepalive.ts` without a window; that keeps the server running.
 - Create the queue folder `~/.bateson`, with a settings file that holds the first name from their git config, so agents know what to call them.
 
-If Apple's command line tools are there (step 5), the Mac app build will also put `bateson.app` in `~/Applications`, and restart it if it is running. On Windows, if the .NET SDK is there, the app build puts `bateson.exe` in `%LOCALAPPDATA%\Programs\bateson` with a Start menu entry, and restarts it if it is running.
+If Apple's command line tools are there (step 5), the Mac app build will also put `bateson.app` in `~/Applications`, and restart it if it is running. There is no Windows app for now: on Windows bateson is http://localhost:4848 in their browser.
 
 Nothing is sent anywhere, and `node scripts/install.ts --uninstall` undoes all of it except the queue folder and the app.
 
@@ -72,18 +72,12 @@ xcode-select -p >/dev/null 2>&1 && command -v swiftc >/dev/null && ./mac/build.s
 
 If they are missing, do not install them. Say that the app was skipped, and that `xcode-select --install` followed by `./mac/build.sh --install` in `~/bateson` adds it later.
 
-On Windows, build it only if the .NET SDK, version 10 or newer, is already there:
-
-```bash
-dotnet --list-sdks | grep -qE '^(1[0-9]|[2-9][0-9])\.' && powershell -ExecutionPolicy Bypass -File windows/build.ps1 -Install
-```
-
-If it is missing, do not install it. Say that the app was skipped, and that `winget install Microsoft.DotNet.SDK.10` followed by `powershell -ExecutionPolicy Bypass -File windows\build.ps1 -Install` in `~/bateson` adds it later.
+On Windows there is no app to build: skip this step. bateson there is the page at http://localhost:4848.
 
 ## 6. Check and hand over
 
 - `curl -s -o /dev/null -w '%{http_code}' http://localhost:4848` should print `200`. If it does not, show the last lines of `~/.bateson/server.log` and stop.
-- Open the window. On a Mac: `open -a bateson` if the app was built, otherwise `open http://localhost:4848`. On Windows: `start "" "$LOCALAPPDATA/Programs/bateson/bateson.exe"` if the app was built, otherwise `start http://localhost:4848`.
+- Open the window. On a Mac: `open -a bateson` if the app was built, otherwise `open http://localhost:4848`. On Windows: `start http://localhost:4848`, and tell them to keep that tab open or bookmark it, since nothing pops up when an agent is waiting.
 
 Then tell the person, in a few lines:
 
