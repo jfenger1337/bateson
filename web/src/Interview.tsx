@@ -27,6 +27,8 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
     Object.fromEntries(qs.map((q) => [q.id, { choice: q.recommended ?? null, other: '', writing: false, touched: false }])),
   );
   const [kept, setAt] = useKept(`${kk}:at`, () => 0);
+  // The questions you moved on from: a recommendation you went past counts as given, one you never reached does not.
+  const [passed, setPassed] = useKept<string[]>(`${kk}:passed`, () => []);
   // Kept from before the answers screen went, a place past the last question means the last one.
   const at = Math.min(kept, Math.max(0, qs.length - 1));
   useEffect(() => { onFirst(at === 0); }, [at, onFirst]);
@@ -44,6 +46,11 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
     return d.writing ? d.other.trim().length > 0 : d.choice != null;
   };
   const ready = qs.every((q) => answered(q.id));
+  // What Send now sends: an answer you touched, or a recommendation you saw and went past.
+  const given = (id: string) => answered(id) && (drafts[id].touched || passed.includes(id));
+  const givenCount = qs.filter((x) => given(x.id)).length;
+  // Send now is offered once something is given and something is not: with everything given, Send does it.
+  const early = givenCount > 0 && givenCount < qs.length;
   const last = at === qs.length - 1;
   const q = qs[at] as (typeof qs)[number] | undefined;
   const d = q ? drafts[q.id] : null;
@@ -104,7 +111,11 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
     clearTimeout(advanceTimer.current);
     const n = Math.max(0, Math.min(qs.length - 1, i));
     if (n === at) return;
-    if (n > at) reportEarly(at);
+    if (n > at) {
+      reportEarly(at);
+      const id = qs[at]?.id;
+      if (id) setPassed((p) => (p.includes(id) ? p : [...p, id]));
+    }
     setDir(n > at ? 'fwd' : 'back');
     setAt(n);
     window.scrollTo({ top: 0 });
@@ -140,6 +151,15 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
   const send = () => {
     if (!ready) { go(qs.findIndex((x) => !answered(x.id))); return; }
     const answers: Answer[] = qs.map((x) => answerOf(x, drafts[x.id]));
+    onDecide(item, { decision: 'answer', answers });
+  };
+
+  // Send the answers given so far, not the round: the rest go back to the agent as unanswered, and the next round
+  // takes what you said into account. It does not end the interview.
+  const sendNow = () => {
+    clearTimeout(advanceTimer.current);
+    const answers: Answer[] = qs.filter((x) => given(x.id)).map((x) => answerOf(x, drafts[x.id]));
+    if (!answers.length) return;
     onDecide(item, { decision: 'answer', answers });
   };
 
@@ -195,7 +215,8 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'Enter') { e.preventDefault(); next(); }
+      if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); if (early) sendNow(); }
+      else if (e.key === 'Enter') { e.preventDefault(); next(); }
       else if (e.key === 'ArrowRight' || e.key === 'j') { e.preventDefault(); go(at + 1); }
       else if (e.key === 'ArrowLeft' || e.key === 'k') { e.preventDefault(); go(at - 1); }
       else if (LETTERS.includes(e.key) && q?.options[LETTERS.indexOf(e.key)]) { e.preventDefault(); choose(LETTERS.indexOf(e.key)); hear(LETTERS.indexOf(e.key)); }
@@ -382,7 +403,12 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
             {!answered(q.id) ? 'Pick one, or write your own, to go on.' : last && open ? `“${open.title}” (${open.id}) has no answer yet.` : ''}
           </p>
           <div className="decide-actions">
-            <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="End the interview">End interview</button>
+            <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="Stop this interview and send nothing">End interview</button>
+            {early && (
+              <button className="btn-pill lg" onClick={sendNow} title="Send the answers you gave so far. The interview goes on: the agent asks again what is still open, in light of them.">
+                Send {givenCount} now <span className="key">⇧⏎</span>
+              </button>
+            )}
             {at > 0 && <button className="btn-pill lg" onClick={() => go(at - 1)}>Back <span className="key">←</span></button>}
             {last ? (
               // The last question sends the round. If an earlier one is still open, the button says so first.

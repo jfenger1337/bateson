@@ -52,6 +52,7 @@ After sending, do what the command's last line says: end your turn where their a
 
 - "Your recommendation, accepted" is a decision, and includes everything your recommendation said.
 - A written answer means your options missed. Read it closely: it often opens a branch, or shows the question was framed wrong.
+- A round can come back early, with only some questions answered (they pressed Send now). The rest are still open, not accepted: recompute the frontier from the answers you got, and ask the open ones again in the next round, reworded where those answers changed them.
 
 ## Early answers
 
