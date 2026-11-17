@@ -24,7 +24,13 @@ function write(key: string, value: unknown) {
 /** useState that survives a reload. */
 export function useKept<T>(key: string, init: () => T): [T, Dispatch<SetStateAction<T>>] {
   const [value, setValue] = useState<T>(() => read<T>(key) ?? init());
-  useEffect(() => { write(key, value); }, [key, value]);
+  // Nothing is written while there is nothing to keep: an item only looked at leaves nothing behind. A value
+  // already kept is always written, so going back to empty is kept too.
+  useEffect(() => {
+    let kept = false;
+    try { kept = sessionStorage.getItem(PREFIX + key) != null; } catch { /* no storage */ }
+    if (kept || JSON.stringify(value) !== JSON.stringify(init())) write(key, value);
+  }, [key, value]); // eslint-disable-line react-hooks/exhaustive-deps
   return [value, setValue];
 }
 
