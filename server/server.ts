@@ -46,6 +46,10 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
       if (c.req.header('content-length') !== '0' && c.req.raw.body && !type.startsWith('application/json')) return c.json({ error: 'JSON only' }, 415);
     }
     await next();
+    // No other website may frame bateson: a page that put it in a hidden frame could steer your clicks and keys into
+    // answering a question or starting an update, with every request coming from bateson's own origin.
+    c.header('x-frame-options', 'SAMEORIGIN');
+    if (!c.res.headers.has('content-security-policy')) c.header('content-security-policy', "frame-ancestors 'self'");
   });
 
   // The types bateson serves files as; anything else is plain text.

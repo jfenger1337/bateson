@@ -72,3 +72,27 @@ test('a pasted screenshot is saved, served back, and named in the answer; a name
   assert.equal((await decide(app, id, { n: 1, decision: 'answer', answers: [{ id: 'Q1', choice: null, images: ['../../config.json'] }] })).status, 400);
   assert.equal((await decide(app, id, { n: 1, decision: 'answer', answers: [{ id: 'Q1', choice: null, other: '', images: [name] }] })).status, 200);
 });
+
+// ---- Framing: another website must not put bateson in a frame and steer clicks into it.
+
+test('no other website may frame the app, and a file keeps its own sandboxing policy', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'bateson-dist-'));
+  fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html><title>bateson</title>');
+  const { app } = createApp({ dist });
+  for (const url of ['/', '/api/state']) {
+    const res = await app.request(url, HOST);
+    assert.equal(res.status, 200, url);
+    assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN', url);
+    assert.equal(res.headers.get('content-security-policy'), "frame-ancestors 'self'", url);
+  }
+  const { id } = sent();
+  const item = store.getItem(id)!;
+  fs.mkdirSync(path.join(item.dir, 'v1', 'files'), { recursive: true });
+  fs.writeFileSync(path.join(item.dir, 'v1', 'files', 'notes.html'), '<script>alert(1)</script>');
+  const file = await app.request(`/api/items/${id}/files/1/notes.html`, HOST);
+  assert.match(file.headers.get('content-security-policy') || '', /sandbox/);
+  fs.rmSync(dist, { recursive: true, force: true });
+});
