@@ -133,6 +133,35 @@ test('bateson inbox does not hand over another open session\'s answer', () => {
   assert.match(cli(['inbox'], { CLAUDE_CODE_SESSION_ID: 'P' }).join('\n'), new RegExp(it.id));
 });
 
+/** Run hooks/catchup.ts for session `sessionId` in REPO; what it tells the session ('' for nothing). */
+function catchup(event: 'SessionStart' | 'UserPromptSubmit', sessionId: string, extra: Record<string, string> = {}) {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.ts')], {
+    env: childEnv(), cwd: REPO, encoding: 'utf8',
+    input: JSON.stringify({ hook_event_name: event, session_id: sessionId, cwd: REPO, transcript_path: path.join(TMP, `${sessionId}.jsonl`), ...extra }),
+  });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout;
+}
+
+test('a session starting in the repo never gets the answer of another session, even one that has ended', () => {
+  const it = item('A'); // A is not in Claude Code's list of running sessions: it has ended
+  store.decide(it.id, 1, { decision: 'approve' });
+  for (const source of ['startup', 'resume', 'clear', 'compact']) {
+    assert.doesNotMatch(catchup('SessionStart', 'B', { source }), new RegExp(it.id), `not on ${source}`);
+  }
+  assert.doesNotMatch(catchup('UserPromptSubmit', 'B', { prompt: 'carry on' }), new RegExp(it.id));
+  assert.match(catchup('SessionStart', 'A', { source: 'resume' }), new RegExp(`\\(${it.id}, v1\\)`), 'resuming the session that asked gets it');
+});
+
+test('the session that asked gets its answer on its next prompt', () => {
+  sessionOpen(process.pid, 'A');
+  const it = item('A');
+  store.decide(it.id, 1, { decision: 'approve' });
+  assert.doesNotMatch(catchup('UserPromptSubmit', 'B', { prompt: 'hi' }), new RegExp(it.id));
+  assert.match(catchup('UserPromptSubmit', 'A', { prompt: 'hi' }), new RegExp(`\\(${it.id}, v1\\)`));
+  assert.doesNotMatch(catchup('UserPromptSubmit', 'A', { prompt: 'hi' }), new RegExp(it.id), 'once');
+});
+
 test('bateson rearm hands over an answer that arrived meanwhile, but only to the session that asked', () => {
   sessionOpen(process.pid, 'P');
   const it = item('P');

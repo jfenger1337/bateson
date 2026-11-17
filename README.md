@@ -46,7 +46,7 @@ you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json
 2. in a new claude code session, run [`/setup-bateson`](./skill/setup-bateson/SKILL.md) to choose what agents bring you.
 3. work as usual. agents send on their own when they hit a call that's yours. you can also ask, e.g. `/ama i want to add team accounts. ask me anything before you build.`
 
-if you closed the terminal that asked, the next session in the same repository gets the answer.
+an answer only ever goes to the session that asked. if you closed it, resume it (`claude --resume`) and it gets the answer there, or run `bateson inbox` in another session in the same repository to hand it over on purpose.
 
 ## what can come to you
 

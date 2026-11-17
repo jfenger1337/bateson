@@ -317,7 +317,7 @@ async function cmdWait(o: Args) {
   if (res.kind === 'decision') console.log(res.message);
   else if (res.kind === 'elsewhere') console.log(`bateson: the response on ${id} already reached a session. \`bateson status ${id}\` shows it.`);
   else if (Date.now() - sentAt < WAIT_FOR) console.log(`bateson: still waiting on ${id}. Run \`bateson wait ${id}\` again.`);
-  else console.log(`bateson: still waiting on ${id} after ten minutes. Stop waiting: end your turn, and tell ${reviewer()} their response will be picked up when they next write. ${agent() === 'claude-code' ? 'It reaches the next session in this repo by itself.' : 'When they do, run `bateson inbox` before anything else.'}`);
+  else console.log(`bateson: still waiting on ${id} after ten minutes. Stop waiting: end your turn, and tell ${reviewer()} their response will be picked up when they next write. ${agent() === 'claude-code' ? 'It reaches this session by itself when they do.' : 'When they do, run `bateson inbox` before anything else.'}`);
 }
 
 // The rewake hook wakes the session shortly before Claude Code would stop it, and asks for this: the hook
@@ -327,7 +327,7 @@ function cmdRearm(o: Args) {
   const v = store.currentVersion(item);
   if (store.readDecision(item, v.n)) {
     // Answered in the meantime: hand it over here rather than wait for it, if it is this session's to take.
-    const mine = pendingFor({ sessionId: currentSession(), cwd: process.cwd() }).some((it) => it.id === item.id);
+    const mine = pendingFor({ sessionId: currentSession() }).some((it) => it.id === item.id);
     const msg = mine ? claim(item.id, v.n, 'rearm') : null;
     console.log(msg ?? `bateson: the response on ${item.id} is not this session's to take, or already reached a session. End your turn.`);
     return;
@@ -341,7 +341,8 @@ function cmdRearm(o: Args) {
 
 function cmdInbox() {
   // This session's own responses, and those from sessions in this repo that have ended: never one whose
-  // session is still open, which would take it from the conversation that asked.
+  // session is still open, which would take it from the conversation that asked. The hooks never hand on another
+  // session's response; this does, because an agent runs it on purpose.
   const msgs = collect({ sessionId: currentSession(), cwd: process.cwd() }, 'inbox');
   console.log(msgs.length ? msgs.join('\n\n') : 'bateson: no responses for this session, or from this repo\'s ended sessions.');
 }
