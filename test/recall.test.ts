@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import store from '../lib/store.ts';
-import { recall } from '../lib/recall.ts';
+import { recall, overrides, overridesNote } from '../lib/recall.ts';
 import { checkoutOf } from '../lib/delivery.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -96,4 +96,52 @@ test('the command prints the lines and what to do with them, and refuses a searc
   assert.match(run('nothing-like-it').stdout, /nothing .* matches/);
   assert.equal(run('of').status, 1);
   assert.equal(run('--limit', '0').status, 1);
+});
+
+const here = () => { const top = checkoutOf(REPO)!; return { top, repo: path.basename(top) }; };
+
+test('overrides: their own answers and options other than the recommended, in this checkout only, newest first', () => {
+  interview(OTHER, 0, '2026-11-03T10:00:00.000Z');
+  interview(REPO, 0, '2026-11-01T10:00:00.000Z');
+  const list = overrides(here());
+  assert.deepEqual(list.map((r) => r.about).sort(), ['What should the button say?', 'Who should be able to sign in?'], 'taking the recommendation is not one');
+  assert.ok(list.every((r) => r.repo === 'repo'));
+  assert.deepEqual(list.find((r) => r.about.startsWith('Who'))!.override, { chose: '"Email code"', over: 'Passkeys' });
+  assert.deepEqual(list.find((r) => r.about.startsWith('What'))!.override, { chose: 'their own answer, "Continue"', over: undefined });
+});
+
+test('an override they later took back no longer counts', () => {
+  interview(REPO, 0, '2026-11-01T10:00:00.000Z');
+  interview(REPO, 1, '2026-11-02T10:00:00.000Z'); // Q1 now the recommended Passkeys
+  assert.ok(!overrides(here()).some((r) => r.about.startsWith('Who')));
+});
+
+test('the note: one line each, at most five, and nothing at all when there are none', () => {
+  assert.equal(overridesNote(here(), 'Sam'), '');
+  for (let d = 1; d <= 4; d++) {
+    const { id } = store.send({ kind: 'decision', bodyType: 'questions', title: `Round ${d}`, source: src(REPO), body: { questions: [
+      { id: 'Q1', title: `Question ${d}?`, options: [{ label: 'Left' }, { label: 'Right' }], recommended: 0 },
+      { id: 'Q2', title: `Other ${d}?`, options: [{ label: 'Up' }, { label: 'Down' }], recommended: 0 } ] } });
+    store.decide(id, 1, { decision: 'answer', answers: [{ id: 'Q1', choice: 1 }, { id: 'Q2', choice: 1 }] });
+  }
+  const note = overridesNote(here(), 'Sam');
+  assert.match(note, /^Where Sam went against an agent's recommendation in this repository lately/);
+  const lines = note.split('\n').filter((l) => l.startsWith('- '));
+  assert.equal(lines.length, 5);
+  assert.match(lines[0], /^- \d{4}-\d\d-\d\d .+\? They chose "Right" over the recommended "Left"\.$|^- \d{4}-\d\d-\d\d .+\? They chose "Down" over the recommended "Up"\.$/);
+});
+
+test('a new session hears the overrides with how they work; a session elsewhere does not', () => {
+  interview(REPO, 0);
+  const start = (cwd: string) => {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'catchup.ts')], {
+      env: childEnv(), input: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'x', cwd }), encoding: 'utf8',
+    });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout).hookSpecificOutput.additionalContext as string;
+  };
+  const told = start(REPO);
+  assert.match(told, /^How the user works with bateson/);
+  assert.match(told, /Who should be able to sign in\? They chose "Email code" over the recommended "Passkeys"\./);
+  assert.doesNotMatch(start(OTHER), /went against/);
 });

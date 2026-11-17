@@ -48,7 +48,7 @@ Order: revisions and next rounds first, then items a live session is waiting on,
 
 - `PostToolUse` hook on `bateson send`, with `asyncRewake`: waits in the background and wakes the session with the response.
 - `UserPromptSubmit` hook: hands a session any response to what it sent that arrived after the waiting hook gave up.
-- `SessionStart` hook: hands a new session responses for its repo that nobody received, once the session that asked has ended (headless runs, closed sessions). A response never goes to another session while the one that asked is open.
+- `SessionStart` hook: hands a new session responses for its repo that nobody received, once the session that asked has ended (headless runs, closed sessions). A response never goes to another session while the one that asked is open. It also tells the session the last few times you went against an agent's recommendation in that repo.
 - `Stop` hook: notes that the session is idle. On a turn you did not start, a `PostToolUse` hook quietly reminds the agent, the first time it changes files, that calls which are yours go to the queue.
 - All global, in `~/.claude/`, and silent unless Claude Code started them.
 

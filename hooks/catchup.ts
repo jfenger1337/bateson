@@ -3,7 +3,9 @@
 // on a prompt, decisions on items this session sent; at session start, those and decisions for this repo whose
 // own session has ended (lib/delivery.ts decides who may take what).
 import store, { reviewer, Reviewer } from '../lib/store.ts';
-import { collect } from '../lib/delivery.ts';
+import path from 'node:path';
+import { collect, checkoutOf } from '../lib/delivery.ts';
+import { overridesNote } from '../lib/recall.ts';
 import type { Who } from '../lib/delivery.ts';
 import { input, guard } from './_io.ts';
 import { snapshot, saveSnapshot, sweepSnapshots } from '../lib/worktree.ts';
@@ -26,7 +28,7 @@ guard(async () => {
   // is still open: that one gets it itself.
   const who: Who = prompt ? { sessionId: hook.session_id } : { sessionId: hook.session_id, cwd: hook.cwd };
   const msgs = who.sessionId || who.cwd ? collect(who, `${event}:${hook.session_id}`) : [];
-  const parts = event === 'SessionStart' ? [howTheyWork(config.bring, config.preview)] : [];
+  const parts = event === 'SessionStart' ? [howTheyWork(config.bring, config.preview), lately(hook.cwd)].filter(Boolean) : [];
   if (prompt && heard) { const line = whatChanged(heard, config.bring); if (line) parts.push(line); }
   // "ama" anywhere in a message is the user asking to be interviewed; /ama loads the skill by itself.
   // bateson's own wake-up messages mention the ama skill; only something the user typed counts.
@@ -75,6 +77,19 @@ function howTheyWork(bring: Bring, preview: boolean) {
     bring.code ? '' : REPORT,
     preview || !bring.decisions ? '' : 'Ask in words only: they have the preview panel off, so leave `show` and attachments out of questions (a sound on an option still plays).',
   ].filter(Boolean).join(' ');
+}
+
+/**
+ * The latest times the reviewer went against an agent in this checkout (lib/recall.ts), or ''. It changes only
+ * when they answer something, so it costs little more than its length. Reading old answers must never cost the
+ * session the rest of what it is told, so a failure here is logged and left out.
+ */
+function lately(cwd: string | undefined) {
+  if (!cwd) return '';
+  try {
+    const top = checkoutOf(cwd)!;
+    return overridesNote({ top, repo: path.basename(top) }, reviewer());
+  } catch (e) { store.logHookError('catchup.ts lately', e); return ''; }
 }
 
 /** One line for a running session whose `bring` changed since it was told, or '' when nothing did. */
