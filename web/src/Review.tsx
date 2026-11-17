@@ -183,11 +183,14 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   }, [comments, draft]);
 
   // Lay the notes out under the block their place is in, which makes room for them.
-  const pushed = useRef(new Map<HTMLElement, string>());
+  const pushed = useRef(new Map<HTMLElement, { margin: string; transition: string }>());
+  const unpush = () => {
+    for (const [el, was] of pushed.current) { el.style.marginBottom = was.margin; el.style.transition = was.transition; }
+    pushed.current.clear();
+  };
   const layout = useCallback(() => {
     const notes = notesRef.current;
-    for (const [el, was] of pushed.current) el.style.marginBottom = was;
-    pushed.current.clear();
+    unpush();
     if (!notes) return;
     const cards = [...notes.querySelectorAll<HTMLElement>('[data-slot]')];
     const blockOf = (p: Place): HTMLElement | null => {
@@ -202,7 +205,10 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       if (b) groups.set(b, [...(groups.get(b) ?? []), el]);
     }
     for (const [b, els] of groups) {
-      pushed.current.set(b, b.style.marginBottom);
+      pushed.current.set(b, { margin: b.style.marginBottom, transition: b.style.transition });
+      // No transition while we read the block's own margin: with reduced motion everything eases for 1ms, and the
+      // read would still see the margin we pushed, so each layout would add the room again.
+      b.style.transition = 'none';
       const room = els.reduce((h, el) => h + el.offsetHeight + GAP, GAP);
       b.style.marginBottom = `${parseFloat(getComputedStyle(b).marginBottom) + room}px`;
     }
@@ -224,7 +230,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     document.fonts?.ready.then(again);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('resize', again); };
   });
-  useEffect(() => () => { for (const [el, was] of pushed.current) el.style.marginBottom = was; }, []);
+  useEffect(() => unpush, []);
 
   // Pointing at a changed passage lights the reply it answers.
   const onBodyMove = (e: React.MouseEvent) => {
