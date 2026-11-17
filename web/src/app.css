@@ -20,7 +20,7 @@
     -webkit-app-region: drag; app-region: drag;
     padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + var(--space-16));
   }
-  .bar :is(a, button, [role='status'], .bar-name, .bar-steps) { -webkit-app-region: no-drag; app-region: no-drag; }
+  .bar :is(a, button, [role='status'], .bar-name) { -webkit-app-region: no-drag; app-region: no-drag; }
 }
 .bar-left, .bar-right { display: flex; align-items: center; gap: var(--space-16); min-width: 0; }
 .bar-left { flex: 1; }
@@ -40,9 +40,6 @@
 .logo { display: inline-flex; flex: none; align-items: center; gap: var(--space-10); color: var(--ink); }
 .logo svg { display: block; overflow: visible; }
 .logo-word { margin-top: -1px; } /* off-scale: the wordmark's letters sit a pixel high against the mark */
-/* An interview's or findings' dots sit in the bar, after the name of the item they belong to. */
-.bar-steps { display: flex; flex: none; margin-left: calc(-1 * var(--space-6)); }
-.bar-steps[hidden] { display: none; }
 .bar-sentence { font-size: var(--text-meta); color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: var(--space-6); }
 .bar-sentence.late { color: var(--late); }
 .bar-sentence.waiting { color: var(--ink); }
@@ -347,8 +344,8 @@
 .iv-step-q { font-size: var(--text-label); color: var(--muted); }
 .iv-step-a { font-size: var(--text-meta); font-weight: 500; color: var(--ink); white-space: pre-wrap; }
 .iv-step-a.none { font-weight: 400; color: var(--late); }
-/* In an interview the dots sit above the question, the first ring level with the title's first letter. */
-.iv-main > .iv-steps { margin: 0 0 var(--space-16) -6px; }
+/* The dots sit above the question or finding, the first ring level with the title's first letter. */
+:is(.iv-main, .findings) > .iv-steps { margin: 0 0 var(--space-16) -6px; }
 
 /* ---- Rings */
 .ring { flex: none; display: block; }

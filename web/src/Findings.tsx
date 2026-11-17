@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { keptKey, useKept } from './lib/kept';
 import type { Decision, Finding, Item, Mark } from '@lib/types';
 import { Markdown } from './Markdown';
@@ -14,7 +13,7 @@ interface Draft { mark: 'keep' | 'dismiss'; reason: string; comment: string; tou
 const ADVANCE_MS = 220;
 const SEVERITY: Record<Finding['severity'], string> = { high: 'High', medium: 'Medium', low: 'Low' };
 
-export function Findings({ item, steps, onDecide, onLater }: { item: Item; steps: HTMLElement | null; onDecide: (i: Item, d: Decision) => void; onLater: (i: Item) => void }) {
+export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i: Item, d: Decision) => void; onLater: (i: Item) => void }) {
   const list = (item.version.body as { findings: Finding[] }).findings ?? [];
   const kk = keptKey(item);
   const [drafts, setDrafts] = useKept<Record<string, Draft>>(`${kk}:drafts`, () =>
@@ -91,7 +90,7 @@ export function Findings({ item, steps, onDecide, onLater }: { item: Item; steps
 
   return (
     <article className={`page interview findings arrive hue-${item.hue}`}>
-        {steps && createPortal(
+        {/* The dots sit just above the finding, where you are reading: how far through the list you are, at a glance. */}
         <nav className="iv-steps iv-round" aria-label="Findings">
           {list.map((x, i) => (
             <button
@@ -104,9 +103,7 @@ export function Findings({ item, steps, onDecide, onLater }: { item: Item; steps
               <Ring kind={i === at ? 'open' : ring(x)} size={10} />
             </button>
           ))}
-        </nav>,
-        steps,
-        )}
+        </nav>
       {at === 0 && item.version.note && <p className="note">{item.version.note}</p>}
 
       {reviewing ? (

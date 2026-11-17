@@ -225,7 +225,6 @@ export function App() {
 
   const item = state?.current ?? null;
   // Where you are in an interview or a set of findings: its dots sit in the bar, after the item's name.
-  const [steps, setSteps] = useState<HTMLElement | null>(null);
   // The project is said only when the queue holds more than one, which is when it tells items apart.
   const projects = new Set(state?.queue.map((r) => r.repo).filter(Boolean)).size;
   // The newest decision still on hold: the bar says what it was and offers to take it back, until it goes through.
@@ -291,7 +290,6 @@ export function App() {
               {project && <span className="bar-project">{project}</span>}
             </span>
           )}
-          <span ref={setSteps} className="bar-steps" hidden={!!said} />
         </div>
         <div className="bar-right">
           {failed && <span className="bar-sentence late"><Spinner variant="ellipsis" size={14} aria-hidden />Not connected. Is <span className="rec">bateson serve</span> running?</span>}
@@ -305,7 +303,7 @@ export function App() {
           item.kind === 'interview'
             ? <Interview key={viewKey} item={item} panel={state.config.preview} onDecide={decide} />
             : item.kind === 'findings'
-              ? <Findings key={viewKey} item={item} steps={steps} onDecide={decide} onLater={later} />
+              ? <Findings key={viewKey} item={item} onDecide={decide} onLater={later} />
               : <Review key={viewKey} item={item} onDecide={decide} onLater={later} />
         ) : (
           <Empty agents={state.agents ?? []} writing={state.writing ?? []} update={state.update} onUpdate={() => setSettings(true)} />
