@@ -40,7 +40,7 @@ jobs:
         run: |
           $env:USERPROFILE = Join-Path $env:RUNNER_TEMP 'home'
           New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude" | Out-Null
-          node scripts/install.ts --login
+          node scripts/install.mjs --login
           if ($LASTEXITCODE) { exit 1 }
           # The server answers.
           $ok = $false
@@ -82,7 +82,7 @@ jobs:
         shell: pwsh
         run: |
           $env:USERPROFILE = Join-Path $env:RUNNER_TEMP 'home'
-          node scripts/install.ts --uninstall
+          node scripts/install.mjs --uninstall
           if ($LASTEXITCODE) { exit 1 }
           Start-Sleep 2
           try { Invoke-WebRequest http://localhost:4848/api/health -UseBasicParsing | Out-Null; throw 'the server is still running' } catch [System.Net.WebException], [System.Net.Http.HttpRequestException] { }
