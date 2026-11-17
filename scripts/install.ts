@@ -57,7 +57,7 @@ function log(s: string) { console.log(`  ${s}`); }
 const AMA = path.join(HOME, '.claude', 'skills', 'ama');
 const links = [
   // On Windows the command is a pair of small scripts instead (below): a link to a .ts file does not run there.
-  ...(WIN ? [] : [[BIN, path.join(REPO, 'cli', 'bateson.ts')]]),
+  ...(WIN ? [] : [[BIN, path.join(REPO, 'cli', 'bateson.mjs')]]),
   [SKILL, path.join(REPO, 'skill', 'bateson')],
   [SETUP, path.join(REPO, 'skill', 'setup-bateson')],
   [AMA, path.join(REPO, 'skill', 'ama')],
@@ -119,8 +119,8 @@ for (const [link, target] of links) {
 // ---- the command on Windows: bateson.cmd for cmd and PowerShell, and a shell script for Git Bash, where Claude
 // Code runs its commands. Both start the CLI with the same Node as the hooks.
 const SHIMS: [string, string][] = WIN ? [
-  [`${BIN}.cmd`, `@echo off\r\nrem bateson: the command, made by scripts/install.ts\r\n"${NODE}" "${path.join(REPO, 'cli', 'bateson.ts')}" %*\r\n`],
-  [BIN, `#!/bin/sh\n# bateson: the command, made by scripts/install.ts\nexec "${commandPath(NODE)}" "${commandPath(path.join(REPO, 'cli', 'bateson.ts'))}" "$@"\n`],
+  [`${BIN}.cmd`, `@echo off\r\nrem bateson: the command, made by scripts/install.ts\r\n"${NODE}" "${path.join(REPO, 'cli', 'bateson.mjs')}" %*\r\n`],
+  [BIN, `#!/bin/sh\n# bateson: the command, made by scripts/install.ts\nexec "${commandPath(NODE)}" "${commandPath(path.join(REPO, 'cli', 'bateson.mjs'))}" "$@"\n`],
 ] : [];
 for (const [file, text] of [...SHIMS, ...(uninstall && WIN ? (installed?.shims || []).map((f) => [f, ''] as [string, string]) : [])]) {
   const exists = fs.existsSync(file);

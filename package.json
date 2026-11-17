@@ -13,7 +13,7 @@
   },
   "type": "module",
   "bin": {
-    "bateson": "cli/bateson.ts"
+    "bateson": "cli/bateson.mjs"
   },
   "scripts": {
     "dev": "vite --config web/vite.config.ts",
