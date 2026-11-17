@@ -199,6 +199,12 @@
 /* A question on its own is as wide as those words, so the column is centred on what you read: in the 800px
    column a 68ch measure left the words a hand's width short of the right edge, and the page leaned left. */
 .page.interview.asks:not(.with-preview) { --main-w: 700px; }
+/* It also starts a fifth of the way down the window, not just under the bar, so a question that fits does not
+   leave the lower half empty. A fixed drop and not a centred one: every title starts on the same line, so after
+   Next your eye is already where the question is. A phone keeps the small top. */
+@media (min-width: 761px) {
+  .work:has(> .page.interview.asks:not(.with-preview)) { padding-top: clamp(var(--space-40), 20vh, 280px); }
+}
 /* The reason under the recommendation is set in --iv-text, so its measure is counted in that size too: counted
    in the 14px around it, it wrapped well short of the description above it. */
 .interview .opt-why { font-size: var(--iv-text); }
