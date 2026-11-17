@@ -8,7 +8,7 @@ import { Ring } from './Ring';
 let arrived = false;
 
 
-export function Empty({ agents, writing }: Pick<State, 'agents' | 'writing'>) {
+export function Empty({ agents, writing, update, onUpdate }: Pick<State, 'agents' | 'writing'> & { update?: State['update']; onUpdate: () => void }) {
   const now = useNow(30_000);
   const [again] = useState(arrived);
   useEffect(() => { arrived = true; }, []);
@@ -20,6 +20,10 @@ export function Empty({ agents, writing }: Pick<State, 'agents' | 'writing'>) {
   return (
     <div className={`calm${again ? ' again' : ''}`}>
       <h1 className="calm-head">All caught up</h1>
+      {/* Only here, where nothing waits on you: a new version never comes between you and a question. */}
+      {update?.state === 'available' && (
+        <p className="calm-update">A new version of bateson is ready. <button type="button" className="btn-link" onClick={onUpdate}>See what’s new</button></p>
+      )}
 
       {(agents.length > 0 || writing.length > 0) && (
         <ul className="agents">

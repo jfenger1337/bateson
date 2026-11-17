@@ -2,11 +2,25 @@
 
 .frame { min-height: 100dvh; display: flex; flex-direction: column; }
 
+/* The bar's height, which what scrolls under it keeps clear of. */
+:root { --bar-h: 52px; }
+
 /* ---- The bar: where you are, in a sentence, and where the work came from. */
 .bar {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: var(--space-16);
-  height: 52px; padding: 0 var(--space-24); background: color-mix(in srgb, var(--work) 90%, transparent);
+  height: var(--bar-h); padding: 0 var(--space-24); background: color-mix(in srgb, var(--work) 90%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+/* Installed as an app from Edge or Chrome (Windows above all), the window draws no title bar of its own: the bar
+   takes its place, as tall as the title bar would be, with the window's buttons over its right end. Its empty parts
+   drag the window; what you click in it does not. The browser offers a toggle back to its own title bar. */
+@media (display-mode: window-controls-overlay) {
+  :root { --bar-h: env(titlebar-area-height, 52px); }
+  .bar {
+    -webkit-app-region: drag; app-region: drag;
+    padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + var(--space-16));
+  }
+  .bar :is(a, button, [role='status'], .bar-name, .bar-steps) { -webkit-app-region: no-drag; app-region: no-drag; }
 }
 .bar-left, .bar-right { display: flex; align-items: center; gap: var(--space-16); min-width: 0; }
 .bar-left { flex: 1; }
@@ -22,7 +36,10 @@
 .bar-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-project, .bar-round { color: var(--muted); white-space: nowrap; }
 .bar-project::before, .bar-round::before { content: '·'; margin-right: var(--space-8); color: var(--faint-3); }
-.wordmark { font-size: var(--text-body); font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+/* The logo in the bar's corner: the inked mark and wordmark (Logo.tsx). */
+.logo { display: inline-flex; flex: none; align-items: center; gap: var(--space-10); color: var(--ink); }
+.logo svg { display: block; overflow: visible; }
+.logo-word { margin-top: -1px; } /* off-scale: the wordmark's letters sit a pixel high against the mark */
 /* An interview's or findings' dots sit in the bar, after the name of the item they belong to. */
 .bar-steps { display: flex; flex: none; margin-left: calc(-1 * var(--space-6)); }
 .bar-steps[hidden] { display: none; }
@@ -182,7 +199,7 @@
    scrolls as a whole, and only the decision bar stays put. A choice picked by key scrolls into view clear of
    the two bars. */
 .asks .options { padding-top: var(--space-24); }
-.asks .opt { scroll-margin: calc(52px + var(--space-16)) 0 calc(var(--decide-h, 60px) + var(--space-24)); }
+.asks .opt { scroll-margin: calc(var(--bar-h) + var(--space-16)) 0 calc(var(--decide-h, 60px) + var(--space-24)); }
 /* Beside a preview the question has a pane of its own: its words scroll there, fading where they meet the
    choices, which sit at the foot of the pane. */
 .with-preview .iv-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -200,7 +217,7 @@
 .work:has(.with-preview) { padding-bottom: 0; }
 .page.interview.with-preview {
   --decide-h: calc(var(--control-page) + var(--space-24) + 1px);
-  --main-w: 1680px; height: calc(100vh - 52px - var(--space-40) - var(--decide-h) - var(--space-24)); min-height: 360px;
+  --main-w: 1680px; height: calc(100vh - var(--bar-h) - var(--space-40) - var(--decide-h) - var(--space-24)); min-height: 360px;
   display: grid; grid-template-columns: minmax(440px, 1fr) minmax(0, 3fr); gap: var(--space-32);
 }
 /* A small example (a sketch, a wording) does not need three quarters of the window: the question keeps its
@@ -498,6 +515,8 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* ---- The empty queue: the day so far, and who is at work. */
 /* Anchored from the top, not centred: agents coming and going below never move what is above. */
 .calm { max-width: 720px; margin: 0 auto; padding-top: clamp(48px, 16vh, 180px); display: flex; flex-direction: column; }
+.calm-update { margin-top: var(--space-12); font-size: var(--text-meta); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+.calm.again .calm-update { animation: none; }
 .calm-head { font-family: var(--serif); font-size: var(--work-title); font-weight: 400; line-height: 1.15; letter-spacing: -0.012em; color: var(--ink); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 
 @keyframes qr-fade { from { opacity: 0; } } /* base.css's .page-loading */
@@ -543,7 +562,14 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* There only when Claude Code's settings have lost bateson's hooks, above everything else. */
 .set-warn { display: flex; align-items: center; justify-content: space-between; gap: var(--space-24); margin-bottom: var(--space-32); padding: var(--space-14) var(--space-16); border: 1px solid var(--border-soft); border-radius: var(--radius); background: var(--tint); }
 .set-warn:not(.fixed) .set-title { color: var(--late); }
-@media (max-width: 760px) { .set-row { flex-direction: column; align-items: flex-start; gap: var(--space-10); } }
+/* Updates (Update.tsx): the state and its button on one line, the new version's changes listed under it. */
+.set-row.set-update { flex-direction: column; align-items: stretch; gap: var(--space-12); }
+.set-head-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-24); }
+.set-update.warn .set-title { color: var(--late); }
+.set-changes { margin: 0; padding: 0 0 0 var(--space-16); max-height: 240px; overflow-y: auto; font-size: var(--text-meta); line-height: 1.45; color: var(--text-2); }
+.set-changes li + li { margin-top: var(--space-4); }
+.set-changes .more { list-style: none; margin-left: calc(-1 * var(--space-16)); color: var(--muted); }
+@media (max-width: 760px) { .set-row { flex-direction: column; align-items: flex-start; gap: var(--space-10); } .set-head-row { flex-direction: column; align-items: flex-start; gap: var(--space-10); } }
 /* An agent at work: Bateson's dashed ring for something automatic, turning slowly (as a running check does). */
 .agents .ring-dashed { color: var(--ink); animation: check-spin 3.2s linear infinite, qr-arrive-ring var(--dur-arrive) var(--ease-out); }
 @keyframes qr-arrive-ring { from { opacity: 0; scale: 0.6; } }

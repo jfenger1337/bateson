@@ -3,6 +3,7 @@
 import store, { reviewer } from './store.ts';
 import { kindOf, previousOf } from './kinds.ts';
 import { reachOf } from './delivery.ts';
+import { readUpdate } from './update.ts';
 import type { StoredItem } from './store.ts';
 import type { Item, Round, State, Summary } from './types.ts';
 
@@ -54,6 +55,7 @@ export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: str
     // Only agents that have sent you something today: a session that is just busy has nothing coming your way.
     agents: store.activeSessions(live).filter(({ sessionId }) => sent.has(sessionId))
       .map(({ sessionId, repo, title, since }) => ({ sessionId, repo, title: sent.get(sessionId) || title || undefined, since })),
+    update: readUpdate(),
   };
 }
 

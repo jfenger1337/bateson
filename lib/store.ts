@@ -73,6 +73,7 @@ export const DEFAULTS: Config = {
   stopCheck: true,            // hooks/remind.ts: "did you just decide something on your own?", on turns you did not start
   theme: 'system',            // 'system' | 'light' | 'dark'
   preview: false,             // the panel beside a question for its `show`; off, questions are centred and in words only
+  updates: true,              // once a day, ask GitHub whether there is a newer version (lib/update.ts)
   // What agents bring to you, set with /setup-bateson and told to every agent at session start (hooks/catchup.ts).
   // decisions: questions and decisions, taste calls included, as interview rounds. plans: a plan before big work.
   // findings: review findings before they are fixed. code: changes as a diff; off, finished work comes back as a report.
@@ -171,7 +172,7 @@ export function openStore(
     // Only the keys bateson knows, so a setting it no longer has drops out of the file on the next change.
     return {
       name: pick('name'), blocked: pick('blocked'), sound: pick('sound'), hotkey: pick('hotkey'), undoSeconds: pick('undoSeconds'),
-      stopCheck: pick('stopCheck'), theme: pick('theme'), preview: pick('preview'), bring: { ...DEFAULTS.bring, ...(c.bring || {}) },
+      stopCheck: pick('stopCheck'), theme: pick('theme'), preview: pick('preview'), updates: pick('updates'), bring: { ...DEFAULTS.bring, ...(c.bring || {}) },
     };
   }
 

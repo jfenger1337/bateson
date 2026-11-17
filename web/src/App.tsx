@@ -13,6 +13,7 @@ import { Settings as Gear } from 'lucide-react';
 import { MOD, MOD_KEY, modHeld } from './lib/keys';
 import { setTheme } from '@/lib/theme';
 import { forgetKept } from '@/lib/kept';
+import { Logo } from './Logo';
 
 
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
@@ -228,7 +229,7 @@ export function App() {
     <div className="frame">
       <header className={`bar${item ? ` hue-${item.hue}` : ''}`}>
         <div className="bar-left">
-          <span className="wordmark">bateson</span>
+          <Logo />
           {said ? (
             <span className="bar-sentence said" role="status">
               {said.label}
@@ -256,7 +257,7 @@ export function App() {
 
       <main className="work">
         {settings ? (
-          <Settings onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
+          <Settings update={state?.update} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
         ) : !state ? <Loading /> : item ? (
           item.kind === 'interview'
             ? <Interview key={viewKey} item={item} steps={steps} panel={state.config.preview} onDecide={decide} onFirst={setFirstQ} />
@@ -264,7 +265,7 @@ export function App() {
               ? <Findings key={viewKey} item={item} steps={steps} onDecide={decide} onLater={later} />
               : <Review key={viewKey} item={item} onDecide={decide} onLater={later} />
         ) : (
-          <Empty agents={state.agents ?? []} writing={state.writing ?? []} />
+          <Empty agents={state.agents ?? []} writing={state.writing ?? []} update={state.update} onUpdate={() => setSettings(true)} />
         )}
       </main>
 

@@ -83,18 +83,27 @@ const INTERVIEW = {
   decisions: { answer: 'Answered', drop: 'Ended' },
   noun: null,
   asks: () => [],
-  tell({ item, v, d, resend, who }) {
+  tell({ item, v, d, resend, who, Who }) {
     if (d.decision === 'drop') return DROPPED;
     const qs = store.readQuestions(item, v);
-    const lines = (d.answers || []).map((a) => {
+    const answers = d.answers || [];
+    const lines = answers.map((a) => {
       const q: Partial<Question> = qs.find((x) => x.id === a.id) || {};
       return `- ${a.id} ${q.title || a.id}: ${describeAnswer(q, a)}`;
     });
+    // Send now: the round went with only the answers given so far. The rest are open, not accepted.
+    const open = qs.filter((q) => !answers.some((a) => a.id === q.id && (a.choice != null || a.other)));
+    const sentEarly = open.length
+      ? `\n\n${Who} sent this round early, without answering ${open.map((q) => `${q.id} ${q.title}`).join('; ')}. Those are still open: do not take your recommendation for them, and do not end the interview. Read the answers above first, since they may change what is still worth asking. Put each open question in the next round again, reworded or with new options where the answers changed it; leave out only one an answer above has settled or made moot, and say which answer did.`
+      : '';
     const draft = store.readDraft(item, v.n);
     const drafted = draft?.questions?.length
       ? `\n\nYou drafted ${plural(draft.questions.length, 'follow-up')} while ${who} answered (${draft.questions.map((q) => `${q.id} ${q.title}`).join('; ')}). Print them with \`bateson draft ${item.id} --show\`, check them against all the answers above, add what else the frontier needs, and send the next round now with \`${resend} --questions -\`.`
       : '';
-    return `Answers for round ${v.n}:\n${lines.join('\n')}${drafted}\n\nIf this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, send the shared understanding for review as the interview's last version (see the ama skill).`;
+    const after = open.length
+      ? `Send the next round with \`${resend} --questions -\`.`
+      : `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, send the shared understanding for review as the interview's last version (see the ama skill).`;
+    return `Answers for round ${v.n}:\n${lines.join('\n')}${sentEarly}${drafted}\n\n${after}`;
   },
   validate: validateQuestions,
 } satisfies Kind;

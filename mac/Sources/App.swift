@@ -13,7 +13,7 @@ let summaryURL = URL(string: "http://localhost:\(port)/api/summary")!
 let paper = NSColor(name: nil) { look in
   look.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
     ? NSColor(srgbRed: 0x14 / 255, green: 0x14 / 255, blue: 0x14 / 255, alpha: 1)
-    : NSColor(srgbRed: 0xFA / 255, green: 0xFA / 255, blue: 0xF8 / 255, alpha: 1)
+    : NSColor(srgbRed: 0xFC / 255, green: 0xFC / 255, blue: 0xFB / 255, alpha: 1)
 }
 
 @main

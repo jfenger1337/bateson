@@ -94,6 +94,29 @@ export interface Config {
   /** The panel beside a question, for what it shows. Off, every question is centred and asked in words only. */
   preview: boolean;
   bring: { decisions: boolean; plans: boolean; findings: boolean; code: boolean };
+  /** Once a day, ask GitHub whether there is a newer version (lib/update.ts). Nothing of theirs is sent. */
+  updates: boolean;
+}
+
+/**
+ * Where updating bateson stands (lib/update.ts, ~/.bateson/update.json). 'available': a new version that can be
+ * installed from the app; 'blocked': one that cannot, because the checkout has changes or commits of its own
+ * (`reason`); 'updating' (`step`); 'failed': it went back to the version before (`reason`); 'restart': updated,
+ * but the server was started by hand and has to be started again.
+ */
+export interface UpdateView {
+  state: 'current' | 'available' | 'blocked' | 'updating' | 'failed' | 'restart';
+  checkedAt?: string;
+  /** The new commits, newest first, at most 30, and how many more there are. */
+  changes: { hash: string; subject: string }[];
+  more: number;
+  reason?: string;
+  step?: string;
+  /** The last check could not reach GitHub. */
+  error?: string;
+  updatedAt?: string;
+  /** Said after an update: what did not work, such as rebuilding the Mac app. */
+  note?: string;
 }
 
 export interface State {
@@ -103,6 +126,7 @@ export interface State {
   config: Config;
   writing: { id: string; title: string; next: number; sessionId?: string }[];
   agents: { sessionId: string; repo: string; title?: string; since: string }[];
+  update: UpdateView;
 }
 
 export interface Summary {

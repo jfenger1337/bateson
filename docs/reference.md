@@ -8,7 +8,7 @@ Hold `⌘` in the app to see the keys for the screen you are on. On Windows it i
 
 | Where | Keys |
 |---|---|
-| Interview | `A`–`I` choose an option, `W` write your own, `J`/`K` or `←`/`→` move between questions, `⏎` next (on the last question it sends), `⇧D` end. |
+| Interview | `A`–`I` choose an option, `W` write your own, `J`/`K` or `←`/`→` move between questions, `⏎` next (on the last question it sends), `⇧⏎` send now: only the answers you gave so far, and the interview goes on. |
 | Findings | `K` keep, `X` dismiss (type a reason if you like), `C` comment, `←`/`→` move, `⏎` next, `⌘⏎` send, `L` later, `⇧D` drop. |
 | Review | On code, select lines then `C` to comment. Click the title to comment on the whole piece. `A` approve, `S` send back, `L` later, `⇧D` drop. |
 | Anywhere | `⌘Z` undoes a decision for a few seconds. `⌘,` opens settings. |
@@ -27,17 +27,20 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 | Time to undo | How long a decision can be taken back before the agent hears it. |
 | When a session is waiting on you | Notify, notify and bring the window forward, or nothing. |
 | What agents bring you | Questions and decisions, plans, findings, code. |
+| Check for new versions | Once a day, ask GitHub whether there is a newer bateson. On by default. Nothing is installed until you press **Update** under Updates. |
 | Remind agents to ask you | A quiet reminder on turns you did not start. |
 
 ## The parts
 
 | Path | What |
 |---|---|
-| [`cli/bateson.ts`](../cli/bateson.ts) | `bateson send / status / wait / rearm / inbox / list / serve`. After a send it tells the agent what to do next: end the turn where a wake-up is in place, wait where it is not. |
+| [`cli/bateson.ts`](../cli/bateson.ts) | `bateson send / status / wait / rearm / inbox / list / recall / serve`. After a send it tells the agent what to do next: end the turn where a wake-up is in place, wait where it is not. |
 | [`lib/store.ts`](../lib/store.ts) | The queue on disk, shared by everything. |
+| [`lib/update.ts`](../lib/update.ts) | Updates from the app. It checks once a day with `git fetch`. **Update** fast-forwards `~/bateson` to GitHub's version, runs `npm ci` if the dependencies changed, builds, runs the installer, and rebuilds the Mac app if it changed and is installed. Then the server quits, and launchd or `scripts/keepalive.ts` starts the new one. A checkout with changed files or commits of its own is left alone, and a failed build goes back to the commit it started from. A server started by hand is not stopped: the page asks you to restart it. |
+| [`lib/recall.ts`](../lib/recall.ts) | `bateson recall`: what you already decided, one line each, so agents check before asking again. It reads the queue's files on every call: no index, no model. A question asked again shows once, at your latest answer, noting whether it changed. Also the overrides a new session hears about. |
 | [`lib/agent.ts`](../lib/agent.ts) | Which agent is running a command or hook, and whether a response can wake it. |
 | [`hooks/rewake.ts`](../hooks/rewake.ts) | After a send, waits for your response and wakes the session that sent it. It gives up when that session closes or moves on (`/clear`), so the response is left for a session that can use it. Claude Code stops it after four hours, so two minutes before that it wakes the session to run `bateson rearm <id>`, which starts it again. It stops renewing once the question is a day old. |
-| [`hooks/catchup.ts`](../hooks/catchup.ts) | On a prompt and at session start (a resume or a compaction): hands the session responses to what it sent. Never one another session sent, even once that one has ended: `bateson inbox` takes those on purpose. Also tells the agent what you want brought to you. |
+| [`hooks/catchup.ts`](../hooks/catchup.ts) | On a prompt and at session start (a resume or a compaction): hands the session responses to what it sent. Never one another session sent, even once that one has ended: `bateson inbox` takes those on purpose. Also tells the agent what you want brought to you and, at session start, the last five times you went against an agent's recommendation in this repository (an option other than the one recommended, or your own answer), so its recommendations lean your way. |
 | [`hooks/nudge.ts`](../hooks/nudge.ts) | When a turn ends: marks the session idle and records the working tree. |
 | [`hooks/remind.ts`](../hooks/remind.ts) | The first time a turn you did not start changes files, quietly reminds the agent that calls which are yours go to the queue. It never blocks. |
 | [`skill/`](../skill) | The skills. |
