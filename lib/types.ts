@@ -128,7 +128,7 @@ export interface State {
   writing: { id: string; title: string; next: number; sessionId?: string }[];
   /** Items their agent cancelled in the last ten minutes, because you called them off in its terminal. */
   cancelled: { id: string; title: string; at: string }[];
-  agents: { sessionId: string; repo: string; title?: string; since: string }[];
+  agents: { sessionId: string; repo: string; title?: string; since: string; doing?: string; doneAt?: string }[];
   update: UpdateView;
 }
 

@@ -589,9 +589,15 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .agents li { display: flex; align-items: center; gap: var(--space-10); font-size: var(--text-body); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 .agents .ring { color: var(--ink); }
 .agent-repo { color: var(--ink); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-where { flex-shrink: 0; white-space: nowrap; }
+.agent-where { flex-shrink: 0; white-space: nowrap; color: var(--muted); }
 .agent-what { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agents .ink { color: var(--ink); }
+/* One row per agent, its columns lined up down the list: the ring, whose it is, what it is doing now, for how long. */
+.agents li:not(.is-solo) { display: grid; grid-template-columns: 13px minmax(0, 220px) minmax(0, 1fr) auto; gap: var(--space-16); }
+.agents li:not(.is-solo) .agent-repo { font-weight: 400; }
+.agent-when { color: var(--faint); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.agents li.is-done .agent-repo, .agents li.is-done .ring { color: var(--faint); }
+.agents li.is-done .agent-what { color: var(--faint); }
 
 /* ---- Settings (⌘,) */
 .set-head { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--space-24); }
