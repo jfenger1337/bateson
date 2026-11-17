@@ -11,6 +11,10 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
     waiter.json               a live hook waiting on it: { pid, sessionId, n }. The hook touches it every second;
                               one untouched for 15 seconds counts as gone.
     later.json                put off with Later: { at }
+    withdrawn.json            its agent cancelled it (`bateson cancel`), because you called it off in chat: { at, by, n }.
+                              The item is filed under done, the app refuses a decision on it, and an answer given
+                              before it was cancelled is marked delivered so nothing hands it on. A next version
+                              sent with `--item` removes it and puts the item back in the queue.
     v<N>/
       body.md | body.txt | body.diff | body.json
       files/                  attachments

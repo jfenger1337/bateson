@@ -64,7 +64,7 @@ export function release(id: string, pid = process.pid) {
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** How a wait ended. See awaitDecision. */
-export type Outcome = { kind: 'decision' | 'early'; message: string } | { kind: 'elsewhere' | 'gone' | 'timeout' | 'abandoned' };
+export type Outcome = { kind: 'decision' | 'early'; message: string } | { kind: 'elsewhere' | 'gone' | 'withdrawn' | 'timeout' | 'abandoned' };
 
 /**
  * Wait for the decision on version n of an item (the current version when n is left out).
@@ -73,6 +73,7 @@ export type Outcome = { kind: 'decision' | 'early'; message: string } | { kind: 
  *   { kind: 'early', message }     answers to questions that open others, given before the rest of the round
  *   { kind: 'elsewhere' }          someone else took the decision, a newer version arrived, or a newer waiter took over
  *   { kind: 'gone' }               the item no longer exists
+ *   { kind: 'withdrawn' }          its agent cancelled it (`bateson cancel`): there is nothing to wait for
  *   { kind: 'abandoned' }          `alive` said the session this waits for is not there any more
  *   { kind: 'timeout' }
  * With `pid`, the caller is the item's registered waiter: it touches waiter.json each time round, so others can
@@ -85,6 +86,7 @@ export async function awaitDecision(id: string, { n, pid, by, to, alive, until =
   for (;;) {
     const item = store.getItem(id);
     if (!item) return { kind: 'gone' };
+    if (store.readWithdrawn(item)) { if (pid != null) store.clearWaiter(item, pid); return { kind: 'withdrawn' }; }
     const v = store.currentVersion(item);
     const want = n ?? v.n;
     if (pid != null && store.readWaiter(item)?.pid !== pid) return { kind: 'elsewhere' };

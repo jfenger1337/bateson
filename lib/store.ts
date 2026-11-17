@@ -15,6 +15,7 @@
 //   <root>/items/<id>/session.json            the agent session that sent it
 //   <root>/items/<id>/waiter.json             a live hook waiting on it: { pid, sessionId, n }; touched every poll
 //   <root>/items/<id>/later.json              moved to the back of the queue
+//   <root>/done/<id>/withdrawn.json           its agent cancelled it (`bateson cancel`): { at, by, n }
 //   <root>/done/<id>/                         delivered items, same layout
 //   <root>/sessions/<session>.json            sessions at work (hooks); <session>.tree is lib/worktree.ts's
 //   <root>/config.json                        settings
@@ -46,6 +47,8 @@ export type DecisionFile = Decision & { decidedAt: string };
 export interface Delivered { at: string; by?: string; sessionId?: string; transcript?: string }
 /** waiter.json: a live hook waiting on version n. */
 export interface Waiter { pid: number; sessionId?: string; n: number }
+/** withdrawn.json: the agent cancelled the item at version n, because the user called it off in chat. */
+export interface Withdrawn { at: string; by?: string; n: number }
 /** session.json: the Claude Code session that sent the item, and so the only one its decision goes to while it runs. */
 export interface ItemSession { agent?: string; sessionId: string; cwd?: string; transcriptPath?: string }
 export type EarlyAnswer = Answer & { at: string };
@@ -332,6 +335,8 @@ export function openStore(
       item.updatedAt = at;
       item.source = { ...item.source, ...source };
       fs.rmSync(path.join(dir, 'later.json'), { force: true });
+      // Sent again after it was cancelled: it is back in the queue, as asked.
+      fs.rmSync(path.join(dir, 'withdrawn.json'), { force: true });
     } else {
       const id = newId();
       dir = path.join(ITEMS, id);
@@ -362,6 +367,7 @@ export function openStore(
     const item = getItem(id);
     if (!item) throw new Error('No such item');
     const v = currentVersion(item);
+    if (readWithdrawn(item)) throw Object.assign(new Error('Its agent cancelled this, so your answer was not sent.'), { code: 'withdrawn' });
     if (v.n !== n || (at && v.createdAt !== at)) throw Object.assign(new Error('A newer version arrived.'), { code: 'stale' });
     const file = vfile(item, n, 'decision.json');
     let fd;
@@ -377,6 +383,36 @@ export function openStore(
   function later(id: string) {
     const item = getItem(id);
     if (item) writeJson(ifile(item, 'later.json'), { at: now() });
+  }
+
+  const readWithdrawn = (item: StoredItem) => readJson(ifile(item, 'withdrawn.json')) as Withdrawn | null;
+
+  /**
+   * The agent calls an item off, because the user told it to in chat: it leaves the queue (filed under done,
+   * like a delivered item), a hook waiting on it lets go without waking anyone, and the app refuses a decision
+   * on it. An answer given but not yet received is never handed on. Says what the item was doing:
+   * 'waiting' for the reviewer, 'answered' but not received, 'received' (the agent had the last answer), or
+   * 'already' cancelled.
+   */
+  function withdraw(item: StoredItem, by?: string): 'waiting' | 'answered' | 'received' | 'already' {
+    if (readWithdrawn(item)) return 'already';
+    const v = currentVersion(item);
+    // Written before the decision is looked at: a decision made from here on is refused (decide()).
+    writeJson(ifile(item, 'withdrawn.json'), { at: now(), by, n: v.n } satisfies Withdrawn);
+    let was: 'waiting' | 'answered' | 'received' = 'waiting';
+    if (readDecision(item, v.n)) was = claimDelivery(item, v.n, 'cancel') ? 'answered' : 'received';
+    fileAway(item);
+    return was;
+  }
+
+  /** Items cancelled by their agent since `since`, for the app to say so if one was in front of you. */
+  function withdrawnSince(since: number, all = allDone()) {
+    const out: { item: StoredItem; w: Withdrawn }[] = [];
+    for (const item of all) {
+      const w = readWithdrawn(item);
+      if (w && Date.parse(w.at) >= since) out.push({ item, w });
+    }
+    return out;
   }
 
   // ---- Delivery. lib/delivery.ts is the one caller.
@@ -472,6 +508,7 @@ export function openStore(
   function saveEarly(id: string, n: number, answer: unknown) {
     const item = getItem(id);
     if (!item) throw new Error('No such item');
+    if (readWithdrawn(item)) throw new Error('Its agent cancelled this.');
     const v = currentVersion(item);
     if (v.n !== n) throw new Error('A newer version arrived.');
     if (!answer || typeof answer !== 'object' || !('id' in answer) || typeof answer.id !== 'string' || !/^[\w-]+$/.test(answer.id)) throw new Error('Bad answer');
@@ -534,7 +571,7 @@ export function openStore(
   }
 
   function pending() {
-    const rows = allQueued().filter((it) => !readDecision(it, currentVersion(it).n)).map((it) => {
+    const rows = allQueued().filter((it) => !readDecision(it, currentVersion(it).n) && !readWithdrawn(it)).map((it) => {
       const v = currentVersion(it);
       const lat = readJson(ifile(it, 'later.json')) as { at: string } | null;
       const w = waiter(it);
@@ -557,7 +594,7 @@ export function openStore(
     const t = Date.now();
     for (const it of all) {
       const v = currentVersion(it);
-      if (v.bodyType !== 'questions' || readDecision(it, v.n)?.decision !== 'answer') continue;
+      if (v.bodyType !== 'questions' || readDecision(it, v.n)?.decision !== 'answer' || readWithdrawn(it)) continue;
       const del = readDelivered(it, v.n);
       if (!del || t - Date.parse(del.at) > 15 * 60 * 1000) continue;
       if (fs.existsSync(vfile(it, v.n, 'stopped.json'))) continue;
@@ -700,6 +737,7 @@ export function openStore(
     ROOT: root, readConfig, writeConfig, ensureDirs,
     getItem, allQueued, allDone, isQueued, currentVersion, versionOf, readDecision, isDelivered, readBody,
     readQuestions, readFindings, attachments, readAttachment, readReplies, send, decide, later,
+    readWithdrawn, withdraw, withdrawnSince,
     claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
     beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
     saveEarly, unreportedEarly, markEarlyReported, readDraft, saveDraft,
@@ -726,6 +764,7 @@ export const {
   ROOT, readConfig, writeConfig, ensureDirs,
   getItem, allQueued, allDone, isQueued, currentVersion, versionOf, readDecision, isDelivered, readBody,
   readQuestions, readFindings, attachments, readAttachment, readReplies, send, decide, later,
+  readWithdrawn, withdraw, withdrawnSince,
   claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
   beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
   saveEarly, unreportedEarly, markEarlyReported, readDraft, saveDraft,

@@ -31,6 +31,9 @@ guard(async () => {
   // bateson's own wake-up messages mention the ama skill; only something the user typed counts.
   const said = hook.prompt || '';
   if (prompt && AMA.test(said) && !/^\s*\/ama\b/i.test(said) && !/\bbateson: /.test(said)) parts.push(AMA_ASK);
+  // You wrote in the terminal while this session has something waiting in the queue: if this message calls it
+  // off, the agent takes it out of the queue rather than leaving you something to answer that nobody wants.
+  if (prompt && who.sessionId) { const line = stillOpen(who.sessionId); if (line) parts.push(line); }
   if (msgs.length) {
     const lead = event === 'SessionStart'
       ? 'Responses from bateson to what this session sent, that had not reached it yet:'
@@ -40,6 +43,15 @@ guard(async () => {
   if (!parts.length) process.exit(0);
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: parts.join('\n\n') } }));
 });
+
+/** One line naming this session's items still waiting in the queue, or '' when there are none. */
+function stillOpen(sessionId: string) {
+  const open = store.pending().filter((r) => store.readSession(r.item)?.sessionId === sessionId);
+  if (!open.length) return '';
+  const names = open.map((r) => `"${r.v.title || r.item.title}" (${r.item.id})`).join(', ');
+  const ids = open.map((r) => r.item.id).join(' ');
+  return `bateson: ${open.length > 1 ? 'these are' : 'this is'} still waiting in ${reviewer()}'s queue: ${names}. If this message calls ${open.length > 1 ? 'them' : 'it'} off (stop, cancel, never mind, enough questions, go on without my answers), run \`bateson cancel ${ids}\` first, so ${open.length > 1 ? 'they leave' : 'it leaves'} the queue. Otherwise ignore this.`;
+}
 
 // What the reviewer chose in Settings or /setup-bateson, as every session hears it at the start. Each kind of
 // work: what to send when it is on, its short name, and what to do instead when it is off.

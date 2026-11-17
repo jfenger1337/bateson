@@ -32,6 +32,7 @@ const HELP = `bateson: a review queue for what needs human judgment.
   bateson status <id>       where an item stands, and the response if there is one
   bateson wait <id> [--timeout <s>]   wait for the response and print it (where nothing can wake you)
   bateson rearm <id>        keep waiting to be woken, when bateson tells you the wait is about to run out
+  bateson cancel [<id>...]  take an item out of the queue because they called it off in chat (no id: this session's open items)
   bateson inbox             responses for this session, and for this repo's sessions that have ended, not yet received
   bateson list              what is waiting for review
   bateson config [--set -]  print the settings, or change them with a JSON patch on stdin (see /setup-bateson)
@@ -306,6 +307,7 @@ function findOrDie(id: string | undefined): StoredItem {
 function cmdStatus(o: Args) {
   const item = findOrDie(o._[1]);
   const v = store.currentVersion(item);
+  if (store.readWithdrawn(item)) { console.log(`${item.id} v${v.n} "${v.title || item.title}" was cancelled. \`bateson send --item ${item.id}\` puts it back in the queue.`); return; }
   console.log(peek(item.id) || `${item.id} v${v.n} "${v.title || item.title}" is waiting for review.`);
 }
 
@@ -321,6 +323,7 @@ async function cmdWait(o: Args) {
   if (!(seconds > 0)) die(`--timeout is a number of seconds, not ${JSON.stringify(o.timeout)}.`);
   const res = await awaitDecision(id, { by: 'wait', until: Date.now() + seconds * 1000 });
   if (res.kind === 'decision') console.log(res.message);
+  else if (res.kind === 'withdrawn') console.log(`bateson: ${id} was cancelled, so there is nothing to wait for. Stop waiting.`);
   else if (res.kind === 'elsewhere') console.log(`bateson: the response on ${id} already reached a session. \`bateson status ${id}\` shows it.`);
   else if (Date.now() - sentAt < WAIT_FOR) console.log(`bateson: still waiting on ${id}. Run \`bateson wait ${id}\` again.`);
   else console.log(`bateson: still waiting on ${id} after ten minutes. Stop waiting: end your turn, and tell ${reviewer()} their response will be picked up when they next write. ${agent() === 'claude-code' ? 'It reaches this session by itself when they do.' : 'When they do, run `bateson inbox` before anything else.'}`);
@@ -331,6 +334,7 @@ async function cmdWait(o: Args) {
 function cmdRearm(o: Args) {
   const item = findOrDie(o._[1]);
   const v = store.currentVersion(item);
+  if (store.readWithdrawn(item)) { console.log(`bateson: ${item.id} was cancelled, so there is nothing to wait for. End your turn.`); return; }
   if (store.readDecision(item, v.n)) {
     // Answered in the meantime: hand it over here rather than wait for it, if it is this session's to take.
     const mine = pendingFor({ sessionId: currentSession() }).some((it) => it.id === item.id);
@@ -343,6 +347,32 @@ function cmdRearm(o: Args) {
   console.log(canWake()
     ? 'Still waiting. End your turn now and say nothing: you will be woken with the response.'
     : `Nothing can wake you here: run \`bateson wait ${item.id}\` instead.`);
+}
+
+/**
+ * Take items out of the queue because the reviewer called them off in chat ("stop the interview"): out of the
+ * app, the hook waiting on each lets go without waking anyone, and an answer given meanwhile is not handed on.
+ * Without ids, this session's items still open: waiting in the queue, or answered and not yet received.
+ */
+function cmdCancel(o: Args) {
+  let items = o._.slice(1).map((id) => findOrDie(id));
+  if (!items.length) {
+    const sessionId = currentSession();
+    if (!sessionId) die('give the item id (q_...): this session cannot be told apart from others here. `bateson list` shows what is waiting.');
+    items = store.allQueued().filter((it) => store.readSession(it)?.sessionId === sessionId && !store.isDelivered(it, store.currentVersion(it).n));
+    if (!items.length) { console.log('bateson: nothing this session sent is open in the queue, so there is nothing to cancel.'); return; }
+  }
+  for (const item of items) {
+    const v = store.currentVersion(item);
+    const name = `"${v.title || item.title}" (${item.id})`;
+    const was = store.withdraw(item, `cancel:${currentSession() || agent()}`);
+    console.log(
+      was === 'already' ? `${name} was already cancelled.`
+      : was === 'answered' ? `Cancelled ${name}. ${Reviewer()} had already answered it; that answer will not be handed to you.`
+      : was === 'received' ? `Cancelled ${name}. It was not in the queue: you already had the last answer, and no next round will be expected.`
+      : `Cancelled ${name}: it is out of ${reviewer()}'s queue.`);
+  }
+  console.log(`Do not send ${items.length > 1 ? 'them' : 'it'} again unless ${reviewer()} asks; \`bateson send --item <id>\` would put it back. Tell them in one line that it is cancelled, then do what they asked instead.`);
 }
 
 function cmdInbox() {
@@ -380,6 +410,7 @@ try {
   else if (cmd === 'status') cmdStatus(o);
   else if (cmd === 'wait') await cmdWait(o);
   else if (cmd === 'rearm') cmdRearm(o);
+  else if (cmd === 'cancel') cmdCancel(o);
   else if (cmd === 'inbox') cmdInbox();
   else if (cmd === 'list') cmdList();
   else if (cmd === 'serve') cmdServe();

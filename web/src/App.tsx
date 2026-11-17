@@ -52,7 +52,11 @@ export function App() {
       if (mine !== asked.current) return;
       setFailed(false);
       if (text === lastText.current) { shownRef.current = lastShown.current; return; }
-      const s = JSON.parse(text);
+      const s: State = JSON.parse(text);
+      // The item in front of you went because its agent cancelled it (you told it to stop, in its terminal):
+      // say so, rather than have it vanish.
+      const gone = lastShown.current && lastShown.current !== s.current?.id ? s.cancelled?.find((c) => c.id === lastShown.current) : undefined;
+      if (gone && !heldRef.current.some((h) => h.id === gone.id)) toast(`Cancelled by its agent: ${gone.title}`);
       lastText.current = text;
       shownRef.current = lastShown.current = s.current?.id;
       setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
@@ -94,7 +98,8 @@ export function App() {
     if (res.ok) forgetKept(h.id);
     if (!res.ok) {
       const { error, code } = await res.json().catch(() => ({ error: 'It did not go through.' }));
-      // Refused because the agent sent a newer version meanwhile: that version is now waiting, so offer to bring it to the front.
+      // Refused because the agent sent a newer version meanwhile: that version is now waiting, so offer to bring it
+      // to the front. Refused because the agent cancelled it ('withdrawn'): the message says so, and that is all.
       const action = code === 'stale'
         ? { label: 'Show it', onClick: () => { shownRef.current = h.id; load(); } }
         : { label: 'Dismiss', onClick: () => {} };

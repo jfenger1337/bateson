@@ -140,12 +140,16 @@ It arrives as a reminder starting `bateson:`.
 
 Answers marked "your recommendation, accepted" mean they left your recommendation in place. That counts as their answer.
 
+## When they call it off in chat
+
+If the user tells you in the terminal to stop, cancel or forget something you sent (an interview, a plan, findings), or to go on without their answer, run `bateson cancel <id>` first. It takes the item out of their queue, the wait for it ends without waking you, and an answer they gave meanwhile is not handed on. With no id, it cancels everything this session has open. Then say in one line that it is cancelled and carry on with what they asked. When you have something waiting and they write to you, bateson reminds you of its id.
+
 ## Where nothing can wake you
 
 A headless run (`claude -p`), or an agent bateson has no wake-up for. `bateson send` says so, and `bateson wait <id>` waits for as long as your shell allows. Keep running it while it tells you to: it gives up after about ten minutes. If you ended a turn that way, run `bateson inbox` first when they next write, and act on what it hands you. It hands you only your own responses, and those of sessions in this repository that have ended.
 
 ## Other commands
 
-`bateson status <id>`, `bateson inbox` (your responses, and those of this repo's ended sessions, that nobody has received), `bateson list`.
+`bateson status <id>`, `bateson inbox` (your responses, and those of this repo's ended sessions, that nobody has received), `bateson list`, `bateson cancel [<id>...]` (see *When they call it off in chat*).
 
 A response only ever reaches the session that asked, while that session is open. Do not try to fetch another session's response with `bateson status` and act on it: it belongs to that conversation.

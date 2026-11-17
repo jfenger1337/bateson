@@ -221,6 +221,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
       UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: w.id, content: content, trigger: nil))
       if mode == "notify-forward" { show() }
     }
+    // A session that stopped waiting (answered, or cancelled by its agent) takes its notification with it.
+    let stale = notified.subtracting(s.waiting.map { $0.id })
+    if !stale.isEmpty { UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: Array(stale)) }
     firstPoll = false
   }
 

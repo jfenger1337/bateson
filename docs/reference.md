@@ -33,11 +33,11 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 
 | Path | What |
 |---|---|
-| [`cli/bateson.ts`](../cli/bateson.ts) | `bateson send / status / wait / rearm / inbox / list / serve`. After a send it tells the agent what to do next: end the turn where a wake-up is in place, wait where it is not. |
+| [`cli/bateson.ts`](../cli/bateson.ts) | `bateson send / status / wait / rearm / cancel / inbox / list / serve`. After a send it tells the agent what to do next: end the turn where a wake-up is in place, wait where it is not. `cancel` is what an agent runs when you tell it in the terminal to stop: the item leaves the app, and the wait for it ends without waking anyone. |
 | [`lib/store.ts`](../lib/store.ts) | The queue on disk, shared by everything. |
 | [`lib/agent.ts`](../lib/agent.ts) | Which agent is running a command or hook, and whether a response can wake it. |
 | [`hooks/rewake.ts`](../hooks/rewake.ts) | After a send, waits for your response and wakes the session that sent it. It gives up when that session closes or moves on (`/clear`), so the response is left for a session that can use it. Claude Code stops it after four hours, so two minutes before that it wakes the session to run `bateson rearm <id>`, which starts it again. It stops renewing once the question is a day old. |
-| [`hooks/catchup.ts`](../hooks/catchup.ts) | On a prompt and at session start (a resume or a compaction): hands the session responses to what it sent. Never one another session sent, even once that one has ended: `bateson inbox` takes those on purpose. Also tells the agent what you want brought to you. |
+| [`hooks/catchup.ts`](../hooks/catchup.ts) | On a prompt and at session start (a resume or a compaction): hands the session responses to what it sent. Never one another session sent, even once that one has ended: `bateson inbox` takes those on purpose. Also tells the agent what you want brought to you, and, when you write while something it sent is still waiting, its id and how to cancel it if your message calls it off. |
 | [`hooks/nudge.ts`](../hooks/nudge.ts) | When a turn ends: marks the session idle and records the working tree. |
 | [`hooks/remind.ts`](../hooks/remind.ts) | The first time a turn you did not start changes files, quietly reminds the agent that calls which are yours go to the queue. It never blocks. |
 | [`skill/`](../skill) | The skills. |

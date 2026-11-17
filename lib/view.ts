@@ -51,6 +51,8 @@ export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: str
     current: front ? itemView(front.item) : null,
     config: store.readConfig(),
     writing: store.writing(all, live).map(({ id, title, next, sessionId }) => ({ id, title, next, sessionId })),
+    cancelled: store.withdrawnSince(Date.now() - 10 * 60 * 1000, all.filter((it) => !store.isQueued(it)))
+      .map(({ item, w }) => ({ id: item.id, title: store.versionOf(item, w.n)?.title || item.title, at: w.at })),
     // Only agents that have sent you something today: a session that is just busy has nothing coming your way.
     agents: store.activeSessions(live).filter(({ sessionId }) => sent.has(sessionId))
       .map(({ sessionId, repo, title, since }) => ({ sessionId, repo, title: sent.get(sessionId) || title || undefined, since })),

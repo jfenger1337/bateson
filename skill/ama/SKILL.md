@@ -69,6 +69,10 @@ EOF_SUM
 
 Sent back means corrections: apply them and send it again. Do not act on the interview until it is approved.
 
+## Stopping
+
+If the user tells you in chat to stop the interview (stop, cancel, enough questions, never mind, just build it), run `bateson cancel <id>` before anything else, so the round leaves their queue and nothing waits on it. Without the id at hand, `bateson cancel` takes everything this session has open. Then say in one line that it is cancelled, and do what they asked instead. Do not send another round unless they ask for one.
+
 ## Without bateson
 
 If `command -v bateson` fails, run the rounds in chat, formatted like so, and wait for the answers before the next round:
