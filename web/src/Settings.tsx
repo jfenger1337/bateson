@@ -34,8 +34,10 @@ function sendHint(b: Bring, also: Also | null) {
 /** bateson's hooks in Claude Code's settings: without them no answer reaches an agent. */
 type Hooks = { state: 'ok' } | { state: 'missing'; busy: boolean; error?: string } | { state: 'fixed' };
 
-export function Settings({ onClose, onChange, update }: { onClose: () => void; onChange: (c: Config) => void; update?: UpdateView }) {
+export function Settings({ onClose, onChange, update, theme }: { onClose: () => void; onChange: (c: Config) => void; update?: UpdateView; theme?: Config['theme'] }) {
   const [c, setC] = useState<Config | null>(null);
+  // The appearance changed elsewhere (the right-click menu) while Settings is open: shown here too.
+  useEffect(() => { if (theme) setC((x) => (x && x.theme !== theme ? { ...x, theme } : x)); }, [theme]);
   const [hooks, setHooks] = useState<Hooks>({ state: 'ok' });
   const [errors, setErrors] = useState<{ count: number; last: string | null }>({ count: 0, last: null });
 

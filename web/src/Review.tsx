@@ -166,14 +166,22 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
 
   const save = () => {
     if (!draft?.text.trim()) { setDraft(null); return; }
-    if (draft.id) {
+    // Editing a comment that was removed meanwhile: the text is kept, as a new comment where it was.
+    if (draft.id && comments.some((x) => x.id === draft.id)) {
       const text = draft.text.trim();
       setComments((cs) => cs.map((x) => (x.id === draft.id ? { ...x, text } : x)));
       setDraft(null);
       return;
     }
     const c = { id: Math.random().toString(36).slice(2, 9), anchor: draft.anchor, text: draft.text.trim() };
-    if (draft.send) { setDraft(null); onDecide(item, { decision: 'send-back', comments: [...comments, c].sort(byPosition) }); return; }
+    if (draft.send) {
+      // Added as well as sent, so an Undo brings the review back with the note on it.
+      const all = [...comments, c].sort(byPosition);
+      setComments(all);
+      setDraft(null);
+      onDecide(item, { decision: 'send-back', comments: all });
+      return;
+    }
     setComments((cs) => [...cs, c].sort(byPosition));
     setDraft(null);
     window.getSelection()?.removeAllRanges();
@@ -295,13 +303,14 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   const withDraft = (): Comment[] => {
     const text = draft?.text.trim();
     if (!draft || !text) return comments;
-    if (draft.id) return comments.map((x) => (x.id === draft.id ? { ...x, text } : x));
+    if (draft.id && comments.some((x) => x.id === draft.id)) return comments.map((x) => (x.id === draft.id ? { ...x, text } : x));
     return [...comments, { id: Math.random().toString(36).slice(2, 9), anchor: draft.anchor, text }].sort(byPosition);
   };
   // With nothing written yet, Send back asks what should change first.
   const sendBack = () => {
     const all = withDraft();
-    if (all.length) { setDraft(null); onDecide(item, { decision: 'send-back', comments: all }); }
+    // The note is added as well as sent, so an Undo brings the review back with it on.
+    if (all.length) { setComments(all); setDraft(null); onDecide(item, { decision: 'send-back', comments: all }); }
     else if (!draft) startComment(whole, true);
   };
   // An approval carries no comments, so one with a note still being written would drop it without a word:

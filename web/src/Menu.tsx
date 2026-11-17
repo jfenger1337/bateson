@@ -66,7 +66,9 @@ export function AppMenu({ children, theme, onTheme, onSettings, later, undo }: {
         {children}
       </ContextMenuTrigger>
       {/* Closing leaves focus where the row put it (the comment box), not on the window the menu opened from. */}
-      <ContextMenuContent aria-label="bateson" onCloseAutoFocus={(e) => e.preventDefault()}>
+      {/* Keys pressed in the menu are the menu's: they never reach the window's shortcuts (A approving, Enter
+          sending), which would act on the item behind it. Escape still closes it (Radix listens on the document). */}
+      <ContextMenuContent aria-label="bateson" onCloseAutoFocus={(e) => e.preventDefault()} onKeyDown={(e) => e.stopPropagation()}>
         {text && (
           <>
             <ContextMenuLabel title={text}>“{preview}”</ContextMenuLabel>
@@ -91,7 +93,7 @@ export function AppMenu({ children, theme, onTheme, onSettings, later, undo }: {
         )}
         <ContextMenuSub>
           <ContextMenuSubTrigger>Appearance</ContextMenuSubTrigger>
-          <ContextMenuSubContent>
+          <ContextMenuSubContent onKeyDown={(e) => e.stopPropagation()}>
             <ContextMenuRadioGroup value={theme} onValueChange={(v) => onTheme(v as Theme)}>
               <ContextMenuRadioItem value="system">System</ContextMenuRadioItem>
               <ContextMenuRadioItem value="light">Light</ContextMenuRadioItem>
