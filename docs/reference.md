@@ -34,6 +34,7 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 
 | Path | What |
 |---|---|
+| [`cli/bateson.mjs`](../cli/bateson.mjs) | What the `bateson` command starts. Plain JavaScript, so that on a Node older than 22.18 it says so, and what to do, instead of failing on the `.ts` extension ([`lib/node-check.mjs`](../lib/node-check.mjs)). Then it runs `cli/bateson.ts`. |
 | [`cli/bateson.ts`](../cli/bateson.ts) | `bateson send / status / wait / rearm / cancel / inbox / list / recall / serve`. After a send it tells the agent what to do next: end the turn where a wake-up is in place, wait where it is not. `cancel` is what an agent runs when you tell it in the terminal to stop: the item leaves the app, and the wait for it ends without waking anyone. |
 | [`lib/store.ts`](../lib/store.ts) | The queue on disk, shared by everything. |
 | [`lib/update.ts`](../lib/update.ts) | Updates from the app. It checks once a day with `git fetch`. **Update** fast-forwards `~/bateson` to GitHub's version, runs `npm ci` if the dependencies changed, builds, runs the installer, and rebuilds the Mac app if it changed and is installed. Then the server quits, and launchd or `scripts/keepalive.ts` starts the new one. A checkout with changed files or commits of its own is left alone, and a failed build goes back to the commit it started from. A server started by hand is not stopped: the page asks you to restart it. |
@@ -47,6 +48,7 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 | [`server/server.ts`](../server/server.ts) | Hono on `:4848`: the API, live updates, the built UI. Local requests only. |
 | [`web/`](../web) | Vite and React 19. |
 | [`mac/`](../mac) | The Mac shell, AppKit and WKWebView. `./mac/build.sh --install` puts it in `~/Applications`. |
+| [`scripts/install.mjs`](../scripts/install.mjs) | What you run to install: checks the Node, as `cli/bateson.mjs` does, then runs `scripts/install.ts`. |
 | [`scripts/install.ts`](../scripts/install.ts) | Sets all of it up, and `--uninstall` takes it away. `--login` starts the server at login: a launchd item on a Mac, a value in the user's `Run` key on Windows. |
 | [`scripts/keepalive.ts`](../scripts/keepalive.ts) | On Windows, what the login item runs: it keeps the server running, as launchd does on a Mac. |
 

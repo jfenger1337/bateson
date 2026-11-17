@@ -35,7 +35,7 @@ git clone https://github.com/jfenger1337/bateson.git ~/bateson
 cd ~/bateson
 npm install
 npm run build
-node scripts/install.ts --login
+node scripts/install.mjs --login
 ```
 
 you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json` (backed up first), and the server started at login. keep the folder where it is. when there's a new version, bateson says so on its empty screen, and **update** in settings installs it and restarts. it won't touch a folder where you've changed files or made commits of your own: there, `git pull`, `npm run build` and the installer again do the same by hand.
@@ -81,7 +81,7 @@ the queue is plain files and `bateson` works from any shell. to build an integra
 ## uninstall
 
 ```bash
-node scripts/install.ts --uninstall
+node scripts/install.mjs --uninstall
 ```
 
 removes everything the installer added and restores `~/.claude/settings.json`. your queue in `~/.bateson` and the settings backups stay.
