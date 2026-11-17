@@ -192,8 +192,12 @@ if (WIN) {
   // An update restarts a server an earlier --login set up, with or without --login this time: `bateson` runs
   // from this folder at once, and a server left on the old code disagrees with it.
   const running = fs.existsSync(path.join(ROOT, 'server.pid'));
+  // Run from an update in the app (--updating), the server running is the one doing the update: it is left to quit
+  // by itself once the update is in, and keepalive.ts starts it again on the new code. Stopping it here would stop
+  // the update halfway.
+  const updating = args.has('--updating');
   if (login || uninstall || installed?.loginItem || running) {
-    stopWindowsServer();
+    if (!updating) stopWindowsServer();
     if (uninstall) {
       try { execFileSync('reg', ['delete', RUN_KEY, '/v', RUN_VALUE, '/f'], { stdio: 'ignore' }); log('removed the login item'); } catch { /* there was none */ }
     } else {
@@ -201,13 +205,17 @@ if (WIN) {
       const extra = [...(SERVER_ENV.BATESON_HOME ? ['--home', ROOT] : []), ...(SERVER_ENV.BATESON_PORT ? ['--port', PORT] : [])];
       const quoted = extra.map((a) => (a.startsWith('--') ? a : `"${a}"`)).join(' ');
       execFileSync('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
-      spawn(NODE, [keepalive, ...extra], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      if (!updating) spawn(NODE, [keepalive, ...extra], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref();
       log(`the server starts at login (${WIN_LOGIN}): http://localhost:${PORT}`);
     }
   }
 } else if (login || (uninstall && fs.existsSync(PLIST))) {
   try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); } catch { /* not loaded */ }
-  if (uninstall) { fs.rmSync(PLIST, { force: true }); log('removed the login item'); }
+  if (uninstall) {
+    fs.rmSync(PLIST, { force: true });
+    try { execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' }); } catch { /* none saved */ }
+    log('removed the login item');
+  }
   else {
     const logFile = path.join(ROOT, 'server.log');
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
@@ -227,6 +235,12 @@ if (WIN) {
   <key>EnvironmentVariables</key><dict>${Object.entries(SERVER_ENV).map(([k, v]) => `<key>${k}</key><string>${xml(v)}</string>`).join('')}</dict>` : ''}
 </dict></plist>
 `);
+    // The Mac app, opened from Finder, has no BATESON_PORT to go by: the server's port is saved in its defaults, where
+    // it looks (mac/Sources/App.swift). Only here, with the plist: the two always name the same port.
+    try {
+      if (SERVER_ENV.BATESON_PORT) { execFileSync('defaults', ['write', 'app.bateson', 'port', '-int', PORT], { stdio: 'ignore' }); log(`the Mac app looks for the server on port ${PORT}`); }
+      else execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' });
+    } catch { /* nothing saved to take out */ }
     try { execFileSync('launchctl', ['load', PLIST], { stdio: 'pipe' }); } catch (e) {
       throw new Error(`launchd did not take ${PLIST}, so the server is not running: ${String((e as { stderr?: unknown }).stderr || (e as Error).message).trim()}`);
     }
@@ -239,16 +253,6 @@ if (WIN) {
     execFileSync('launchctl', ['kickstart', '-k', `gui/${process.getuid?.() ?? ''}/com.bateson.server`], { stdio: 'ignore' });
     log('restarted the server, so it runs this version');
   } catch { /* not loaded: it starts at the next login */ }
-}
-
-// The Mac app, opened from Finder, has no BATESON_PORT to go by: a port set at install is saved in its defaults,
-// where it looks (mac/Sources/App.swift), and taken out again when none is set or bateson is uninstalled.
-if (process.platform === 'darwin') {
-  const custom = !uninstall && SERVER_ENV.BATESON_PORT;
-  try {
-    if (custom) { execFileSync('defaults', ['write', 'app.bateson', 'port', '-int', PORT], { stdio: 'ignore' }); log(`the Mac app looks for the server on port ${PORT}`); }
-    else execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' });
-  } catch { /* nothing saved to take out */ }
 }
 
 if (uninstall) fs.rmSync(MANIFEST, { force: true });

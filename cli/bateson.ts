@@ -142,7 +142,10 @@ function diffBody(base: string) {
   // ls-files only lists the folder it runs in, so both run from the top.
   const top = git(['rev-parse', '--show-toplevel']) ?? undefined;
   // -z: names as they are, not C-quoted ("caf\303\251.md"), which no command would find.
-  const untracked = (git(['ls-files', '-z', '--others', '--exclude-standard'], top) || '').split('\0').filter(Boolean);
+  // Not through git(), which trims: a first name starting with a space would lose it.
+  let listed = '';
+  try { listed = execFileSync('git', ['ls-files', '-z', '--others', '--exclude-standard'], { cwd: top, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }); } catch { /* none */ }
+  const untracked = listed.split('\0').filter(Boolean);
   for (const f of untracked) {
     try {
       execFileSync('git', ['diff', '--no-color', '--no-index', '--', '/dev/null', f], { cwd: top, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
