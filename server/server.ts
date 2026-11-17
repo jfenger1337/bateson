@@ -34,7 +34,7 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
   let pageSeen = 0;
 
   // Who may ask. The Host header must be this machine (a rebinding page arrives with its own name), and anything
-  // that changes the queue must come from the app's own pages: same origin, JSON bodies.
+  // that changes the queue must come from the app's own pages: same origin, sent as JSON.
   app.use('*', async (c, next) => {
     const host = c.req.header('host') || '';
     if (!LOCAL.test(host)) return c.json({ error: 'Not this host' }, 403);
@@ -42,8 +42,10 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
       const origin = c.req.header('origin');
       if (origin && origin !== `http://${host}`) return c.json({ error: 'Not from bateson' }, 403);
       if (c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'Not from bateson' }, 403);
+      // Always JSON, body or not: a form can only post form data or plain text, so one slipped into an agent's
+      // markdown cannot post here from bateson's own page, even an empty one.
       const type = c.req.header('content-type') || '';
-      if (c.req.header('content-length') !== '0' && c.req.raw.body && !type.startsWith('application/json')) return c.json({ error: 'JSON only' }, 415);
+      if (!type.startsWith('application/json')) return c.json({ error: 'JSON only' }, 415);
     }
     await next();
     // No other website may frame bateson: a page that put it in a hidden frame could steer your clicks and keys into

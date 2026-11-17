@@ -109,3 +109,15 @@ test('a folder given as an attachment is refused before the unread version it wo
   assert.equal(store.readBody(item, store.currentVersion(item)), 'Hello', 'the version is still there, body and all');
   fs.rmSync(folder, { recursive: true, force: true });
 });
+
+test('a form cannot post, even empty and from bateson\'s own page: only JSON changes anything', async () => {
+  const { app } = createApp({ dist: null });
+  const { id } = sent();
+  const own = { host: 'localhost:4848', origin: 'http://localhost:4848', 'sec-fetch-site': 'same-origin' };
+  for (const type of ['application/x-www-form-urlencoded', 'multipart/form-data; boundary=x', 'text/plain']) {
+    const res = await app.request(`/api/items/${id}/later`, { method: 'POST', headers: { ...own, 'content-type': type, 'content-length': '0' } });
+    assert.equal(res.status, 415, type);
+  }
+  assert.equal((await app.request(`/api/items/${id}/later`, { method: 'POST', headers: own })).status, 415, 'no type at all');
+  assert.equal((await app.request(`/api/items/${id}/later`, { method: 'POST', headers: { ...own, 'content-type': 'application/json' } })).status, 200);
+});

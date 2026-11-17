@@ -11,12 +11,12 @@ export function UpdatePanel({ update }: { update: UpdateView }) {
 
   const check = async () => {
     setAsking('check');
-    try { await fetch('/api/update/check', { method: 'POST' }); setLost(false); } catch { setLost(true); }
+    try { await fetch('/api/update/check', { method: 'POST', headers: { 'content-type': 'application/json' } }); setLost(false); } catch { setLost(true); }
     setAsking(null);
   };
   const install = async () => {
     setAsking('install');
-    try { await fetch('/api/update', { method: 'POST' }); setLost(false); } catch { setLost(true); }
+    try { await fetch('/api/update', { method: 'POST', headers: { 'content-type': 'application/json' } }); setLost(false); } catch { setLost(true); }
     setAsking(null);
   };
 

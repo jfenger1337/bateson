@@ -126,14 +126,18 @@ export function App() {
   }, [load]);
 
   const decide = useCallback((item: Item, decision: Decision) => {
+    // A double click or a key pressed twice decides once: a second held decision would outlive the Undo of the first.
+    if (heldRef.current.some((x) => x.id === item.id)) return;
     const h: Held = { id: item.id, n: item.version.n, at: item.version.createdAt, decision, label: item.decisions[decision.decision] ?? decision.decision, timer: 0 };
     const ms = undoMs.current;
+    heldRef.current = [...heldRef.current, h]; // at once, not at the next render
     if (ms <= 0) { setHeld((hs) => [...hs, h]); commit(h); return; }
     h.timer = window.setTimeout(() => commit(h), ms);
     const undo = () => {
       if (h.done) return;
       h.done = true;
       clearTimeout(h.timer);
+      shownRef.current = h.id; // back in front, where it was decided
       setHeld((hs) => hs.filter((x) => x.id !== h.id));
       if (undoRef.current === undo) undoRef.current = null;
     };
@@ -143,7 +147,7 @@ export function App() {
   }, [commit]);
 
   const later = useCallback(async (item: Item) => {
-    await fetch(`/api/items/${item.id}/later`, { method: 'POST' });
+    await fetch(`/api/items/${item.id}/later`, { method: 'POST', headers: { 'content-type': 'application/json' } });
     if (shownRef.current === item.id) shownRef.current = undefined;
     load();
   }, [load]);
