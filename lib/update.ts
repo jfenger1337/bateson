@@ -106,11 +106,12 @@ export function openUpdater({
     try { await run('git', ['fetch', '--quiet', upstream.split('/')[0]], { timeout: 60_000 }); } catch {
       return { ...prev, checkedAt, error: 'GitHub could not be reached. bateson tries again tomorrow.' };
     }
-    const behind = (await git('log', '--format=%h%x09%s', 'HEAD..@{u}')).split('\n').filter(Boolean)
+    if (!Number(await git('rev-list', '--count', 'HEAD..@{u}'))) return { ...NONE, ...kept, checkedAt };
+    // The changes are said by what they do: a merge says only which branch came in, so merges are left out.
+    const behind = (await git('log', '--no-merges', '--format=%h%x09%s', 'HEAD..@{u}')).split('\n').filter(Boolean)
       .map((l) => { const [hash, ...s] = l.split('\t'); return { hash, subject: s.join('\t') }; });
     const changes = behind.slice(0, MAX_CHANGES);
     const more = behind.length - changes.length;
-    if (!behind.length) return { ...NONE, ...kept, checkedAt };
     const ahead = Number(await git('rev-list', '--count', '@{u}..HEAD'));
     // Porcelain lines are "XY path": not trimmed, or the first loses a column. An npm install that rewrote the
     // lockfile is not a change of yours; the update puts it back.

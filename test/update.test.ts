@@ -69,6 +69,20 @@ test('up to date, then a new version with its changes listed newest first', asyn
   assert.ok(v.checkedAt && !due(v));
 });
 
+test('the changes leave out merges, which say only which branch came in', async () => {
+  const { u } = updater();
+  git(OTHER, 'checkout', '-q', '-b', 'side');
+  commit(OTHER, 'side.md', 'x\n', 'A change made on a branch', false);
+  git(OTHER, 'checkout', '-q', 'main');
+  commit(OTHER, 'README.md', 'two\n', 'A change made on main', false);
+  git(OTHER, 'merge', '-q', '--no-ff', '-m', "Merge branch 'side'", 'side');
+  git(OTHER, 'push', '-q', 'origin', 'HEAD:main');
+  const v = await u.check();
+  assert.equal(v.state, 'available');
+  assert.deepEqual(v.changes.map((c) => c.subject).sort(), ['A change made on a branch', 'A change made on main']);
+  assert.equal(v.more, 0);
+});
+
 test('Update fast-forwards, builds, runs the installer, then the server quits to be started again', async () => {
   const { u, calls, exited } = updater();
   commit(OTHER, 'README.md', 'two\n', 'A change');
