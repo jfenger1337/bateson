@@ -148,7 +148,12 @@ if (WIN && !uninstall && !(process.env.PATH || '').split(path.delimiter).some((d
   } else if (isOurs ? exists(BACKUP) : exists(GRILLING)) {
     if (!isOurs) {
       fs.mkdirSync(path.dirname(BACKUP), { recursive: true });
-      fs.rmSync(BACKUP, { recursive: true, force: true });
+      // A backup from before is kept beside it, never deleted: it may be the only copy of a skill you had.
+      if (exists(BACKUP)) {
+        const older = `${BACKUP}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+        fs.renameSync(BACKUP, older);
+        log(`kept the grilling skill backed up before at ${older.replace(HOME, '~')}`);
+      }
       fs.renameSync(GRILLING, BACKUP);
       log(`moved your grilling skill to ${BACKUP.replace(HOME, '~')}`);
     }
@@ -217,9 +222,18 @@ if (WIN) {
   <key>StandardErrorPath</key><string>${xml(logFile)}</string>
 </dict></plist>
 `);
-    execFileSync('launchctl', ['load', PLIST]);
+    try { execFileSync('launchctl', ['load', PLIST], { stdio: 'pipe' }); } catch (e) {
+      throw new Error(`launchd did not take ${PLIST}, so the server is not running: ${String((e as { stderr?: unknown }).stderr || (e as Error).message).trim()}`);
+    }
     log('the server starts at login: http://localhost:4848');
   }
+} else if (!uninstall && installed?.loginItem && fs.existsSync(PLIST) && !args.has('--updating')) {
+  // Installed again by hand (after a git pull, say) without --login: the server launchd keeps running is on the
+  // old code, so it is started again, as on Windows. An update from the app quits the server itself instead.
+  try {
+    execFileSync('launchctl', ['kickstart', '-k', `gui/${process.getuid?.() ?? ''}/com.bateson.server`], { stdio: 'ignore' });
+    log('restarted the server, so it runs this version');
+  } catch { /* not loaded: it starts at the next login */ }
 }
 
 if (uninstall) fs.rmSync(MANIFEST, { force: true });

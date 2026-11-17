@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
 import { Loading } from './Loading';
 import { setTheme } from '@/lib/theme';
@@ -51,14 +52,28 @@ export function Settings({ onClose, onChange, update }: { onClose: () => void; o
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Shown at once, then as the server kept it. Only the newest save's answer counts: two quick changes can come back
+  // in either order. One that does not go through is put back as it was, and said.
+  const saving = useRef(0);
   const save = async (patch: Partial<Config>) => {
     if (!c) return;
+    const was = c;
+    const mine = ++saving.current;
     setC({ ...c, ...patch });
     if (patch.theme) setTheme(patch.theme);
-    const res = await fetch('/api/config', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) });
-    const next = await res.json();
-    setC(next);
-    onChange(next);
+    try {
+      const res = await fetch('/api/config', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) });
+      if (!res.ok) throw new Error(String(res.status));
+      const next: Config = await res.json();
+      if (mine !== saving.current) return;
+      setC(next);
+      onChange(next);
+    } catch {
+      if (mine !== saving.current) return;
+      setC(was);
+      if (patch.theme) setTheme(was.theme);
+      toast('That setting was not saved: bateson’s server did not take it. Try again in a moment.');
+    }
   };
 
   const reconnect = async () => {

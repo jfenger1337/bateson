@@ -76,7 +76,7 @@ test('Update fast-forwards, builds, runs the installer, then the server quits to
   const v = await u.apply();
   assert.equal(git(LOCAL, 'rev-parse', 'HEAD'), git(OTHER, 'rev-parse', 'HEAD'));
   assert.ok(calls.includes('npm run build'));
-  assert.ok(calls.some((c) => c.endsWith(path.join('scripts', 'install.ts'))));
+  assert.ok(calls.some((c) => c.endsWith(`${path.join('scripts', 'install.ts')} --updating`)), 'the installer is told it runs from an update');
   assert.ok(!calls.some((c) => c.startsWith('npm ci')), 'the dependencies did not change');
   assert.equal(v.state, 'current');
   assert.ok(v.updatedAt);
