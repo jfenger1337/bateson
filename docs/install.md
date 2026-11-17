@@ -77,7 +77,7 @@ On Windows there is no app to build: skip this step. bateson there is the page a
 ## 6. Check and hand over
 
 - `curl -s -o /dev/null -w '%{http_code}' http://localhost:4848` should print `200`. If it does not, show the last lines of `~/.bateson/server.log` and stop.
-- Open the window. On a Mac: `open -a bateson` if the app was built, otherwise `open http://localhost:4848`. On Windows: `start http://localhost:4848`, and tell them to keep that tab open or bookmark it, since nothing pops up when an agent is waiting.
+- Open the window. On a Mac: `open -a bateson` if the app was built, otherwise `open http://localhost:4848`. On Windows: `start http://localhost:4848`, and tell them that when an agent asks them something, bateson opens this page in their browser if it is not open already.
 
 Then tell the person, in a few lines:
 

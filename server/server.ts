@@ -45,7 +45,8 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
 
   const json = async (c: Context): Promise<unknown> => { try { return await c.req.json(); } catch { return null; } };
 
-  app.get('/api/health', (c) => c.json({ ok: true }));
+  // pages: how many bateson pages are open now (each holds /api/events), so a send knows whether to open one.
+  app.get('/api/health', (c) => c.json({ ok: true, pages: listeners.size }));
 
   app.get('/api/config', (c) => c.json(store.readConfig()));
   app.put('/api/config', async (c) => c.json(store.writeConfig(await json(c))));

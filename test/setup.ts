@@ -36,7 +36,7 @@ export function reset() {
 
 /** The environment for a child process (the CLI, a hook): the scratch queue, Claude Code's marker, and none of the session variables of whatever runs the tests. */
 export function childEnv(extra: Record<string, string> = {}) {
-  const env: NodeJS.ProcessEnv = { ...process.env, HOME: TMP, USERPROFILE: TMP /* Windows' home */, CLAUDECODE: '1', ...extra };
+  const env: NodeJS.ProcessEnv = { ...process.env, HOME: TMP, USERPROFILE: TMP /* Windows' home */, CLAUDECODE: '1', BATESON_NO_OPEN: '1', ...extra };
   for (const k of ['CLAUDE_PID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_ENTRYPOINT']) if (!(k in extra)) delete env[k];
   return env;
 }

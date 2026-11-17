@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // bateson: send work that needs the user's judgment or context, and read their response.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -135,10 +136,40 @@ function check<T>(validate: () => T): T {
   try { return validate(); } catch (e) { die((e as Error).message); }
 }
 
-async function appRunning() {
+/** Whether the server answers, and how many bateson pages are open (0 when an older server does not say). */
+async function appStatus(): Promise<{ running: boolean; pages: number }> {
   try {
     const res = await fetch(`http://localhost:${PORT}/api/health`, { signal: AbortSignal.timeout(400) });
-    return res.ok;
+    if (!res.ok) return { running: false, pages: 0 };
+    const body = await res.json().catch(() => ({})) as { pages?: unknown };
+    return { running: true, pages: typeof body.pages === 'number' ? body.pages : 0 };
+  } catch { return { running: false, pages: 0 }; }
+}
+
+/**
+ * Windows has no bateson app for now, so nothing there tells the reviewer a question is waiting. On Windows, and
+ * in WSL, a send opens the page in their default browser instead, through explorer.exe. BATESON_NO_OPEN turns it off,
+ * and BATESON_OPEN_WITH names another program to open it with (for trying it off Windows).
+ */
+function windowsExplorer(): string | null {
+  if (process.env.BATESON_NO_OPEN) return null;
+  if (process.env.BATESON_OPEN_WITH) return process.env.BATESON_OPEN_WITH;
+  if (process.platform === 'win32') return path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
+  if (process.platform === 'linux' && (process.env.WSL_DISTRO_NAME || /microsoft/i.test(os.release()))) {
+    const exe = '/mnt/c/Windows/explorer.exe';
+    return fs.existsSync(exe) ? exe : null;
+  }
+  return null;
+}
+
+function openPage(): boolean {
+  const exe = windowsExplorer();
+  if (!exe) return false;
+  try {
+    const child = spawn(exe, [`http://localhost:${PORT}/`], { detached: true, stdio: 'ignore', windowsHide: true });
+    child.on('error', () => {});
+    child.unref();
+    return true;
   } catch { return false; }
 }
 
@@ -192,9 +223,10 @@ async function cmdSend(o: Args) {
   const sessionId = currentSession();
   const sent = store.getItem(res.id);
   if (sessionId && sent) own(sent, { sessionId, cwd: process.cwd() });
-  const running = await appRunning();
+  const { running, pages } = await appStatus();
   // The rewake hook reads the first line, so keep its shape.
   console.log(`queued ${res.id} v${res.n}${res.replaced ? ' (replaced the unread version)' : ''}`);
+  if (running && pages === 0 && openPage()) console.log(`(Opened bateson in ${reviewer()}'s browser.)`);
   if (!running) console.log(`(The bateson app is not running. It is waiting in ~/.bateson; ${reviewer()} can start the app with \`bateson serve\`.)`);
   // What the agent does next depends on whether anything can wake it, which it cannot know and this can check.
   // The bateson skill tells agents to do what the last line says, so this stays last.
