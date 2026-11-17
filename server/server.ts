@@ -12,6 +12,7 @@ import store, { PORT } from '../lib/store.ts';
 import { kindOf } from '../lib/kinds.ts';
 import { missingHooks, writeHooks } from '../lib/claude-settings.ts';
 import { stateView, summaryView } from '../lib/view.ts';
+import { openUpdater, due } from '../lib/update.ts';
 import type { Decision } from '../lib/types.ts';
 
 /** What the app posts to decide: the version it saw (its number and createdAt) and the decision on it. */
@@ -22,11 +23,12 @@ const DIST = path.join(HERE, '..', 'web', 'dist');
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 /** The app without a socket. `changed` and `rebuilt` are how pages hear about the queue and a new build. */
-export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
+export function createApp({ dist = DIST, updater: given }: { dist?: string | null; updater?: ReturnType<typeof openUpdater> } = {}) {
   store.ensureDirs();
   const app = new Hono();
   const listeners = new Set<() => void>();
   const reloaders = new Set<() => void>();
+  const updater = given ?? openUpdater({ onChange: () => { for (const fn of listeners) fn(); } });
 
   // Who may ask. The Host header must be this machine (a rebinding page arrives with its own name), and anything
   // that changes the queue must come from the app's own pages: same origin, JSON bodies.
@@ -60,6 +62,12 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
   });
 
   app.get('/api/summary', (c) => c.json(summaryView()));
+
+  // Updating bateson (lib/update.ts). Installing takes minutes (npm, the build), longer than a request may stay
+  // open, so it answers at once: pages hear each step as a change and read it from /api/state.
+  app.get('/api/update', (c) => c.json(updater.read()));
+  app.post('/api/update/check', async (c) => c.json(await updater.check()));
+  app.post('/api/update', (c) => { updater.apply().catch(() => {}); return c.json({ started: true }); });
 
   app.get('/api/state', (c) => c.json(stateView({
     skip: (c.req.query('skip') || '').split(',').filter(Boolean),
@@ -143,6 +151,7 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
 
   return {
     app,
+    updater,
     changed: () => { for (const fn of listeners) fn(); },
     rebuilt: () => { for (const fn of reloaders) fn(); },
   };
@@ -150,7 +159,13 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
 
 /** Run it: watch the queue and the build, and listen on localhost. */
 export function start() {
-  const { app, changed, rebuilt } = createApp();
+  const { app, changed, rebuilt, updater } = createApp();
+  // Once a day, if Settings allows, ask GitHub whether there is a newer version. The first look waits a minute,
+  // so a server that keeps restarting does not ask each time.
+  updater.recover();
+  const look = () => { if (store.readConfig().updates && due(updater.read())) updater.check().catch(() => {}); };
+  setTimeout(look, 60_000);
+  setInterval(look, 3600_000);
   let timer: ReturnType<typeof setTimeout> | undefined;
   fs.watch(store.ROOT, { recursive: true }, () => { clearTimeout(timer); timer = setTimeout(changed, 120); });
   // A waiting hook that dies leaves no file event, so nudge the pages now and then.

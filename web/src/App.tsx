@@ -240,7 +240,7 @@ export function App() {
 
       <main className="work">
         {settings ? (
-          <Settings onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
+          <Settings update={state?.update} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
         ) : !state ? <Loading /> : item ? (
           item.kind === 'interview'
             ? <Interview key={viewKey} item={item} steps={steps} panel={state.config.preview} onDecide={decide} onFirst={setFirstQ} />
@@ -248,7 +248,7 @@ export function App() {
               ? <Findings key={viewKey} item={item} steps={steps} onDecide={decide} onLater={later} />
               : <Review key={viewKey} item={item} onDecide={decide} onLater={later} />
         ) : (
-          <Empty agents={state.agents ?? []} writing={state.writing ?? []} />
+          <Empty agents={state.agents ?? []} writing={state.writing ?? []} update={state.update} onUpdate={() => setSettings(true)} />
         )}
       </main>
 

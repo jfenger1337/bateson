@@ -23,6 +23,7 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
   hooks.log                   one line per hook error (the hooks never stop a session to report one)
   server.log                  the server's output, when it runs at login
   server.pid                  on Windows, scripts/keepalive.ts while it keeps the server running
+  update.json                 where updating bateson stands: the new version's changes, a step, or why it cannot (lib/update.ts)
 ```
 
 `<id>` matches `q_[a-z0-9]+`.
@@ -104,7 +105,8 @@ Settings, written by the app's settings page (⌘, or Ctrl+,) and read by the ap
   "stopCheck": true,              // remind agents, on turns you did not start, that your calls go to the queue (hooks/remind.ts)
   "bring": { "decisions": true, "plans": false, "findings": false, "code": false }, // what agents send you (Settings or /setup-bateson)
   "theme": "system",              // "system" | "light" | "dark"
-  "preview": false                // the panel beside a question for its `show`; off, questions are centred and `bateson send` refuses pictures on them
+  "preview": false,               // the panel beside a question for its `show`; off, questions are centred and `bateson send` refuses pictures on them
+  "updates": true                 // once a day, ask GitHub whether there is a newer version; nothing is installed until you press Update
 }
 ```
 

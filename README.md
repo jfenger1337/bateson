@@ -9,7 +9,7 @@ a window where your coding agents ask you things, one at a time, and wait for th
 
 i'm [jonas](https://github.com/jfenger1337). i do most of my work by letting claude code interview me first, until every decision that matters is mine. a terminal is a poor place for that: long questions scroll past, and with several agents running, one waits on me for an hour while another guesses and builds on the guess.
 
-so when an agent needs me, it sends the question to bateson and stops. i answer in one window, and the agent picks up with my answer, even hours later. every question has a few options and the agent's pick with its reasons. taking it is one key. it all runs locally: the queue is a folder (`~/.bateson`) and nothing is sent anywhere.
+so when an agent needs me, it sends the question to bateson and stops. i answer in one window, and the agent picks up with my answer, even hours later. every question has a few options and the agent's pick with its reasons. taking it is one key. it all runs locally: the queue is a folder (`~/.bateson`) and nothing of yours is sent anywhere. the one thing bateson asks the internet is, once a day, whether github has a newer version of it (you can turn that off in settings).
 
 it's built for one person on a mac using claude code. it runs on windows too (CI installs and uninstalls it there on every push), but i don't use it there daily, so tell me if something breaks. fork it, change it, PRs welcome.
 
@@ -38,7 +38,7 @@ npm run build
 node scripts/install.ts --login
 ```
 
-you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json` (backed up first), and the server started at login. keep the folder where it is, and after a `git pull` run `npm run build` and the installer again.
+you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json` (backed up first), and the server started at login. keep the folder where it is. when there's a new version, bateson says so on its empty screen, and **update** in settings installs it and restarts. it won't touch a folder where you've changed files or made commits of your own: there, `git pull`, `npm run build` and the installer again do the same by hand.
 
 ## get started
 

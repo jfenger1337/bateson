@@ -27,6 +27,7 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 | Time to undo | How long a decision can be taken back before the agent hears it. |
 | When a session is waiting on you | Notify, notify and bring the window forward, or nothing. |
 | What agents bring you | Questions and decisions, plans, findings, code. |
+| Check for new versions | Once a day, ask GitHub whether there is a newer bateson. On by default. Nothing is installed until you press **Update** under Updates. |
 | Remind agents to ask you | A quiet reminder on turns you did not start. |
 
 ## The parts
@@ -35,6 +36,7 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 |---|---|
 | [`cli/bateson.ts`](../cli/bateson.ts) | `bateson send / status / wait / rearm / inbox / list / recall / serve`. After a send it tells the agent what to do next: end the turn where a wake-up is in place, wait where it is not. |
 | [`lib/store.ts`](../lib/store.ts) | The queue on disk, shared by everything. |
+| [`lib/update.ts`](../lib/update.ts) | Updates from the app. It checks once a day with `git fetch`. **Update** fast-forwards `~/bateson` to GitHub's version, runs `npm ci` if the dependencies changed, builds, runs the installer, and rebuilds the Mac app if it changed and is installed. Then the server quits, and launchd or `scripts/keepalive.ts` starts the new one. A checkout with changed files or commits of its own is left alone, and a failed build goes back to the commit it started from. A server started by hand is not stopped: the page asks you to restart it. |
 | [`lib/recall.ts`](../lib/recall.ts) | `bateson recall`: what you already decided, one line each, so agents check before asking again. It reads the queue's files on every call: no index, no model. A question asked again shows once, at your latest answer, noting whether it changed. Also the overrides a new session hears about. |
 | [`lib/agent.ts`](../lib/agent.ts) | Which agent is running a command or hook, and whether a response can wake it. |
 | [`hooks/rewake.ts`](../hooks/rewake.ts) | After a send, waits for your response and wakes the session that sent it. It gives up when that session closes or moves on (`/clear`), so the response is left for a session that can use it. Claude Code stops it after four hours, so two minutes before that it wakes the session to run `bateson rearm <id>`, which starts it again. It stops renewing once the question is a day old. |
