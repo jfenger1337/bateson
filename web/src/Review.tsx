@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { keptKey, useKept } from './lib/kept';
 import type { Anchor, Comment, Decision, Item } from '@lib/types';
 import { locate, newLines, proseChanges } from './changes';
@@ -29,8 +30,8 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   const notesRef = useRef<HTMLElement>(null);
   const [comments, setComments] = useKept<Comment[]>(`${keptKey(item)}:comments`, () => []);
   // `send`: the note was opened by Send back with nothing written yet, so saving it sends it. `id`: a written note
-  // reopened to edit.
-  const [draft, setDraft] = useState<{ anchor: Anchor; text: string; send?: boolean; id?: string } | null>(null);
+  // reopened to edit. Kept like the comments, so opening Settings or a reload does not lose what is half written.
+  const [draft, setDraft] = useKept<{ anchor: Anchor; text: string; send?: boolean; id?: string } | null>(`${keptKey(item)}:draft`, () => null);
   const [picked, setPicked] = useState<Picked | null>(null);
   const [pointed, setPointed] = useState<Pointed | null>(null);
   const [markHot, setMarkHot] = useState(false);
@@ -259,8 +260,30 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
 
   const whole: Anchor = { kind: 'item' };
   const commentOn = (el: HTMLElement) => { const root = bodyRef.current; if (root) startComment(anchorFrom(root, blockRange(el), blockRange(el).toString())); };
+  // The comments as they would be sent: a note written but not added yet (the box still open, perhaps unfocused)
+  // counts, so sending back never leaves it behind.
+  const withDraft = (): Comment[] => {
+    const text = draft?.text.trim();
+    if (!draft || !text) return comments;
+    if (draft.id) return comments.map((x) => (x.id === draft.id ? { ...x, text } : x));
+    return [...comments, { id: Math.random().toString(36).slice(2, 9), anchor: draft.anchor, text }].sort(byPosition);
+  };
   // With nothing written yet, Send back asks what should change first.
-  const sendBack = () => { if (comments.length) onDecide(item, { decision: 'send-back', comments }); else if (!draft) startComment(whole, true); };
+  const sendBack = () => {
+    const all = withDraft();
+    if (all.length) { setDraft(null); onDecide(item, { decision: 'send-back', comments: all }); }
+    else if (!draft) startComment(whole, true);
+  };
+  // An approval carries no comments, so one with a note still being written would drop it without a word:
+  // you are taken back to the note instead, to add it (and send back) or clear it.
+  const approve = () => {
+    if (draft?.text.trim()) {
+      document.querySelector<HTMLTextAreaElement>('.note-field')?.focus();
+      toast('Your comment is not added yet. Send it back with the comment, or clear it to approve.');
+      return;
+    }
+    onDecide(item, { decision: 'approve' });
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -268,13 +291,13 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       // a note is never thrown away by the shortcut.
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !isTyping(e)) {
         e.preventDefault();
-        if (comments.length) sendBack(); else onDecide(item, { decision: 'approve' });
+        if (withDraft().length) sendBack(); else approve();
         return;
       }
       if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'c' && picked) { e.preventDefault(); startComment(picked.anchor); }
       else if (e.key === 'c' && pointed && !draft) { e.preventDefault(); commentOn(pointed.el); }
-      else if (e.key === 'a') { e.preventDefault(); onDecide(item, { decision: 'approve' }); }
+      else if (e.key === 'a') { e.preventDefault(); approve(); }
       else if (e.key === 's') { e.preventDefault(); sendBack(); }
       else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); onLater(item); }
       else if (e.key === 'D') { e.preventDefault(); onDecide(item, { decision: 'drop' }); }
@@ -416,7 +439,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
             <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="The agent stops and leaves its changes (shift D)">Drop</button>
             <button className="btn-ghost" onClick={() => onLater(item)}>Later <span className="key">L</span></button>
             <button className="btn-pill lg" onClick={sendBack}>Send back <span className="key">S</span></button>
-            <button className="btn-primary" onClick={() => onDecide(item, { decision: 'approve' })}>
+            <button className="btn-primary" onClick={approve}>
               Approve <span className="key on-ink">A</span>
             </button>
           </div>
