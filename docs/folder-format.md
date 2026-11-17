@@ -71,7 +71,7 @@ Sorted highest severity first and numbered by the CLI, which also captures `exce
   "answers":  [ { "id": "Q1", "choice": 0, "accepted": true }, { "id": "Q2", "choice": null, "other": "free text" } ] }
 ```
 
-`comments` come with `send-back`, `answers` with `answer`, and with `findings` the marks: `"marks": [ { "id": "F1", "mark": "keep", "comment": "..." }, { "id": "F2", "mark": "dismiss", "reason": "..." } ]`. A finding with no mark counts as kept. The version after it answers each kept finding by id in `replies.json`.
+`comments` come with `send-back`, `answers` with `answer` (a round sent with Send now leaves out the questions not answered yet; the agent asks them again), and with `findings` the marks: `"marks": [ { "id": "F1", "mark": "keep", "comment": "..." }, { "id": "F2", "mark": "dismiss", "reason": "..." } ]`. A finding with no mark counts as kept. The version after it answers each kept finding by id in `replies.json`.
 
 ## Writing an item without the CLI
 
