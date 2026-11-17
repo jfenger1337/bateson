@@ -54,6 +54,6 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 
 `npm start` runs the server. `npm run dev` runs Vite on `:5848` with the API proxied. `npm run typecheck` checks the app and the contract it shares with the server.
 
-`BATESON_HOME` and `BATESON_PORT` point everything at another queue, so you can try changes without touching your own. `BATESON_CLAUDE_DIR` points at another list of running Claude Code sessions (normally `~/.claude/sessions`). On Windows and in WSL, `bateson send` opens the page when none is open, in a window of its own (Chrome's or Edge's `--app`), else in the default browser; `BATESON_NO_OPEN` turns that off, and `BATESON_OPEN_WITH` opens it with another program instead of `explorer.exe`.
+`BATESON_HOME` and `BATESON_PORT` point everything at another queue, so you can try changes without touching your own. An install made with them set keeps them: the server at login is given both, and the Mac app the port (saved in its defaults, as `defaults read app.bateson port` shows). `BATESON_CLAUDE_DIR` points at another list of running Claude Code sessions (normally `~/.claude/sessions`). On Windows and in WSL, `bateson send` opens the page when none is open, in a window of its own (Chrome's or Edge's `--app`), else in the default browser; `BATESON_NO_OPEN` turns that off, and `BATESON_OPEN_WITH` opens it with another program instead of `explorer.exe`.
 
 When a hook fails, it exits quietly so the session carries on, and writes a line to `~/.bateson/hooks.log`. Settings says when the last day has any.
