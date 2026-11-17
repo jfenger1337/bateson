@@ -57,3 +57,18 @@ test('comments, answers and marks of the wrong shape are refused before anything
   assert.equal((await decide(app, id, { n: 1, decision: 'send-back', comments: [comment] })).status, 200);
   assert.deepEqual(store.readDecision(store.getItem(id)!, 1)?.comments, [comment]);
 });
+
+test('a pasted screenshot is saved, served back, and named in the answer; a name that is not one is refused', async () => {
+  const { app } = createApp({ dist: null });
+  const { id } = store.send({ kind: 'decision', bodyType: 'questions', title: 'Q', body: { questions: [{ id: 'Q1', title: 'Which?', options: [{ label: 'A' }] }] }, source: {} });
+  const post = (body: unknown) => app.request(`/api/items/${id}/pasted`, { method: 'POST', headers: { host: 'localhost:4848', 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const res = await post({ n: 1, type: 'image/png', data: Buffer.from('png bytes').toString('base64') });
+  assert.equal(res.status, 200);
+  const { name } = (await res.json()) as { name: string };
+  const got = await app.request(`/api/items/${id}/pasted/1/${name}`, HOST);
+  assert.equal(got.headers.get('content-type'), 'image/png');
+  assert.equal(await got.text(), 'png bytes');
+  assert.equal((await post({ n: 1, type: 'text/html', data: 'eA==' })).status, 409);
+  assert.equal((await decide(app, id, { n: 1, decision: 'answer', answers: [{ id: 'Q1', choice: null, images: ['../../config.json'] }] })).status, 400);
+  assert.equal((await decide(app, id, { n: 1, decision: 'answer', answers: [{ id: 'Q1', choice: null, other: '', images: [name] }] })).status, 200);
+});

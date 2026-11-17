@@ -27,7 +27,7 @@ Kinds of item: **work to review** (markdown, text, diff, findings) and **decisio
 
 ## Reviewing
 
-- **Interviews**: the interview is the item, each round a version. Click an option; the recommendation is preselected (dashed ring) until you touch it (filled dot). "Write your own" is the one free-text field in the app. Earlier rounds show above as settled decisions.
+- **Interviews**: the interview is the item, each round a version. Click an option; the recommendation is preselected (dashed ring) until you touch it (filled dot). "Write your own" is the one free-text field in the app; a screenshot can be pasted or dropped into it, and the agent gets its path to open. Earlier rounds show above as settled decisions.
 - **Work**: select and comment, Agentation-style. Notes sit in a right margin, anchored to a passage, a file and line, or the title for the whole piece.
 - No other text input anywhere.
 

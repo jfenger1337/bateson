@@ -24,6 +24,8 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
       confirmed.json          a wake-up's delivery was found in its session's transcript
       redelivered.json        a wake-up's delivery was not, and the decision was handed over again (once)
   done/<id>/                  the same layout, once delivered
+  pasted/<id>/v<N>/<name>     screenshots pasted or dropped into your own answer. Kept outside the item's folder, so
+                              the path the agent is given still holds once the item is filed under done.
   hooks.log                   one line per hook error (the hooks never stop a session to report one)
   server.log                  the server's output, when it runs at login
   server.pid                  on Windows, scripts/keepalive.ts while it keeps the server running
@@ -73,8 +75,10 @@ Sorted highest severity first and numbered by the CLI, which also captures `exce
 ```json
 { "decision": "approve" | "send-back" | "drop" | "answer" | "findings", "decidedAt": "...", "versionAt": "...",
   "comments": [ { "id": "...", "text": "...", "anchor": { "kind": "text" | "item", "quote": "...", "prefix": "...", "suffix": "...", "start": 0, "end": 10, "file": "src/a.ts", "line": 42, "side": "new" } } ],
-  "answers":  [ { "id": "Q1", "choice": 0, "accepted": true }, { "id": "Q2", "choice": null, "other": "free text" } ] }
+  "answers":  [ { "id": "Q1", "choice": 0, "accepted": true }, { "id": "Q2", "choice": null, "other": "free text", "images": ["mwkr151s469fe0.png"] } ] }
 ```
+
+An answer's `images` name screenshots in `pasted/<id>/v<N>/`; the agent is told each one's full path and opens it. Your own answer can be a screenshot alone, with `other` empty.
 
 `versionAt` is the `createdAt` of the version the reviewer decided. A version replaced in place keeps its number, so a decision whose `versionAt` is not the version's `createdAt` was made on the text it replaced, and does not count (a decision without `versionAt` is taken as it is). `comments` come with `send-back`, `answers` with `answer` (a round sent with Send now leaves out the questions not answered yet; the agent asks them again), and with `findings` the marks: `"marks": [ { "id": "F1", "mark": "keep", "comment": "..." }, { "id": "F2", "mark": "dismiss", "reason": "..." } ]`. A finding with no mark counts as kept. The version after it answers each kept finding by id in `replies.json`.
 

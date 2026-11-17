@@ -17,6 +17,8 @@
 //   <root>/items/<id>/later.json              moved to the back of the queue
 //   <root>/done/<id>/withdrawn.json           its agent cancelled it (`bateson cancel`): { at, by, n }
 //   <root>/done/<id>/                         delivered items, same layout
+//   <root>/pasted/<id>/v<N>/<name>           screenshots pasted into your own answer; outside the item's folder,
+//                                             so the path the agent is given stays good once the item is filed under done
 //   <root>/sessions/<session>.json            sessions at work (hooks); <session>.tree is lib/worktree.ts's
 //   <root>/config.json                        settings
 //   <root>/hooks.log                          what went wrong in a hook (they never stop a session to say so)
@@ -27,6 +29,11 @@ import crypto from 'node:crypto';
 import type { Answer, BodyType, Config, Decision, Finding, Hue, Question, Reply, Round, Source } from './types.ts';
 
 const HUES: Hue[] = ['slate', 'terracotta', 'moss', 'plum', 'ochre'];
+
+/** What can be pasted into your own answer, and the extension it is saved with. */
+const PASTED_TYPES: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+export const PASTED_NAME = /^[a-z0-9]+\.(png|jpg|gif|webp)$/;
+export const PASTED_MAX = 20 * 1024 * 1024;
 
 // ---- The files' shapes. The store wrote them (or a producer did, following docs/folder-format.md), so what it
 // reads back is taken at its word.
@@ -160,6 +167,7 @@ export function openStore(
   const ITEMS = path.join(root, 'items');
   const DONE = path.join(root, 'done');
   const SESSIONS = path.join(root, 'sessions');
+  const PASTED = path.join(root, 'pasted');
   const CONFIG = path.join(root, 'config.json');
   const HOOK_LOG = path.join(root, 'hooks.log');
 
@@ -312,6 +320,33 @@ export function openStore(
     return fs.statSync(file, { throwIfNoEntry: false })?.isFile() ? fs.readFileSync(file) : null;
   }
 
+  // ---- Screenshots pasted into your own answer. Each is saved as it is pasted, and the answer names it.
+
+  const pastedDir = (item: StoredItem, n: number) => path.join(PASTED, item.id, `v${n}`);
+
+  /** Save a pasted picture for the current version; returns the name the answer refers to it by. */
+  function savePasted(id: string, n: number, type: string, bytes: Buffer) {
+    const item = getItem(id);
+    if (!item) throw new Error('No such item');
+    if (readWithdrawn(item)) throw new Error('Its agent cancelled this.');
+    if (currentVersion(item).n !== n) throw new Error('A newer version arrived.');
+    const ext = PASTED_TYPES[type];
+    if (!ext) throw new Error('Only a picture (png, jpg, gif, webp) can be pasted.');
+    if (!bytes.length || bytes.length > PASTED_MAX) throw new Error(`A picture can be up to ${PASTED_MAX / 1024 / 1024} MB.`);
+    const dir = pastedDir(item, n);
+    fs.mkdirSync(dir, { recursive: true });
+    const name = `${Date.now().toString(36)}${crypto.randomBytes(3).toString('hex')}.${ext}`;
+    fs.writeFileSync(path.join(dir, name), bytes);
+    return name;
+  }
+
+  /** Where a pasted picture is, or null if there is none by that name. */
+  function pastedPath(item: StoredItem, n: number, name: string) {
+    if (!Number.isInteger(n) || !PASTED_NAME.test(name)) return null;
+    const file = path.join(pastedDir(item, n), name);
+    return fs.statSync(file, { throwIfNoEntry: false })?.isFile() ? file : null;
+  }
+
   const readReplies = (item: StoredItem, n: number) => (readJson(vfile(item, n, 'replies.json'), []) || []) as Reply[];
 
   /**
@@ -325,7 +360,7 @@ export function openStore(
   }) {
     if (!BODY_EXT[bodyType]) throw new Error(`Unknown body type ${bodyType}`);
     ensureDirs();
-    const at = now();
+    let at = now();
     let item = itemId ? getItem(itemId) : null;
     if (itemId && !item) throw new Error(`No item ${itemId}. Leave out --item to start a new one.`);
     let dir;
@@ -346,6 +381,10 @@ export function openStore(
         fs.rmSync(vdir(item, n), { recursive: true, force: true });
         item.versions.pop();
       } else n = last.n + 1;
+      // createdAt is what a decision names its version by, so a replacement must never share the one it replaced:
+      // two sends in the same millisecond (or a clock set back) would let a decision on the old text pass as one
+      // on the new. Keep it strictly later than the version before it.
+      if (at <= last.createdAt) at = new Date(Date.parse(last.createdAt) + 1).toISOString();
       item.versions.push({ n, bodyType, note, title, createdAt: at, replaced: !lastDecided || undefined });
       item.title = title || item.title;
       item.updatedAt = at;
@@ -773,7 +812,7 @@ export function openStore(
   return {
     ROOT: root, readConfig, writeConfig, ensureDirs,
     getItem, allQueued, allDone, isQueued, currentVersion, versionOf, readDecision, isDelivered, readBody,
-    readQuestions, readFindings, attachments, readAttachment, readReplies, send, decide, later,
+    readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
     readWithdrawn, withdraw, withdrawnSince,
     claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
     beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
@@ -800,7 +839,7 @@ export function Reviewer() {
 export const {
   ROOT, readConfig, writeConfig, ensureDirs,
   getItem, allQueued, allDone, isQueued, currentVersion, versionOf, readDecision, isDelivered, readBody,
-  readQuestions, readFindings, attachments, readAttachment, readReplies, send, decide, later,
+  readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
   readWithdrawn, withdraw, withdrawnSince,
   claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
   beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,

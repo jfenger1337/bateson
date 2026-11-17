@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import store, { reviewer, Reviewer } from './store.ts';
+import store, { reviewer, Reviewer, PASTED_NAME } from './store.ts';
 import type { Attachment, DecisionFile, StoredItem, StoredVersion } from './store.ts';
 import type { Anchor, Answer, Asked, Decision, DecisionName, Finding, Item, KindName, Mark, Question, Round, Show } from './types.ts';
 
@@ -52,8 +52,19 @@ function describeAnchor(a: Anchor | undefined) {
 const numbered = (asks: Ask[]) => asks.map((a) => `${a.key}. ${describeAnchor(a.anchor)}\n   ${a.text.replace(/\n/g, '\n   ')}`);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function describeAnswer(q: Partial<Question>, a: Answer) {
-  if (a.other) return `wrote their own answer: ${a.other}`;
+/** Your own answer: what you wrote, and where each screenshot you pasted into it is, for the agent to look at. */
+function describeOwn(item: StoredItem, n: number, a: Answer) {
+  const files = (a.images || []).map((name) => store.pastedPath(item, n, name)).filter((f) => f != null);
+  const pics = files.length
+    ? `${a.other ? '\n  ' : ''}${files.length === 1 ? 'With a screenshot' : `With ${files.length} screenshots`}, part of the answer: open ${files.length === 1 ? 'it' : 'each'} with your Read tool before you act on it.\n${files.map((f) => `  ${f}`).join('\n')}`
+    : '';
+  return a.other ? `wrote their own answer: ${a.other}${pics}` : `answered with a screenshot only. ${pics}`;
+}
+
+const isOwn = (a: Answer) => !!a.other || !!a.images?.length;
+
+function describeAnswer(item: StoredItem, n: number, q: Partial<Question>, a: Answer) {
+  if (isOwn(a)) return describeOwn(item, n, a);
   if (a.choice != null && q?.options?.[a.choice]) {
     const label = `${q.options[a.choice].label}${a.accepted ? ' (your recommendation, accepted)' : ''}`;
     // Your written recommendation came with that option, conditions and all, so it is part of the answer.
@@ -89,10 +100,10 @@ const INTERVIEW = {
     const answers = d.answers || [];
     const lines = answers.map((a) => {
       const q: Partial<Question> = qs.find((x) => x.id === a.id) || {};
-      return `- ${a.id} ${q.title || a.id}: ${describeAnswer(q, a)}`;
+      return `- ${a.id} ${q.title || a.id}: ${describeAnswer(item, v.n, q, a)}`;
     });
     // Send now: the round went with only the answers given so far. The rest are open, not accepted.
-    const open = qs.filter((q) => !answers.some((a) => a.id === q.id && (a.choice != null || a.other)));
+    const open = qs.filter((q) => !answers.some((a) => a.id === q.id && (a.choice != null || isOwn(a))));
     const sentEarly = open.length
       ? `\n\n${Who} sent this round early, without answering ${open.map((q) => `${q.id} ${q.title}`).join('; ')}. Those are still open: do not take your recommendation for them, and do not end the interview. Read the answers above first, since they may change what is still worth asking. Put each open question in the next round again, reworded or with new options where the answers changed it; leave out only one an answer above has settled or made moot, and say which answer did.`
       : '';
@@ -159,7 +170,8 @@ export function checkDecision(kind: Kind, body: unknown): Decision {
     && ['quote', 'prefix', 'suffix', 'file'].every((k) => str((c.anchor as Loose)[k]))
     && ['start', 'end', 'line'].every((k) => num((c.anchor as Loose)[k]))
     && [undefined, null, 'old', 'new'].includes((c.anchor as Loose).side as string));
-  const answers = list('answers', (a) => typeof a.id === 'string' && (a.choice == null || Number.isInteger(a.choice)) && str(a.other) && (a.accepted == null || typeof a.accepted === 'boolean'));
+  const answers = list('answers', (a) => typeof a.id === 'string' && (a.choice == null || Number.isInteger(a.choice)) && str(a.other) && (a.accepted == null || typeof a.accepted === 'boolean')
+    && (a.images == null || (Array.isArray(a.images) && a.images.length <= 20 && a.images.every((x) => typeof x === 'string' && PASTED_NAME.test(x)))));
   const marks = list('marks', (m) => typeof m.id === 'string' && ['keep', 'dismiss'].includes(m.mark as string) && str(m.reason) && str(m.comment));
   if (decision === 'send-back' && !comments?.length) throw new Error('Send back needs a comment');
   return {
@@ -229,7 +241,7 @@ export function formatEarly(item: StoredItem, n: number, answers: Answer[]) {
   const qs = store.readQuestions(item, store.versionOf(item, n)!);
   const lines = answers.map((a) => {
     const q: Partial<Question> = qs.find((x) => x.id === a.id) || {};
-    return `- ${a.id} ${q.title || ''}: ${describeAnswer(q, a)}`;
+    return `- ${a.id} ${q.title || ''}: ${describeAnswer(item, n, q, a)}`;
   });
   const these = answers.length > 1 ? 'these answers' : 'this answer';
   return `bateson: early answer${answers.length > 1 ? 's' : ''} in "${item.title}" (${item.id}, round ${n}). ${Reviewer()} is still answering the rest of the round.\n${lines.join('\n')}\n\nDraft only the follow-up questions that depend on ${these}: no research, no building. Save them with \`bateson draft ${item.id} --questions -\` (same JSON as a round, ids continuing the interview's numbering). They stay hidden until the round is sent. If nothing follows from it, run \`bateson draft ${item.id} --none\`. Either way, that command keeps you waiting for the rest of the round, so end your turn right after it.`;

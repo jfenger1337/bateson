@@ -4,12 +4,17 @@ import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
 import { isTyping } from './App';
-import { ArrowRight, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { ArrowRight, Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { keptKey, useKept, useKeptRef } from './lib/kept';
 
 // One question at a time. Choosing moves you on; the recommendation is preselected (dashed) until you touch it.
 
-interface Draft { choice: number | null; other: string; writing: boolean; touched: boolean }
+// `images`: screenshots pasted or dropped into your own answer, by the name the server saved them under.
+interface Draft { choice: number | null; other: string; images?: string[]; writing: boolean; touched: boolean }
+
+const pics = (d: Draft) => d.images ?? [];
+const said = (d: Draft) => d.other.trim().length > 0 || pics(d).length > 0;
 
 const ADVANCE_MS = 260;
 // How long the pointer rests on an option before its sound plays: crossing the list on the way somewhere stays silent.
@@ -43,7 +48,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
 
   const answered = (id: string) => {
     const d = drafts[id];
-    return d.writing ? d.other.trim().length > 0 : d.choice != null;
+    return d.writing ? said(d) : d.choice != null;
   };
   const ready = qs.every((q) => answered(q.id));
   // What Send now sends: an answer you touched, or a recommendation you saw and went past.
@@ -56,6 +61,12 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
   const d = q ? drafts[q.id] : null;
 
   const filesBase = `/api/items/${item.id}/files/${item.version.n}/`;
+  const pastedBase = `/api/items/${item.id}/pasted/${item.version.n}/`;
+
+  // Screenshots on their way to the server: until they arrive, the answer cannot be sent without them.
+  const [adding, setAdding] = useState(0);
+  const addingRef = useRef(0);
+  addingRef.current = adding;
 
   // Sounds are heard, not shown: an option's sound plays when the pointer rests on it or you press its letter, and
   // the panel keeps only what can be looked at. The rest starts on pointer movement, never on the page appearing
@@ -148,7 +159,64 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
     }, 0);
   };
 
+  // A screenshot pasted or dropped: it makes your own answer the answer, and is saved at once, so the answer
+  // only names it. Each lands on the question you were on when you pasted it.
+  const attach = (files: File[]) => {
+    if (!q) return;
+    const id = q.id;
+    const images = files.filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type));
+    if (!images.length) { if (files.length) toast('Only a picture (png, jpg, gif, webp) can go in your answer.'); return; }
+    write();
+    for (const f of images) {
+      setAdding((k) => k + 1);
+      base64(f)
+        .then((data) => fetch(`/api/items/${item.id}/pasted`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ n: item.version.n, type: f.type, data }),
+        }))
+        .then(async (res) => {
+          const out = await res.json().catch(() => ({})) as { name?: string; error?: string };
+          if (!res.ok || !out.name) throw new Error(out.error || 'The screenshot did not reach bateson.');
+          const name = out.name;
+          setDrafts((ds) => ({ ...ds, [id]: { ...ds[id], writing: true, choice: null, touched: true, images: [...pics(ds[id]), name] } }));
+        })
+        .catch((e: Error) => toast(e.message || 'The screenshot did not reach bateson.'))
+        .finally(() => setAdding((k) => k - 1));
+    }
+  };
+  const unattach = (name: string) => {
+    if (!q) return;
+    set(q.id, { images: pics(drafts[q.id]).filter((x) => x !== name) });
+  };
+
+  // ⌘V with a screenshot on the clipboard, anywhere on the question, puts it in your own answer. Text pasted into
+  // a field is left to the field.
+  const attachRef = useRef(attach);
+  attachRef.current = attach;
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const files = [...(e.clipboardData?.files ?? [])];
+      if (!files.some((f) => f.type.startsWith('image/'))) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || (t.tagName === 'TEXTAREA' && !t.classList.contains('own-field')))) return;
+      e.preventDefault();
+      attachRef.current(files);
+    };
+    // A picture dragged onto the window goes in too, instead of the window opening it and leaving bateson.
+    const onOver = (e: DragEvent) => { if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } };
+    const onDrop = (e: DragEvent) => {
+      if (!e.dataTransfer?.files.length) return;
+      e.preventDefault();
+      attachRef.current([...e.dataTransfer.files]);
+    };
+    window.addEventListener('paste', onPaste);
+    window.addEventListener('dragover', onOver);
+    window.addEventListener('drop', onDrop);
+    return () => { window.removeEventListener('paste', onPaste); window.removeEventListener('dragover', onOver); window.removeEventListener('drop', onDrop); };
+  }, []);
+
   const send = () => {
+    if (addingRef.current) return;
     if (!ready) { go(qs.findIndex((x) => !answered(x.id))); return; }
     const answers: Answer[] = qs.map((x) => answerOf(x, drafts[x.id]));
     onDecide(item, { decision: 'answer', answers });
@@ -157,6 +225,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
   // Send the answers given so far, not the round: the rest go back to the agent as unanswered, and the next round
   // takes what you said into account. It does not end the interview.
   const sendNow = () => {
+    if (addingRef.current) return;
     clearTimeout(advanceTimer.current);
     const answers: Answer[] = qs.filter((x) => given(x.id)).map((x) => answerOf(x, drafts[x.id]));
     if (!answers.length) return;
@@ -349,17 +418,18 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
           {/* What you wrote stays on screen when you pick an option instead, and on every question you come back
               to: pointing into it makes it your answer again. */}
           <div
-            className={`opt own${d.writing ? ' chosen' : d.other.trim() ? ' kept' : ''}`}
-            onClick={() => { if (!d.writing && d.other.trim()) otherRef.current?.focus(); }}
+            className={`opt own${d.writing ? ' chosen' : said(d) ? ' kept' : ''}`}
+            onClick={() => { if (!d.writing && said(d)) otherRef.current?.focus(); }}
           >
-            {d.writing || d.other.trim() ? (
+            {d.writing || said(d) ? (
               <>
-                <span className="opt-ring"><Ring kind={d.writing && d.other.trim() ? 'dot' : 'open'} size={20} letter={d.writing ? undefined : 'W'} /></span>
+                <span className="opt-ring"><Ring kind={d.writing && said(d) ? 'dot' : 'open'} size={20} letter={d.writing ? undefined : 'W'} /></span>
+                <div className="own-body">
                 <textarea
                   ref={otherRef}
                   className="own-field"
                   rows={2}
-                  placeholder="Your answer"
+                  placeholder="Your answer, or paste a screenshot"
                   value={d.other}
                   onFocus={() => {
                     if (d.writing) return;
@@ -372,10 +442,22 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
                     if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
                       e.preventDefault();
                       e.stopPropagation();
-                      if (d.other.trim()) { e.currentTarget.blur(); next(); }
+                      if (said(d) && !adding) { e.currentTarget.blur(); next(); }
                     }
                   }}
                 />
+                {(pics(d).length > 0 || adding > 0) && (
+                  <div className="own-pics">
+                    {pics(d).map((name) => (
+                      <span key={name} className="own-pic">
+                        <img src={pastedBase + name} alt="Your screenshot" title="Click to see it large" onClick={(e) => { e.stopPropagation(); setZoom(pastedBase + name); }} />
+                        <button className="own-pic-x" onClick={(e) => { e.stopPropagation(); unattach(name); }} aria-label="Take the screenshot out" title="Take it out"><X size={12} /></button>
+                      </span>
+                    ))}
+                    {adding > 0 && <span className="own-pic adding" aria-label="Adding a screenshot" />}
+                  </div>
+                )}
+                </div>
               </>
             ) : (
               <button className="own-open" onClick={() => write()}>
@@ -410,7 +492,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       <footer className="decide">
         <div className="decide-in">
           <p className="decide-sentence">
-            {!answered(q.id) ? 'Pick one, or write your own, to go on.' : last && open ? `“${open.title}” (${open.id}) has no answer yet.` : ''}
+            {adding ? 'Adding your screenshot…' : !answered(q.id) ? 'Pick one, or write your own, to go on.' : last && open ? `“${open.title}” (${open.id}) has no answer yet.` : ''}
           </p>
           <div className="decide-actions">
             <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="Stop this interview and send nothing">End interview</button>
@@ -439,7 +521,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
 
 // Your answer as the dots show it: the letter and label you picked, or what you wrote.
 function shownAnswer(x: Question, d: Draft): string {
-  if (d.writing) return d.other.trim();
+  if (d.writing) return withPics(d.other.trim(), pics(d).length);
   if (d.choice == null) return '';
   const letter = LETTERS[d.choice]?.toUpperCase();
   return `${letter ? `${letter}  ` : ''}${x.options[d.choice]?.label ?? ''}`;
@@ -448,8 +530,20 @@ function shownAnswer(x: Question, d: Draft): string {
 // An earlier round's answer, as the dots show it.
 function pastAnswer(x: Question, a?: Answer): string {
   if (!a) return 'Not answered';
-  if (a.other) return a.other;
+  if (a.other || a.images?.length) return withPics(a.other || '', a.images?.length ?? 0);
   return a.choice != null ? x.options[a.choice]?.label ?? '' : 'Not answered';
+}
+
+const withPics = (text: string, n: number) => (n ? `${text}${text ? ' + ' : ''}${n === 1 ? 'a screenshot' : `${n} screenshots`}` : text);
+
+/** A picture as base64, without the data: prefix. */
+function base64(f: File): Promise<string> {
+  return new Promise((ok, fail) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, ''));
+    r.onerror = () => fail(new Error('That picture could not be read.'));
+    r.readAsDataURL(f);
+  });
 }
 
 // Options are picked by letter, a to i; j, k, l and w already have jobs here.
@@ -458,7 +552,7 @@ const LETTERS = 'abcdefghi';
 
 function answerOf(x: Question, d: Draft): Answer {
   return d.writing
-    ? { id: x.id, choice: null, other: d.other.trim() }
+    ? { id: x.id, choice: null, other: d.other.trim(), ...(pics(d).length ? { images: pics(d) } : {}) }
     : { id: x.id, choice: d.choice, accepted: !d.touched && d.choice === x.recommended };
 }
 

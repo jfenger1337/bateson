@@ -14,7 +14,8 @@ export interface Option { label: string; description?: string; show?: Show[] }
 export interface Question { id: string; title: string; body?: string; options: Option[]; recommended?: number; recommendation?: string; opens?: boolean; show?: Show[] }
 export interface Round { questions: Question[] }
 
-export interface Answer { id: string; choice: number | null; other?: string; accepted?: boolean }
+/** `images`: screenshots pasted into your own answer, by name (lib/store.ts savePasted). */
+export interface Answer { id: string; choice: number | null; other?: string; images?: string[]; accepted?: boolean }
 
 export interface Anchor {
   kind: 'text' | 'item';
