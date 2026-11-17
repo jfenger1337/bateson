@@ -13,6 +13,7 @@ import { Settings as Gear } from 'lucide-react';
 import { MOD, MOD_KEY, modHeld } from './lib/keys';
 import { setTheme } from '@/lib/theme';
 import { forgetKept } from '@/lib/kept';
+import { Logo } from './Logo';
 
 
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
@@ -90,14 +91,30 @@ export function App() {
 
   const commit = useCallback(async (h: Held) => {
     h.done = true;
-    const res = await fetch(`/api/items/${h.id}/decide`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ n: h.n, at: h.at, ...h.decision }),
-    });
+    // The server restarts after an update: a decision made at that moment is tried again for a few seconds
+    // rather than lost. Until it lands, the item stays held, so it is not shown again under you.
+    let res: Response | null = null;
+    let tries = 0;
+    for (; tries < 6 && !res; tries++) {
+      if (tries) await new Promise((r) => setTimeout(r, 1000));
+      try {
+        res = await fetch(`/api/items/${h.id}/decide`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ n: h.n, at: h.at, ...h.decision }),
+        });
+      } catch { /* not answering yet */ }
+    }
     setHeld((hs) => hs.filter((x) => x.id !== h.id));
-    if (res.ok) forgetKept(h.id);
-    if (!res.ok) {
-      const { error, code } = await res.json().catch(() => ({ error: 'It did not go through.' }));
+    if (!res) {
+      toast('Your decision did not reach bateson: the server is not answering. The item is back in the queue; decide it again.', { duration: Infinity, action: { label: 'Dismiss', onClick: () => {} } });
+      return;
+    }
+    const body = res.ok ? null : await res.json().catch(() => ({ error: 'It did not go through.' }));
+    // A try that went through but whose answer was lost, then tried again: it is decided, by this.
+    const landed = res.ok || (tries > 1 && body?.code === 'decided');
+    if (landed) forgetKept(h.id);
+    else {
+      const { error, code } = body;
       // Refused because the agent sent a newer version meanwhile: that version is now waiting, so offer to bring it
       // to the front. Refused because the agent cancelled it ('withdrawn'): the message says so, and that is all.
       const action = code === 'stale'
@@ -217,7 +234,7 @@ export function App() {
     <div className="frame">
       <header className={`bar${item ? ` hue-${item.hue}` : ''}`}>
         <div className="bar-left">
-          <span className="wordmark">bateson</span>
+          <Logo />
           {said ? (
             <span className="bar-sentence said" role="status">
               {said.label}
@@ -245,7 +262,7 @@ export function App() {
 
       <main className="work">
         {settings ? (
-          <Settings onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
+          <Settings update={state?.update} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
         ) : !state ? <Loading /> : item ? (
           item.kind === 'interview'
             ? <Interview key={viewKey} item={item} steps={steps} panel={state.config.preview} onDecide={decide} onFirst={setFirstQ} />
@@ -253,7 +270,7 @@ export function App() {
               ? <Findings key={viewKey} item={item} steps={steps} onDecide={decide} onLater={later} />
               : <Review key={viewKey} item={item} onDecide={decide} onLater={later} />
         ) : (
-          <Empty agents={state.agents ?? []} writing={state.writing ?? []} />
+          <Empty agents={state.agents ?? []} writing={state.writing ?? []} update={state.update} onUpdate={() => setSettings(true)} />
         )}
       </main>
 

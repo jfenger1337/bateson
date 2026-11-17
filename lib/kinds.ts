@@ -7,7 +7,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import store, { reviewer, Reviewer } from './store.ts';
 import type { Attachment, DecisionFile, StoredItem, StoredVersion } from './store.ts';
-import type { Anchor, Answer, Asked, DecisionName, Finding, Item, KindName, Mark, Question, Round, Show } from './types.ts';
+import type { Anchor, Answer, Asked, Decision, DecisionName, Finding, Item, KindName, Mark, Question, Round, Show } from './types.ts';
 
 /** One thing the reviewer asked of a version, keyed the way the agent replies to it. */
 interface Ask { key: string; id: string; text: string; anchor: Anchor; title?: string }
@@ -83,18 +83,27 @@ const INTERVIEW = {
   decisions: { answer: 'Answered', drop: 'Ended' },
   noun: null,
   asks: () => [],
-  tell({ item, v, d, resend, who }) {
+  tell({ item, v, d, resend, who, Who }) {
     if (d.decision === 'drop') return DROPPED;
     const qs = store.readQuestions(item, v);
-    const lines = (d.answers || []).map((a) => {
+    const answers = d.answers || [];
+    const lines = answers.map((a) => {
       const q: Partial<Question> = qs.find((x) => x.id === a.id) || {};
       return `- ${a.id} ${q.title || a.id}: ${describeAnswer(q, a)}`;
     });
+    // Send now: the round went with only the answers given so far. The rest are open, not accepted.
+    const open = qs.filter((q) => !answers.some((a) => a.id === q.id && (a.choice != null || a.other)));
+    const sentEarly = open.length
+      ? `\n\n${Who} sent this round early, without answering ${open.map((q) => `${q.id} ${q.title}`).join('; ')}. Those are still open: do not take your recommendation for them, and do not end the interview. Read the answers above first, since they may change what is still worth asking. Put each open question in the next round again, reworded or with new options where the answers changed it; leave out only one an answer above has settled or made moot, and say which answer did.`
+      : '';
     const draft = store.readDraft(item, v.n);
     const drafted = draft?.questions?.length
       ? `\n\nYou drafted ${plural(draft.questions.length, 'follow-up')} while ${who} answered (${draft.questions.map((q) => `${q.id} ${q.title}`).join('; ')}). Print them with \`bateson draft ${item.id} --show\`, check them against all the answers above, add what else the frontier needs, and send the next round now with \`${resend} --questions -\`.`
       : '';
-    return `Answers for round ${v.n}:\n${lines.join('\n')}${drafted}\n\nIf this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, send the shared understanding for review as the interview's last version (see the ama skill).`;
+    const after = open.length
+      ? `Send the next round with \`${resend} --questions -\`.`
+      : `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, send the shared understanding for review as the interview's last version (see the ama skill).`;
+    return `Answers for round ${v.n}:\n${lines.join('\n')}${sentEarly}${drafted}\n\n${after}`;
   },
   validate: validateQuestions,
 } satisfies Kind;
@@ -126,6 +135,40 @@ const FINDINGS = {
 } satisfies Kind;
 
 export const KINDS = { review: REVIEW, interview: INTERVIEW, findings: FINDINGS };
+
+/**
+ * Check a decision as the app posts it, before it is written: decision.json is written once, so one of the wrong
+ * shape would leave its item stuck, never told to its agent. Only the kind's own decisions count (not a name
+ * every object has, such as "constructor"), and each list holds what formatDecision reads, with the right types.
+ * Throws an Error saying what is wrong.
+ */
+export function checkDecision(kind: Kind, body: unknown): Decision {
+  const b = (body && typeof body === 'object' ? body : {}) as Loose;
+  const { decision } = b;
+  if (typeof decision !== 'string' || !Object.hasOwn(kind.decisions, decision)) throw new Error(`A ${kind.name} item cannot be decided with ${String(decision)}`);
+  const str = (v: unknown) => v == null || typeof v === 'string';
+  const num = (v: unknown) => v == null || (typeof v === 'number' && Number.isFinite(v));
+  const list = (k: string, ok: (x: Loose) => boolean) => {
+    const v = b[k];
+    if (v == null) return undefined;
+    if (!Array.isArray(v) || !v.every((x) => x && typeof x === 'object' && !Array.isArray(x) && ok(x as Loose))) throw new Error(`${k} are not of the right shape`);
+    return v;
+  };
+  const comments = list('comments', (c) => typeof c.id === 'string' && typeof c.text === 'string' && !!c.anchor && typeof c.anchor === 'object'
+    && ['text', 'item'].includes((c.anchor as Loose).kind as string)
+    && ['quote', 'prefix', 'suffix', 'file'].every((k) => str((c.anchor as Loose)[k]))
+    && ['start', 'end', 'line'].every((k) => num((c.anchor as Loose)[k]))
+    && [undefined, null, 'old', 'new'].includes((c.anchor as Loose).side as string));
+  const answers = list('answers', (a) => typeof a.id === 'string' && (a.choice == null || Number.isInteger(a.choice)) && str(a.other) && (a.accepted == null || typeof a.accepted === 'boolean'));
+  const marks = list('marks', (m) => typeof m.id === 'string' && ['keep', 'dismiss'].includes(m.mark as string) && str(m.reason) && str(m.comment));
+  if (decision === 'send-back' && !comments?.length) throw new Error('Send back needs a comment');
+  return {
+    decision: decision as DecisionName,
+    ...(comments ? { comments: comments as Decision['comments'] } : {}),
+    ...(answers ? { answers: answers as Decision['answers'] } : {}),
+    ...(marks ? { marks: marks as Decision['marks'] } : {}),
+  };
+}
 
 // ---- Built on the kinds
 

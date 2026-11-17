@@ -27,6 +27,7 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
   hooks.log                   one line per hook error (the hooks never stop a session to report one)
   server.log                  the server's output, when it runs at login
   server.pid                  on Windows, scripts/keepalive.ts while it keeps the server running
+  update.json                 where updating bateson stands: the new version's changes, a step, or why it cannot (lib/update.ts)
 ```
 
 `<id>` matches `q_[a-z0-9]+`.
@@ -70,12 +71,12 @@ Sorted highest severity first and numbered by the CLI, which also captures `exce
 ## decision.json
 
 ```json
-{ "decision": "approve" | "send-back" | "drop" | "answer" | "findings", "decidedAt": "...",
+{ "decision": "approve" | "send-back" | "drop" | "answer" | "findings", "decidedAt": "...", "versionAt": "...",
   "comments": [ { "id": "...", "text": "...", "anchor": { "kind": "text" | "item", "quote": "...", "prefix": "...", "suffix": "...", "start": 0, "end": 10, "file": "src/a.ts", "line": 42, "side": "new" } } ],
   "answers":  [ { "id": "Q1", "choice": 0, "accepted": true }, { "id": "Q2", "choice": null, "other": "free text" } ] }
 ```
 
-`comments` come with `send-back`, `answers` with `answer`, and with `findings` the marks: `"marks": [ { "id": "F1", "mark": "keep", "comment": "..." }, { "id": "F2", "mark": "dismiss", "reason": "..." } ]`. A finding with no mark counts as kept. The version after it answers each kept finding by id in `replies.json`.
+`versionAt` is the `createdAt` of the version the reviewer decided. A version replaced in place keeps its number, so a decision whose `versionAt` is not the version's `createdAt` was made on the text it replaced, and does not count (a decision without `versionAt` is taken as it is). `comments` come with `send-back`, `answers` with `answer` (a round sent with Send now leaves out the questions not answered yet; the agent asks them again), and with `findings` the marks: `"marks": [ { "id": "F1", "mark": "keep", "comment": "..." }, { "id": "F2", "mark": "dismiss", "reason": "..." } ]`. A finding with no mark counts as kept. The version after it answers each kept finding by id in `replies.json`.
 
 ## Writing an item without the CLI
 
@@ -108,7 +109,8 @@ Settings, written by the app's settings page (⌘, or Ctrl+,) and read by the ap
   "stopCheck": true,              // remind agents, on turns you did not start, that your calls go to the queue (hooks/remind.ts)
   "bring": { "decisions": true, "plans": false, "findings": false, "code": false }, // what agents send you (Settings or /setup-bateson)
   "theme": "system",              // "system" | "light" | "dark"
-  "preview": false                // the panel beside a question for its `show`; off, questions are centred and `bateson send` refuses pictures on them
+  "preview": false,               // the panel beside a question for its `show`; off, questions are centred and `bateson send` refuses pictures on them
+  "updates": true                 // once a day, ask GitHub whether there is a newer version; nothing is installed until you press Update
 }
 ```
 

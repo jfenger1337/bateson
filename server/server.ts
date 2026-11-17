@@ -9,13 +9,13 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { streamSSE } from 'hono/streaming';
 import store, { PORT } from '../lib/store.ts';
-import { kindOf } from '../lib/kinds.ts';
+import { kindOf, checkDecision } from '../lib/kinds.ts';
 import { missingHooks, writeHooks } from '../lib/claude-settings.ts';
 import { stateView, summaryView } from '../lib/view.ts';
-import type { Decision } from '../lib/types.ts';
+import { openUpdater, due } from '../lib/update.ts';
 
 /** What the app posts to decide: the version it saw (its number and createdAt) and the decision on it. */
-type DecideBody = Partial<Decision> & { n?: unknown; at?: string };
+type DecideBody = { n?: unknown; at?: unknown };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(HERE, '..', 'web', 'dist');
@@ -23,11 +23,12 @@ const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const PAGE_SEEN_MS = 20_000;
 
 /** The app without a socket. `changed` and `rebuilt` are how pages hear about the queue and a new build. */
-export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
+export function createApp({ dist = DIST, updater: given }: { dist?: string | null; updater?: ReturnType<typeof openUpdater> } = {}) {
   store.ensureDirs();
   const app = new Hono();
   const listeners = new Set<() => void>();
   const reloaders = new Set<() => void>();
+  const updater = given ?? openUpdater({ onChange: () => { for (const fn of listeners) fn(); } });
   // When a page last asked for the queue or its live updates. A page whose live updates were cut (a proxy or an
   // antivirus that ends long responses) holds no /api/events, but still reconnects every 2 seconds.
   let pageSeen = 0;
@@ -66,6 +67,12 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
 
   app.get('/api/summary', (c) => c.json(summaryView()));
 
+  // Updating bateson (lib/update.ts). Installing takes minutes (npm, the build), longer than a request may stay
+  // open, so it answers at once: pages hear each step as a change and read it from /api/state.
+  app.get('/api/update', (c) => c.json(updater.read()));
+  app.post('/api/update/check', async (c) => c.json(await updater.check()));
+  app.post('/api/update', (c) => { updater.apply().catch(() => {}); return c.json({ started: true }); });
+
   app.get('/api/state', (c) => {
     pageSeen = Date.now();
     return c.json(stateView({
@@ -77,13 +84,13 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
   app.post('/api/items/:id/decide', async (c) => {
     const body = await json(c);
     if (!body) return c.json({ error: 'Bad request' }, 400);
-    const { n, at, decision, comments, answers, marks } = body as DecideBody;
+    const { n, at } = body as DecideBody;
     const item = store.getItem(c.req.param('id'));
     if (!item) return c.json({ error: 'No such item' }, 404);
-    const kind = kindOf(item, store.currentVersion(item));
-    if (!decision || !kind.decisions[decision]) return c.json({ error: `A ${kind.name} item cannot be decided with ${decision}` }, 400);
-    if (decision === 'send-back' && !(comments || []).length) return c.json({ error: 'Send back needs a comment' }, 400);
-    try { store.decide(item.id, typeof n === 'number' ? n : NaN, { decision, comments, answers, marks }, { at }); }
+    let decision;
+    try { decision = checkDecision(kindOf(item, store.currentVersion(item)), body); }
+    catch (e) { return c.json({ error: (e as Error).message }, 400); }
+    try { store.decide(item.id, typeof n === 'number' ? n : NaN, decision, { at: typeof at === 'string' ? at : undefined }); }
     catch (e) { const { message, code } = e as NodeJS.ErrnoException; return c.json({ error: message, code }, 409); }
     return c.json({ ok: true });
   });
@@ -155,6 +162,7 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
 
   return {
     app,
+    updater,
     changed: () => { for (const fn of listeners) fn(); },
     rebuilt: () => { for (const fn of reloaders) fn(); },
   };
@@ -162,7 +170,13 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
 
 /** Run it: watch the queue and the build, and listen on localhost. */
 export function start() {
-  const { app, changed, rebuilt } = createApp();
+  const { app, changed, rebuilt, updater } = createApp();
+  // Once a day, if Settings allows, ask GitHub whether there is a newer version. The first look waits a minute,
+  // so a server that keeps restarting does not ask each time.
+  updater.recover();
+  const look = () => { if (store.readConfig().updates && due(updater.read())) updater.check().catch(() => {}); };
+  setTimeout(look, 60_000);
+  setInterval(look, 3600_000);
   let timer: ReturnType<typeof setTimeout> | undefined;
   fs.watch(store.ROOT, { recursive: true }, () => { clearTimeout(timer); timer = setTimeout(changed, 120); });
   // A waiting hook that dies leaves no file event, so nudge the pages now and then.

@@ -3,7 +3,8 @@ import { ArrowLeft } from 'lucide-react';
 import { Loading } from './Loading';
 import { setTheme } from '@/lib/theme';
 import { MAC } from './lib/keys';
-import type { Config } from '@lib/types';
+import { UpdatePanel } from './Update';
+import type { Config, UpdateView } from '@lib/types';
 
 // ⌘, : a short list of settings, saved to ~/.bateson/config.json as you change them. Agents can read and
 // change the same file (docs/folder-format.md).
@@ -32,7 +33,7 @@ function sendHint(b: Bring, also: Also | null) {
 /** bateson's hooks in Claude Code's settings: without them no answer reaches an agent. */
 type Hooks = { state: 'ok' } | { state: 'missing'; busy: boolean; error?: string } | { state: 'fixed' };
 
-export function Settings({ onClose, onChange }: { onClose: () => void; onChange: (c: Config) => void }) {
+export function Settings({ onClose, onChange, update }: { onClose: () => void; onChange: (c: Config) => void; update?: UpdateView }) {
   const [c, setC] = useState<Config | null>(null);
   const [hooks, setHooks] = useState<Hooks>({ state: 'ok' });
   const [errors, setErrors] = useState<{ count: number; last: string | null }>({ count: 0, last: null });
@@ -155,6 +156,12 @@ export function Settings({ onClose, onChange }: { onClose: () => void; onChange:
       </div>
       <Row title="Remind agents to ask you" hint="When an agent starts changing files on a turn you did not start, it is quietly reminded to send you any call that is yours. You never see the reminder.">
         <Switch on={c.stopCheck} onChange={(v) => save({ stopCheck: v })} />
+      </Row>
+
+      <h2 className="set-group">Updates</h2>
+      {update && <UpdatePanel update={update} />}
+      <Row title="Check for new versions" hint="Once a day bateson asks GitHub whether there is a newer version. Nothing of yours is sent, and nothing is installed until you press Update.">
+        <Switch on={c.updates} onChange={(v) => save({ updates: v })} />
       </Row>
 
       <p className="set-file rec">~/.bateson/config.json</p>

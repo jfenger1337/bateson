@@ -9,6 +9,7 @@ import store, { PORT, reviewer, Reviewer, BODY_TYPES } from '../lib/store.ts';
 import { KINDS, toAnswer } from '../lib/kinds.ts';
 import { peek, awaitDecision, collect, own, claim, pendingFor } from '../lib/delivery.ts';
 import { agent, canWake, currentSession } from '../lib/agent.ts';
+import { recall, formatRecalled } from '../lib/recall.ts';
 import type { Attachment, Body, StoredItem } from '../lib/store.ts';
 import type { BodyType, Question, Reply, Source } from '../lib/types.ts';
 
@@ -35,6 +36,9 @@ const HELP = `bateson: a review queue for what needs human judgment.
   bateson cancel [<id>...]  take an item out of the queue because they called it off in chat (no id: this session's open items)
   bateson inbox             responses for this session, and for this repo's sessions that have ended, not yet received
   bateson list              what is waiting for review
+  bateson recall [<words>] [--limit <n>]
+                            what they already decided, one line each: answers, approvals, send-backs, findings
+                            kept with a comment or dismissed. Best match first; with no words, the latest.
   bateson config [--set -]  print the settings, or change them with a JSON patch on stdin (see /setup-bateson)
   bateson serve             run the app on http://localhost:${PORT}
 
@@ -62,12 +66,12 @@ Findings JSON (a list, or { "findings": [...] }):
 `;
 
 // Flags whose value is the next argument whatever it looks like: a note may well start with "--".
-const VALUE_FLAGS = new Set(['title', 'note', 'file', 'type', 'item', 'timeout', 'questions', 'findings']);
+const VALUE_FLAGS = new Set(['title', 'note', 'file', 'type', 'item', 'timeout', 'questions', 'findings', 'limit']);
 
 /** The command line as parsed: the words, then each flag's value (true for a flag that takes none). */
 interface Args {
   _: string[]; attach: (string | undefined)[]; replies: { addressed: boolean; raw: string | undefined }[];
-  title?: string; note?: string; file?: string; type?: string; item?: string; timeout?: string; questions?: string; findings?: string;
+  title?: string; note?: string; file?: string; type?: string; item?: string; timeout?: string; questions?: string; findings?: string; limit?: string;
   diff?: string; set?: string | true; stdin?: true; none?: true; show?: true;
   [flag: string]: unknown;
 }
@@ -389,6 +393,21 @@ function cmdList() {
   for (const r of rows) console.log(`${r.item.id} v${r.v.n}  ${r.waiting ? '(a session is waiting)  ' : ''}${r.v.title || r.item.title}  [${r.item.source?.repo || ''}]`);
 }
 
+function cmdRecall(o: Args) {
+  const query = o._.slice(1).join(' ');
+  const limit = o.limit == null ? 12 : Number(o.limit);
+  if (!(Number.isInteger(limit) && limit > 0)) die(`--limit is a whole number, not ${JSON.stringify(o.limit)}.`);
+  const here = source();
+  const { words, total, shown } = recall(query, { top: here.top, repo: here.repo, limit });
+  if (query.trim() && !words.length) die('give words of three letters or more to search for, or none for the latest decisions.');
+  const who = reviewer();
+  if (!shown.length) { console.log(query.trim() ? `bateson: nothing ${who} decided matches "${query.trim()}".` : `bateson: ${who} has not decided anything yet.`); return; }
+  console.log(`${query.trim() ? `${total} decision${total === 1 ? '' : 's'} by ${who} matching "${query.trim()}", best match first` : `${Reviewer()}'s latest decisions`}${total > shown.length ? ` (the first ${shown.length}; --limit for more)` : ''}:`);
+  for (const r of shown) console.log(formatRecalled(r));
+  // What to do with it, last, where agents look.
+  console.log(`\nA question answered here is settled: do not ask it again unless something has changed, and then say what changed and name the earlier answer and its date. A past answer is evidence, not the default: recommend on the merits, and say so when you lean away from it. A whole item is in ${path.join(store.ROOT, 'done', '<id>')}.`);
+}
+
 function cmdConfig(o: Args) {
   if (o.set === undefined) { console.log(JSON.stringify(store.readConfig(), null, 2)); return; }
   if (o.set !== '-') die('--set reads a JSON patch from stdin: bateson config --set - <<< \'{"bring":{"plans":true}}\'');
@@ -413,6 +432,7 @@ try {
   else if (cmd === 'cancel') cmdCancel(o);
   else if (cmd === 'inbox') cmdInbox();
   else if (cmd === 'list') cmdList();
+  else if (cmd === 'recall') cmdRecall(o);
   else if (cmd === 'serve') cmdServe();
   else if (cmd === 'config') cmdConfig(o);
   else process.stdout.write(HELP);

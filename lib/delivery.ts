@@ -21,8 +21,10 @@ import { agent } from './agent.ts';
 export function claim(id: string, n: number, by?: string, to: { sessionId?: string; transcript?: string } = {}) {
   const item = store.getItem(id);
   if (!item || !store.readDecision(item, n)) return null;
-  if (!store.claimDelivery(item, n, by, to)) return null;
+  // The message first: a decision that cannot be told is left undelivered (and the error logged by the caller),
+  // never marked delivered and lost.
   const msg = formatDecision(item, n);
+  if (msg == null || !store.claimDelivery(item, n, by, to)) return null;
   store.fileAway(item);
   return msg;
 }
@@ -186,7 +188,7 @@ const AGAIN = 'bateson: this response was handed to a session earlier but may no
 /** Claim everything pendingFor() and lostFor() find: the messages, in order. */
 export function collect(who: Who, by: string) {
   const fresh = pendingFor(who).map((it) => claim(it.id, store.currentVersion(it).n, by)).filter((m) => m !== null);
-  const again = lostFor(who).map(({ item, n }) => (store.claimRedelivery(item, n, by) ? formatDecision(item, n) : null))
+  const again = lostFor(who).map(({ item, n }) => { const m = formatDecision(item, n); return m != null && store.claimRedelivery(item, n, by) ? m : null; })
     .filter((m) => m !== null).map((m) => `${AGAIN}\n${m}`);
   return [...fresh, ...again];
 }
