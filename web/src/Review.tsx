@@ -81,19 +81,25 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     return () => { reg.delete('qr-new-hot'); };
   }, [hot]);
 
+  // A selected passage of the work, as an anchor for a comment; null when the range is not in the work.
+  const anchorOf = useCallback((range: Range) => {
+    const root = bodyRef.current;
+    if (!root || !root.contains(range.startContainer)) return null;
+    // A triple click on the last paragraph runs on past the work; the part inside it is what was meant.
+    if (!root.contains(range.endContainer)) range.setEnd(root, root.childNodes.length);
+    const anchor = anchorFrom(root, range, range.toString());
+    return anchor.quote?.trim() ? anchor : null;
+  }, []);
+
   // A selection inside the work offers a comment, just above it.
   useEffect(() => {
     const onUp = () => {
       window.setTimeout(() => {
         const sel = window.getSelection();
-        const root = bodyRef.current;
-        if (!sel || sel.isCollapsed || !root || !sel.rangeCount) { setPicked(null); return; }
+        if (!sel || sel.isCollapsed || !sel.rangeCount) { setPicked(null); return; }
         const range = sel.getRangeAt(0).cloneRange();
-        if (!root.contains(range.startContainer)) { setPicked(null); return; }
-        // A triple click on the last paragraph runs on past the work; the part inside it is what was meant.
-        if (!root.contains(range.endContainer)) range.setEnd(root, root.childNodes.length);
-        const anchor = anchorFrom(root, range, range.toString());
-        if (!anchor.quote?.trim()) { setPicked(null); return; }
+        const anchor = anchorOf(range);
+        if (!anchor) { setPicked(null); return; }
         const first = range.getClientRects()[0] ?? range.getBoundingClientRect();
         setPicked({ anchor, x: first.left, y: Math.max(60, first.top - 38) });
       }, 0);
@@ -101,7 +107,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     document.addEventListener('mouseup', onUp);
     document.addEventListener('keyup', onUp);
     return () => { document.removeEventListener('mouseup', onUp); document.removeEventListener('keyup', onUp); };
-  }, []);
+  }, [anchorOf]);
 
   // On writing, the block level with the pointer, from the left gutter to the end of the line, gets a mark in the
   // gutter. Nested blocks: the innermost wins, as it comes later in the document.
@@ -134,6 +140,21 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     setDraft({ anchor, text: '', send });
     setPicked(null);
   }, []);
+
+  // Comment, from the right-click menu (Menu.tsx): on the selection as it was when the menu opened, since clicking
+  // a row in the menu can clear it. A comment already half written is not thrown away for it: you are taken back to it.
+  useEffect(() => {
+    const field = () => document.querySelector<HTMLTextAreaElement>('.note-field');
+    const onComment = (e: Event) => {
+      if (draft?.text.trim()) { field()?.focus(); return; }
+      const anchor = anchorOf((e as CustomEvent<Range>).detail);
+      if (!anchor) return;
+      startComment(anchor);
+      window.setTimeout(() => field()?.focus()); // An open box keeps its element, so autoFocus does not run again.
+    };
+    window.addEventListener('qr-comment', onComment);
+    return () => window.removeEventListener('qr-comment', onComment);
+  }, [anchorOf, startComment, draft]);
 
   const save = () => {
     if (!draft?.text.trim()) { setDraft(null); return; }
@@ -271,7 +292,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
         <h1 ref={titleRef} className="work-title commentable" onClick={() => startComment(whole)} title="Comment on the whole piece">{item.title}</h1>
         {v.note && <p className="note">{v.note}</p>}
 
-        <div ref={bodyRef} className={`body body-${v.bodyType}`} onMouseMove={onBodyMove} onMouseLeave={() => setHot(null)}>
+        <div ref={bodyRef} data-comments className={`body body-${v.bodyType}`} onMouseMove={onBodyMove} onMouseLeave={() => setHot(null)}>
           {v.bodyType === 'markdown' && <Markdown className="prose" text={v.body as string} />}
           {v.bodyType === 'text' && <div className="prose plain">{v.body as string}</div>}
           {v.bodyType === 'diff' && <Diff text={v.body as string} fresh={freshLines} />}

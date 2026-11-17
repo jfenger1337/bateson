@@ -7,7 +7,7 @@ import {
 import { MOD } from './lib/keys';
 
 // Right-click anywhere: bateson's own menu instead of the browser's (Back, Cast, Translate, ... mean nothing in a
-// window of its own). It offers what the place you clicked can do: copy what you selected, a link's address,
+// window of its own). It offers what the place you clicked can do: copy or comment on what you selected, a link's address,
 // put off the item in front of you, take back a decision still on hold, and the window's own settings.
 //
 // The browser's menu stays where it is the better one: in a field you type in (spelling, paste), with Shift held
@@ -15,7 +15,7 @@ import { MOD } from './lib/keys';
 
 type Theme = Config['theme'];
 /** What was under the pointer when the menu opened. */
-interface Spot { text: string; href?: string }
+interface Spot { text: string; href?: string; /** The selection, when it is in work you can comment on (Review.tsx's [data-comments]). */ range?: Range }
 
 const COARSE = window.matchMedia('(pointer: coarse) and (not (any-pointer: fine))');
 
@@ -39,7 +39,12 @@ export function AppMenu({ children, theme, onTheme, onSettings, later, undo }: {
     // Stopped here, the event never reaches Radix's trigger, and nothing prevents the browser's own menu.
     if (typing || e.shiftKey) { e.stopPropagation(); return; }
     const a = t.closest<HTMLAnchorElement>('a[href]');
-    const next = { text: window.getSelection()?.toString().trim() ?? '', href: a?.href };
+    const sel = window.getSelection();
+    const text = sel?.toString().trim() ?? '';
+    const range = text && sel!.rangeCount ? sel!.getRangeAt(0).cloneRange() : undefined;
+    const start = range?.startContainer;
+    const inWork = !!(start && (start.nodeType === 1 ? start as Element : start.parentElement)?.closest('[data-comments]'));
+    const next = { text, href: a?.href, range: inWork ? range : undefined };
     spotRef.current = next;
     setSpot(next);
   };
@@ -49,7 +54,10 @@ export function AppMenu({ children, theme, onTheme, onSettings, later, undo }: {
     catch { document.execCommand('copy'); } // The selection is still the page's; the old way copies it.
   };
 
-  const { text, href } = spot;
+  // After the menu has closed: while it is open it keeps focus inside itself, and the comment box takes it.
+  const comment = (r: Range) => window.setTimeout(() => window.dispatchEvent(new CustomEvent('qr-comment', { detail: r })));
+
+  const { text, href, range } = spot;
   const preview = text.length > 42 ? `${text.slice(0, 40).trimEnd()}…` : text;
 
   return (
@@ -57,10 +65,12 @@ export function AppMenu({ children, theme, onTheme, onSettings, later, undo }: {
       <ContextMenuTrigger asChild disabled={COARSE.matches} onContextMenuCapture={onContextMenuCapture}>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent aria-label="bateson">
+      {/* Closing leaves focus where the row put it (the comment box), not on the window the menu opened from. */}
+      <ContextMenuContent aria-label="bateson" onCloseAutoFocus={(e) => e.preventDefault()}>
         {text && (
           <>
             <ContextMenuLabel title={text}>“{preview}”</ContextMenuLabel>
+            {range && <ContextMenuItem shortcut="C" onSelect={() => comment(range)}>Comment</ContextMenuItem>}
             <ContextMenuItem shortcut={`${MOD}C`} onSelect={() => copy(spotRef.current.text)}>Copy</ContextMenuItem>
             <ContextMenuSeparator />
           </>
