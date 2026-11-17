@@ -437,7 +437,7 @@ function cmdConfig(o: Args) {
 }
 
 function cmdServe() {
-  const child = spawn(process.execPath, [path.join(HERE, '..', 'server', 'server.ts')], { stdio: 'inherit' });
+  const child = spawn(process.execPath, [path.join(HERE, '..', 'server', 'server.mjs')], { stdio: 'inherit' });
   child.on('exit', (code) => process.exit(code ?? 0));
 }
 

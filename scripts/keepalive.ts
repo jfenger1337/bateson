@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+// Run as scripts/keepalive.mjs, which first checks that this Node can run it.
 // The server at login on Windows, where there is no launchd. It does what launchd's plist does on a Mac: runs
-// server/server.ts from this folder with its output in ~/.bateson/server.log, and starts it again when it stops.
+// server/server.mjs from this folder with its output in ~/.bateson/server.log, and starts it again when it stops.
 // While it runs, ~/.bateson/server.pid holds its pid. The installer stops it, and the server under it, by writing
 // ~/.bateson/server.stop: a file and not a kill, so a pid Windows has since given to another process is never at risk.
 import fs from 'node:fs';
@@ -30,7 +31,7 @@ let quick = 0;
 
 function run() {
   const started = Date.now();
-  child = spawn(process.execPath, [path.join(REPO, 'server', 'server.ts')], { cwd: REPO, stdio: ['ignore', log, log], windowsHide: true });
+  child = spawn(process.execPath, [path.join(REPO, 'server', 'server.mjs')], { cwd: REPO, stdio: ['ignore', log, log], windowsHide: true });
   child.on('exit', () => {
     child = null;
     if (stopping) return;

@@ -46,11 +46,13 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 | [`hooks/nudge.ts`](../hooks/nudge.ts) | When a turn ends: marks the session idle and records the working tree. |
 | [`hooks/remind.ts`](../hooks/remind.ts) | The first time a turn you did not start changes files, quietly reminds the agent that calls which are yours go to the queue. It never blocks. |
 | [`skill/`](../skill) | The skills. |
+| [`server/server.mjs`](../server/server.mjs) | What starts the server (`npm start`, `bateson serve`, the login item): checks the Node, as `cli/bateson.mjs` does, then runs `server/server.ts`. On a Node that cannot, it says so in `~/.bateson/server.log`. |
 | [`server/server.ts`](../server/server.ts) | Hono on `:4848`: the API, live updates, the built UI. Local requests only. |
 | [`web/`](../web) | Vite and React 19. |
 | [`mac/`](../mac) | The Mac shell, AppKit and WKWebView. `./mac/build.sh --install` puts it in `~/Applications`. |
 | [`scripts/install.mjs`](../scripts/install.mjs) | What you run to install: checks the Node, as `cli/bateson.mjs` does, then runs `scripts/install.ts`. |
 | [`scripts/install.ts`](../scripts/install.ts) | Sets all of it up, and `--uninstall` takes it away. `--login` starts the server at login: a launchd item on a Mac, a value in the user's `Run` key on Windows. |
+| [`scripts/keepalive.mjs`](../scripts/keepalive.mjs) | What the Windows login item runs: checks the Node, then runs `scripts/keepalive.ts`. |
 | [`scripts/keepalive.ts`](../scripts/keepalive.ts) | On Windows, what the login item runs: it keeps the server running, as launchd does on a Mac. |
 
 ## Working on it
