@@ -359,6 +359,12 @@ export function openStore(
     attachments?: Attachment[]; source: Source; replies?: Reply[];
   }) {
     if (!BODY_EXT[bodyType]) throw new Error(`Unknown body type ${bodyType}`);
+    // Before anything is touched: a version replaced in place is deleted first, so an attachment that cannot be
+    // copied (a folder, a file gone) would leave the item naming a version with nothing on disk.
+    for (const file of files) {
+      const from = typeof file === 'string' ? file : file.path;
+      if (!fs.statSync(from, { throwIfNoEntry: false })?.isFile()) throw new Error(`${from} is not a file to attach.`);
+    }
     ensureDirs();
     let at = now();
     let item = itemId ? getItem(itemId) : null;

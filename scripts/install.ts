@@ -166,8 +166,10 @@ if (uninstall) for (const dir of [path.dirname(BIN), path.dirname(path.dirname(B
 if (!uninstall) {
   const CONFIG = path.join(process.env.BATESON_HOME || path.join(HOME, '.bateson'), 'config.json');
   let config: { name?: unknown } = {};
-  try { config = JSON.parse(fs.readFileSync(CONFIG, 'utf8')) || {}; } catch { /* none yet */ }
-  if (!config.name) {
+  // A settings file that is there but not JSON (a hand edit) is left alone: writing over it would lose every setting in it.
+  let readable = !fs.existsSync(CONFIG);
+  try { config = JSON.parse(fs.readFileSync(CONFIG, 'utf8')) || {}; readable = true; } catch { /* none yet, or not JSON */ }
+  if (readable && !config.name) {
     let gitName = '';
     try { gitName = execFileSync('git', ['config', '--global', 'user.name'], { encoding: 'utf8' }).trim().split(/\s+/)[0] || ''; } catch { /* no git name */ }
     if (gitName) {
@@ -201,16 +203,18 @@ if (WIN) {
     const logFile = path.join(HOME, '.bateson', 'server.log');
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
     fs.mkdirSync(path.dirname(PLIST), { recursive: true });
+    // Paths go into XML: one with & or < in it (~/Code/R&D) would otherwise make a plist launchd refuses.
+    const xml = (v: string) => v.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     fs.writeFileSync(PLIST, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.bateson.server</string>
-  <key>ProgramArguments</key><array><string>${NODE}</string><string>${path.join(REPO, 'server', 'server.ts')}</string></array>
-  <key>WorkingDirectory</key><string>${REPO}</string>
+  <key>ProgramArguments</key><array><string>${xml(NODE)}</string><string>${xml(path.join(REPO, 'server', 'server.ts'))}</string></array>
+  <key>WorkingDirectory</key><string>${xml(REPO)}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>${logFile}</string>
-  <key>StandardErrorPath</key><string>${logFile}</string>
+  <key>StandardOutPath</key><string>${xml(logFile)}</string>
+  <key>StandardErrorPath</key><string>${xml(logFile)}</string>
 </dict></plist>
 `);
     execFileSync('launchctl', ['load', PLIST]);

@@ -4,9 +4,19 @@ import DOMPurify from 'dompurify';
 
 marked.use({ gfm: true, breaks: false });
 
+/**
+ * What an agent's markdown may not carry, beyond scripts and handlers: a form (a click on it would post to bateson
+ * from bateson's own page, past the server's checks), its controls, and styles that could lay a fake button over
+ * the real ones or hide them.
+ */
+const FORBID = {
+  FORBID_TAGS: ['form', 'input', 'button', 'textarea', 'select', 'option', 'style'],
+  FORBID_ATTR: ['style', 'action', 'formaction'],
+};
+
 /** An agent's markdown as HTML that cannot run: whatever HTML it carries is cleaned of scripts and handlers. */
 export function markdownHtml(text: string) {
-  return DOMPurify.sanitize(marked.parse(text, { async: false }) as string);
+  return DOMPurify.sanitize(marked.parse(text, { async: false }) as string, FORBID);
 }
 
 export function Markdown({ text, className }: { text: string; className?: string }) {

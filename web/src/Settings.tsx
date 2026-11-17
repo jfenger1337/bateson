@@ -64,7 +64,7 @@ export function Settings({ onClose, onChange, update }: { onClose: () => void; o
   const reconnect = async () => {
     setHooks({ state: 'missing', busy: true });
     try {
-      const res = await fetch('/api/hooks', { method: 'POST' });
+      const res = await fetch('/api/hooks', { method: 'POST', headers: { 'content-type': 'application/json' } });
       const body: { missing?: string[]; error?: string; code?: string } = await res.json();
       if (res.ok && !body.missing?.length) return setHooks({ state: 'fixed' });
       setHooks({ state: 'missing', busy: false, error: body.code === 'invalid'

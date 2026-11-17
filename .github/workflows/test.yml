@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# The workflows only read the code: the token they get can do nothing else.
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
