@@ -124,6 +124,7 @@ An example, before and after:
 - Ask the whole frontier at once: every question whose prerequisites are settled. Questions that depend on an open answer go in a later round.
 - A round has at least two questions. When the frontier is a single question, ask it in chat instead.
 - Find facts yourself (code, docs, the filesystem) before asking. Ask only for what they alone can give: decisions, preferences, context.
+- Check what they already decided before each round, and before a question you ask in chat: `bateson recall <two or three words for the topic>` prints their earlier answers, one line each. Leave out what is settled. If your work would undo an earlier answer, ask about that, naming the answer and its date. A past answer is evidence, not the default: recommend on the merits, and say in the recommendation when it differs from what they chose before.
 
 ## When a response arrives
 
@@ -146,6 +147,6 @@ A headless run (`claude -p`), or an agent bateson has no wake-up for. `bateson s
 
 ## Other commands
 
-`bateson status <id>`, `bateson inbox` (your responses, and those of this repo's ended sessions, that nobody has received), `bateson list`.
+`bateson status <id>`, `bateson inbox` (your responses, and those of this repo's ended sessions, that nobody has received), `bateson list`, `bateson recall [<words>]` (what they already decided).
 
 A response only ever reaches the session that asked, while that session is open. Do not try to fetch another session's response with `bateson status` and act on it: it belongs to that conversation.

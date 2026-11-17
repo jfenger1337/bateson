@@ -11,7 +11,7 @@ They answer in **bateson**, their review queue, by clicking and pressing ⏎. Lo
 
 ## Before round one
 
-**Read what they already decided.** Search their earlier answers (`~/.bateson/done`) and the repository history for the area the plan touches, and read only what matches. A plan that undoes an earlier answer gets its own question, naming that answer and its date.
+**Read what they already decided.** Run `bateson recall` with a few words for the area the plan touches (once per area if it touches several), and search the repository history the same way. Each line is one earlier answer; the whole item is in `~/.bateson/done/<id>` if a line is not enough. A plan that undoes an earlier answer gets its own question, naming that answer and its date.
 
 **Map the decisions** for yourself: the main choice and its alternatives, how it should look and behave, the edge cases (empty, huge, failing, concurrent, undone), what it replaces and what happens to what is there, what comes after it ships, how it could fail and who it is not for. A decision is **ready** when nothing it depends on is still open.
 
