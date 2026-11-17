@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
@@ -20,7 +19,7 @@ const ADVANCE_MS = 260;
 // How long the pointer rests on an option before its sound plays: crossing the list on the way somewhere stays silent.
 const REST_MS = 150;
 
-export function Interview({ item, steps, panel, onDecide }: { item: Item; steps: HTMLElement | null; panel: boolean; onDecide: (i: Item, d: Decision) => void }) {
+export function Interview({ item, panel, onDecide }: { item: Item; panel: boolean; onDecide: (i: Item, d: Decision) => void }) {
   const round = item.version.body as Round;
   const qs = round.questions ?? [];
   // The rounds you already answered in this interview, for the dots.
@@ -330,7 +329,8 @@ export function Interview({ item, steps, panel, onDecide }: { item: Item; steps:
   return (
     <article className={`page interview asks arrive hue-${item.hue}${preview ? ' with-preview' : ''}`}>
       <div className="iv-main">
-        {(qs.length > 1 || past.length > 0) && steps && createPortal(
+        {/* The dots sit just above the question, where you are reading: how far through the round you are, at a glance. */}
+        {(qs.length > 1 || past.length > 0) && (
           <nav className="iv-steps" aria-label="Questions">
             {/* The earlier rounds, all in one dot a little apart from this round's: pointing at it lists what you
                 answered, the latest round first. */}
@@ -370,8 +370,7 @@ export function Interview({ item, steps, panel, onDecide }: { item: Item; steps:
               );
             })}
             </span>
-          </nav>,
-          steps,
+          </nav>
         )}
       {(
       <section key={q.id} ref={qRef} className={`iv-q iv-${dir}`}>

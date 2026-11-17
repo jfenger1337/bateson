@@ -303,7 +303,7 @@ export function App() {
           <Settings update={state?.update} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
         ) : !state ? <Loading /> : item ? (
           item.kind === 'interview'
-            ? <Interview key={viewKey} item={item} steps={steps} panel={state.config.preview} onDecide={decide} />
+            ? <Interview key={viewKey} item={item} panel={state.config.preview} onDecide={decide} />
             : item.kind === 'findings'
               ? <Findings key={viewKey} item={item} steps={steps} onDecide={decide} onLater={later} />
               : <Review key={viewKey} item={item} onDecide={decide} onLater={later} />
