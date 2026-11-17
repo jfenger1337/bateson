@@ -29,21 +29,19 @@ export function Empty({ agents, writing, update, onUpdate }: Pick<State, 'agents
         <ul className="agents">
           {agents.map((a, i) => {
             const w = writingBySession.get(a.sessionId);
-            const done = a.doneAt ? Date.parse(a.doneAt) : 0;
-            // What it is doing now, when the server knows (sketch: it does not send `doing` or `doneAt` yet).
-            const doing = w ? <>Writing round {w.next}{a.title !== w.title && <> of <span className="ink">{w.title}</span></>}</>
-              : done ? 'Finished, waiting for your next message' : a.doing || 'Working';
             return (
-              <li key={a.sessionId} className={done ? 'is-done' : undefined} style={{ animationDelay: `${450 + i * 70}ms` }}>
-                <Ring kind={done ? 'dot' : 'dashed'} size={13} />
-                <span className="agent-repo" title={a.repo}>{a.title || a.repo || 'a session'}{a.title && manyRepos && a.repo && <span className="agent-where"> {a.repo}</span>}</span>
-                <span className="agent-what">{doing}</span>
-                <span className="agent-when">{done ? `${ago(now - done)}` : now - Date.parse(a.since) < 60_000 ? 'just now' : ago(now - Date.parse(a.since), true)}</span>
+              <li key={a.sessionId} style={{ animationDelay: `${450 + i * 70}ms` }}>
+                <Ring kind="dashed" size={13} />
+                <span className="agent-repo" title={a.repo}>{a.title || a.repo || 'a session'}</span>
+                {a.title && manyRepos && a.repo && <span className="agent-where">{a.repo}</span>}
+                <span className="agent-what">
+                  {w ? (a.title === w.title ? `writing round ${w.next}` : <>writing round {w.next} of <span className="ink">{w.title}</span></>) : now - Date.parse(a.since) < 60_000 ? 'just started' : `working for ${ago(now - Date.parse(a.since), true)}`}
+                </span>
               </li>
             );
           })}
           {writing.filter((w) => !w.sessionId || !agents.some((a) => a.sessionId === w.sessionId)).map((w, i) => (
-            <li key={w.id} className="is-solo" style={{ animationDelay: `${450 + (agents.length + i) * 70}ms` }}>
+            <li key={w.id} style={{ animationDelay: `${450 + (agents.length + i) * 70}ms` }}>
               <Ring kind="dashed" size={13} />
               <span className="agent-what">Round {w.next} of <span className="ink">{w.title}</span> is being written</span>
             </li>
