@@ -22,7 +22,7 @@ for s in 16 32 128 256 512; do
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 
-codesign --force --sign - "$APP" >/dev/null 2>&1
+codesign --force --sign - "$APP" >/dev/null 2>&1 || { echo "bateson: could not sign $APP (codesign --force --sign - \"$APP\" says why)" >&2; exit 1; }
 
 if [ "${1:-}" = "--install" ]; then
   mkdir -p ~/Applications

@@ -20,7 +20,7 @@
     -webkit-app-region: drag; app-region: drag;
     padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + var(--space-16));
   }
-  .bar :is(a, button, [role='status'], .bar-name, .bar-steps) { -webkit-app-region: no-drag; app-region: no-drag; }
+  .bar :is(a, button, [role='status'], .bar-name) { -webkit-app-region: no-drag; app-region: no-drag; }
 }
 .bar-left, .bar-right { display: flex; align-items: center; gap: var(--space-16); min-width: 0; }
 .bar-left { flex: 1; }
@@ -34,21 +34,16 @@
 }
 /* One line high and wrapping: what does not fit beside the name drops out of sight whole, never cut in half. */
 .bar-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar-project, .bar-round { color: var(--muted); white-space: nowrap; }
-.bar-project::before, .bar-round::before { content: '·'; margin-right: var(--space-8); color: var(--faint-3); }
+.bar-project { color: var(--muted); white-space: nowrap; }
+.bar-title + .bar-project::before { content: '·'; margin-right: var(--space-8); color: var(--faint-3); }
 /* The logo in the bar's corner: the inked mark and wordmark (Logo.tsx). */
 .logo { display: inline-flex; flex: none; align-items: center; gap: var(--space-10); color: var(--ink); }
 .logo svg { display: block; overflow: visible; }
 .logo-word { margin-top: -1px; } /* off-scale: the wordmark's letters sit a pixel high against the mark */
-/* An interview's or findings' dots sit in the bar, after the name of the item they belong to. */
-.bar-steps { display: flex; flex: none; margin-left: calc(-1 * var(--space-6)); }
-.bar-steps[hidden] { display: none; }
 .bar-sentence { font-size: var(--text-meta); color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: var(--space-6); }
 .bar-sentence.late { color: var(--late); }
 .bar-sentence.waiting { color: var(--ink); }
-/* Where an answer goes when nothing is waiting for it: one line, cut short in a narrow window (the title has it whole). */
-.bar-sentence.reach { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-/* A decision on hold: what you did, and the way back, in the line that otherwise counts what is left. Nothing
+/* A decision on hold: what you did, and the way back, in place of the item's name. Nothing
    floats over the next item. The shortcut reads as a key and is always there. */
 .bar-sentence.said { color: var(--text-2); gap: var(--space-8); }
 .bar-sentence .bar-undo { font-weight: 600; color: var(--ink); }
@@ -203,7 +198,7 @@
 .iv-q.iv-back { animation-name: qr-in-back; }
 @keyframes qr-in-fwd { from { opacity: 0; transform: translateX(8px); } }
 @keyframes qr-in-back { from { opacity: 0; transform: translateX(-8px); } }
-.iv-title { font-family: var(--serif); font-size: 32px; font-weight: 400; line-height: 1.2; letter-spacing: -0.012em; color: var(--ink); }
+.iv-title { font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.25; letter-spacing: -0.012em; color: var(--ink); }
 .interview .q-body { margin: var(--space-12) 0 0; }
 /* A long question keeps every word, so the page does the work: paragraphs and bullets get room so the detail
    does not run together.
@@ -341,9 +336,16 @@
   background: var(--surface); box-shadow: var(--shadow-card); text-align: left; white-space: normal; pointer-events: none;
 }
 .iv-step:hover .iv-step-tip { display: flex; }
+/* The earlier rounds' dot: quieter than this round's, and its list stops at the window's height, latest first. */
+.iv-step.earlier { opacity: 0.55; }
+.iv-step.earlier:hover { opacity: 1; }
+.iv-step.earlier .iv-step-tip { gap: var(--space-8); max-height: 60vh; overflow: hidden; }
+.iv-step-pair { display: flex; flex-direction: column; gap: var(--space-2); }
 .iv-step-q { font-size: var(--text-label); color: var(--muted); }
 .iv-step-a { font-size: var(--text-meta); font-weight: 500; color: var(--ink); white-space: pre-wrap; }
 .iv-step-a.none { font-weight: 400; color: var(--late); }
+/* The dots sit above the question or finding, the first ring level with the title's first letter. */
+:is(.iv-main, .findings) > .iv-steps { margin: 0 0 var(--space-16) -6px; }
 
 /* ---- Rings */
 .ring { flex: none; display: block; }
@@ -381,6 +383,8 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .decide { display: grid; grid-template-columns: var(--cols); }
 .decide-in { grid-column: 2 / 3; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-24); }
 /* In the work's column the longest sentence takes two lines, which is the height of the buttons beside it. */
+/* When the answer will not reach the agent at once, that comes first, on a line of its own. */
+.decide-reach { display: block; color: var(--text-2); }
 .decide-sentence { min-width: 0; max-width: var(--main-w); font-size: var(--text-meta); line-height: 1.4; color: var(--muted); text-wrap: balance; }
 .decide-actions { display: flex; align-items: center; gap: var(--space-8); flex: none; }
 .decide-actions .btn-quiet { margin-right: var(--space-8); }

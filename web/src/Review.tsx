@@ -5,7 +5,7 @@ import type { Anchor, Comment, Decision, Item } from '@lib/types';
 import { locate, newLines, proseChanges } from './changes';
 import { Markdown, markdownHtml } from './Markdown';
 import { Diff } from './Diff';
-import { isTyping } from './App';
+import { isTyping, Reach } from './App';
 import { MOD } from './lib/keys';
 
 // Comment on the work. Select any passage and comment on it; on code the comment also records the file and line.
@@ -204,13 +204,23 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     return c ? at(c.anchor) : 'end';
   }, [comments, draft]);
 
-  // Lay the notes out under the block their place is in, which makes room for them.
-  const pushed = useRef(new Map<HTMLElement, string>());
+  // Lay the notes out under the block their place is in, which makes room for them. The room is kept from one pass
+  // to the next and changed only when it has to be: taking it away to measure the block without it shortened the
+  // page for a moment, which pulled a page scrolled to its foot back up, and the scroll started the next pass.
+  // `was` is the block's own inline margin and transition, put back when it holds no note; `base` its margin
+  // before any room.
+  const made = useRef(new Map<HTMLElement, { was: string; transition: string; base: number }>());
+  const release = useCallback((keep?: Map<HTMLElement, unknown>) => {
+    for (const [el, m] of made.current) {
+      if (keep?.has(el)) continue;
+      el.style.marginBottom = m.was;
+      el.style.transition = m.transition;
+      made.current.delete(el);
+    }
+  }, []);
   const layout = useCallback(() => {
     const notes = notesRef.current;
-    for (const [el, was] of pushed.current) el.style.marginBottom = was;
-    pushed.current.clear();
-    if (!notes) return;
+    if (!notes) { release(); return; }
     const cards = [...notes.querySelectorAll<HTMLElement>('[data-slot]')];
     const blockOf = (p: Place): HTMLElement | null => {
       if (p === 'title') return titleRef.current;
@@ -223,30 +233,43 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       const b = blockOf(placeOf(el.dataset.slot!));
       if (b) groups.set(b, [...(groups.get(b) ?? []), el]);
     }
+    release(groups);
     for (const [b, els] of groups) {
-      pushed.current.set(b, b.style.marginBottom);
+      let m = made.current.get(b);
+      if (!m) {
+        m = { was: b.style.marginBottom, transition: b.style.transition, base: 0 };
+        // No transition on the block while it holds room: with reduced motion everything eases for 1ms, so a margin
+        // read while one runs (a block given room again just after it was released) is still the old, pushed one.
+        // Turning it off ends any that runs, so the read below is the block's own margin.
+        b.style.transition = 'none';
+        m.base = parseFloat(getComputedStyle(b).marginBottom) || 0;
+        made.current.set(b, m);
+      }
       const room = els.reduce((h, el) => h + el.offsetHeight + GAP, GAP);
-      b.style.marginBottom = `${parseFloat(getComputedStyle(b).marginBottom) + room}px`;
+      const want = `${m.base + room}px`;
+      if (b.style.marginBottom !== want) b.style.marginBottom = want;
     }
     const t = notes.getBoundingClientRect().top;
     for (const [b, els] of groups) {
       let y = b.getBoundingClientRect().bottom - t + GAP;
       for (const el of els) { el.style.top = `${Math.round(y)}px`; y += el.offsetHeight + GAP; }
     }
-  }, [placeOf]);
+  }, [placeOf, release]);
 
   useLayoutEffect(layout);
   useEffect(() => {
     let raf = 0;
     const again = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(layout); };
+    // A new width can change a block's own margin (a narrow window sets smaller type), so it is measured afresh.
+    const resized = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { release(); layout(); }); };
     const ro = new ResizeObserver(again);
     if (bodyRef.current) ro.observe(bodyRef.current);
     notesRef.current?.querySelectorAll('[data-slot]').forEach((el) => ro.observe(el));
-    window.addEventListener('resize', again);
+    window.addEventListener('resize', resized);
     document.fonts?.ready.then(again);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('resize', again); };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('resize', resized); };
   });
-  useEffect(() => () => { for (const [el, was] of pushed.current) el.style.marginBottom = was; }, []);
+  useEffect(() => () => release(), [release]);
 
   // Pointing at a changed passage lights the reply it answers.
   const onBodyMove = (e: React.MouseEvent) => {
@@ -429,6 +452,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       <footer className="decide">
         <div className="decide-in">
           <p className="decide-sentence">
+            <Reach item={item} />
             {comments.length
               ? `${comments.length} comment${comments.length === 1 ? '' : 's'}. Sending back gives the agent exactly these.`
               : onCode

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
-import { isTyping } from './App';
+import { isTyping, Reach } from './App';
 import { ArrowRight, Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { keptKey, useKept, useKeptRef } from './lib/kept';
@@ -20,7 +19,7 @@ const ADVANCE_MS = 260;
 // How long the pointer rests on an option before its sound plays: crossing the list on the way somewhere stays silent.
 const REST_MS = 150;
 
-export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Item; steps: HTMLElement | null; panel: boolean; onDecide: (i: Item, d: Decision) => void; onFirst: (first: boolean) => void }) {
+export function Interview({ item, panel, onDecide }: { item: Item; panel: boolean; onDecide: (i: Item, d: Decision) => void }) {
   const round = item.version.body as Round;
   const qs = round.questions ?? [];
   // The rounds you already answered in this interview, for the dots.
@@ -36,7 +35,6 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
   const [passed, setPassed] = useKept<string[]>(`${kk}:passed`, () => []);
   // Kept from before the answers screen went, a place past the last question means the last one.
   const at = Math.min(kept, Math.max(0, qs.length - 1));
-  useEffect(() => { onFirst(at === 0); }, [at, onFirst]);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
   // The option under the pointer or the focus: the preview shows what it would look like.
   const [peek, setPeek] = useState<string | null>(null);
@@ -254,8 +252,18 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       fired = false;
       if (qRef.current) { qRef.current.style.transition = ''; qRef.current.style.transform = ''; }
     };
+    // A sideways scroll over something that scrolls sideways itself (a long line of code, an answer being typed)
+    // is that thing's, not a turn to the next question.
+    const scrollsSideways = (t: EventTarget | null) => {
+      for (let el = t instanceof Element ? t : null; el && el !== document.body; el = el.parentElement) {
+        if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) return true;
+        const o = getComputedStyle(el).overflowX;
+        if ((o === 'auto' || o === 'scroll') && el.scrollWidth > el.clientWidth) return true;
+      }
+      return false;
+    };
     const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || scrollsSideways(e.target)) return;
       e.preventDefault();
       clearTimeout(idle);
       idle = window.setTimeout(settle, 180);
@@ -321,25 +329,26 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
   return (
     <article className={`page interview asks arrive hue-${item.hue}${preview ? ' with-preview' : ''}`}>
       <div className="iv-main">
-        {(qs.length > 1 || past.length > 0) && steps && createPortal(
+        {/* The dots sit just above the question, where you are reading: how far through the round you are, at a glance. */}
+        {(qs.length > 1 || past.length > 0) && (
           <nav className="iv-steps" aria-label="Questions">
-            {/* Earlier rounds first, a little apart, so you see where one round ended and this one began. */}
-            {past.map((r) => (
-              <span key={r.n} className="iv-round">
-                {r.questions.map((x) => {
-                  const answer = pastAnswer(x, r.answers.find((a) => a.id === x.id));
-                  return (
-                    <span key={x.id} className="iv-step past" aria-label={`${x.title} ${answer}`}>
-                      <Ring kind="dot" size={10} />
-                      <span className="iv-step-tip" aria-hidden>
+            {/* The earlier rounds, all in one dot a little apart from this round's: pointing at it lists what you
+                answered, the latest round first. */}
+            {past.length > 0 && (
+              <span className="iv-round">
+                <span className="iv-step past earlier" aria-label={`${past.reduce((n, r) => n + r.questions.length, 0)} answers from earlier rounds`}>
+                  <Ring kind="dot" size={10} />
+                  <span className="iv-step-tip" aria-hidden>
+                    {[...past].reverse().flatMap((r) => r.questions.map((x) => (
+                      <span key={`${r.n}:${x.id}`} className="iv-step-pair">
                         <span className="iv-step-q">{x.title}</span>
-                        <span className="iv-step-a">{answer}</span>
+                        <span className="iv-step-a">{pastAnswer(x, r.answers.find((a) => a.id === x.id))}</span>
                       </span>
-                    </span>
-                  );
-                })}
+                    )))}
+                  </span>
+                </span>
               </span>
-            ))}
+            )}
             <span className="iv-round">
             {qs.map((x, i) => {
               const answer = shownAnswer(x, drafts[x.id]);
@@ -361,8 +370,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
               );
             })}
             </span>
-          </nav>,
-          steps,
+          </nav>
         )}
       {(
       <section key={q.id} ref={qRef} className={`iv-q iv-${dir}`}>
@@ -492,6 +500,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       <footer className="decide">
         <div className="decide-in">
           <p className="decide-sentence">
+            <Reach item={item} />
             {adding ? 'Adding your screenshot…' : !answered(q.id) ? 'Pick one, or write your own, to go on.' : ''}
           </p>
           <div className="decide-actions">
@@ -617,7 +626,14 @@ function Shown({ show: s, base, onZoom, sound, onSound }: { show: Show; base: st
   if ('markdown' in s) return <Markdown className="prose shown-copy" text={s.markdown} />;
   if ('text' in s) return <div className="prose plain shown-copy">{s.text}</div>;
   if ('html' in s) return <Example html={s.html} />;
-  if ('url' in s) return <iframe className="shown-live" src={s.url} title="Live preview" sandbox="allow-scripts allow-same-origin allow-forms" />;
+  if ('url' in s) {
+    // Another page on this machine keeps its own origin in the frame. bateson's own origin never does: with scripts
+    // and its origin together, a page there could reach out of the frame into bateson.
+    let own = true;
+    // (127.0.0.1 and [::1] on bateson's port are bateson too, by another name.)
+    try { const u = new URL(s.url); own = !/^https?:$/.test(u.protocol) || u.origin === location.origin || (u.port || '80') === (location.port || '80'); } catch { /* not a URL: treated as ours */ }
+    return <iframe className="shown-live" src={s.url} title="Live preview" sandbox={own ? 'allow-scripts allow-forms' : 'allow-scripts allow-same-origin allow-forms'} />;
+  }
   if ('audio' in s) return null; // heard on its option or the question, never in the panel
   return <Lines show={s} />;
 }

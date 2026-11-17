@@ -112,6 +112,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
   // The server is a login item; if it is not up yet, say so and try again.
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+    // A load that was only cut short (⌘R while loading, a navigation cancelled below) is not the server being down.
+    let e = error as NSError
+    if (e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled) || (e.domain == "WebKitErrorDomain" && e.code == 102) { return }
     webView.loadHTMLString("""
       <html><style>body{background:#FCFCFB;color:#66696F}@media(prefers-color-scheme:dark){body{background:#141414;color:#99948C}}</style>
       <body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font:14px -apple-system,system-ui">Waiting for the bateson server on localhost:\(port)</body></html>
@@ -119,16 +122,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.reload() }
   }
 
-  // Links out of the app open in the browser. Only web and mail links: a link can come from an agent's markup
-  // (a component example, a live preview), and a file, a network share or another app's link is never opened
-  // from one.
+  // The window shows bateson and nothing else: there is no address bar to tell you otherwise. A link out opens in the
+  // browser, only web and mail links: a link can come from an agent's markup (a component example, a live preview),
+  // and a file, a network share or another app's link is never opened from one. Anything else that would take the
+  // window away from bateson (a form, a script, a redirect, another page on this machine) is refused. Frames inside
+  // the page are its own business: the page sandboxes them.
   func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-    if let url = action.request.url, action.navigationType == .linkActivated, url.host != "localhost" {
-      if ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") { NSWorkspace.shared.open(url) }
-      decisionHandler(.cancel)
-      return
-    }
-    decisionHandler(.allow)
+    guard let url = action.request.url else { decisionHandler(.allow); return }
+    if let frame = action.targetFrame, !frame.isMainFrame { decisionHandler(.allow); return }
+    let scheme = url.scheme?.lowercased() ?? ""
+    let ours = scheme == "http" && url.host == "localhost" && url.port == port
+    if ours || scheme == "about" { decisionHandler(.allow); return }
+    if action.navigationType == .linkActivated, ["http", "https", "mailto"].contains(scheme) { NSWorkspace.shared.open(url) }
+    decisionHandler(.cancel)
   }
 
   // MARK: Menus

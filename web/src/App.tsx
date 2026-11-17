@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Config, Decision, Item, State } from '@lib/types';
 import { Interview } from './Interview';
 import { Review } from './Review';
@@ -19,7 +19,7 @@ import { AppMenu } from './Menu';
 
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
 // the decision instead of letting it land on text you never read.
-interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; undo?: () => void }
+interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; sent?: boolean; undo?: () => void }
 
 export function App() {
   const [state, setState] = useState<State | null>(null);
@@ -147,20 +147,34 @@ export function App() {
   }, [commit]);
 
   const later = useCallback(async (item: Item) => {
-    await fetch(`/api/items/${item.id}/later`, { method: 'POST', headers: { 'content-type': 'application/json' } });
+    try {
+      const res = await fetch(`/api/items/${item.id}/later`, { method: 'POST', headers: { 'content-type': 'application/json' } });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      toast('Later did not go through: bateson’s server did not take it. Try again in a moment.');
+      return;
+    }
     if (shownRef.current === item.id) shownRef.current = undefined;
     load();
   }, [load]);
 
-  // Commit anything held if the page closes, so nothing is lost.
+  // Commit anything held if the page closes, so nothing is lost. Each is then done: its timer stops, so a page
+  // brought back from the browser's cache does not send it a second time, and it is let go when that happens.
   useEffect(() => {
     const flush = () => {
       for (const h of heldRef.current) {
+        if (h.done) continue; // on its way already
+        h.done = true;
+        h.sent = true;
+        clearTimeout(h.timer);
         navigator.sendBeacon(`/api/items/${h.id}/decide`, new Blob([JSON.stringify({ n: h.n, at: h.at, ...h.decision })], { type: 'application/json' }));
+        forgetKept(h.id);
       }
     };
+    const back = (e: PageTransitionEvent) => { if (e.persisted) setHeld((hs) => hs.filter((h) => !h.sent)); };
     window.addEventListener('pagehide', flush);
-    return () => window.removeEventListener('pagehide', flush);
+    window.addEventListener('pageshow', back);
+    return () => { window.removeEventListener('pagehide', flush); window.removeEventListener('pageshow', back); };
   }, []);
 
   // The selection is drawn as a highlight on the text itself. WebKit's own selection paints whole blocks,
@@ -210,19 +224,27 @@ export function App() {
   }, []);
 
   const item = state?.current ?? null;
-  const after = Math.max(0, count - 1);
   // Where you are in an interview or a set of findings: its dots sit in the bar, after the item's name.
-  const [steps, setSteps] = useState<HTMLElement | null>(null);
   // The project is said only when the queue holds more than one, which is when it tells items apart.
   const projects = new Set(state?.queue.map((r) => r.repo).filter(Boolean)).size;
-  // Back in an interview you already answered a round of: said in words on its first question only.
-  const round = item?.kind === 'interview' ? item.history.filter((h) => h.bodyType === 'questions').length + 1 : 1;
-  const [firstQ, setFirstQ] = useState(true);
   // The newest decision still on hold: the bar says what it was and offers to take it back, until it goes through.
   const said = [...held].reverse().find((h) => h.undo && !h.done);
   // A version the agent replaced before you decided keeps its number but is new text: it starts over, with
   // nothing carried from the one it replaced (answers, marks and comments belong to what you read).
   const viewKey = item ? `${item.id}:${item.version.n}:${item.version.createdAt}` : '';
+
+  // A review opens with its title on the page, so the bar names the item only once that title has scrolled under it.
+  const [titleOnPage, setTitleOnPage] = useState(false);
+  useLayoutEffect(() => {
+    const title = settings ? null : document.querySelector<HTMLElement>('.work-title');
+    if (!title) { setTitleOnPage(false); return; }
+    const barH = Math.round(document.querySelector('.bar')?.getBoundingClientRect().height ?? 0);
+    setTitleOnPage(title.getBoundingClientRect().bottom > barH);
+    const io = new IntersectionObserver(([e]) => setTitleOnPage(e.isIntersecting), { rootMargin: `-${barH}px 0px 0px 0px` });
+    io.observe(title);
+    return () => io.disconnect();
+  }, [viewKey, settings]);
+  const project = projects > 1 ? item?.source?.repo : undefined;
 
   // Toasts sit just above the decision bar, which grows to two rows in a narrow window and is gone when the
   // queue is empty. So its height is measured, not assumed.
@@ -261,22 +283,16 @@ export function App() {
               <button type="button" className="btn-link inline bar-undo" onClick={said.undo}>Undo</button>
               <span className="bar-key" aria-hidden>{MOD}Z</span>
             </span>
-          ) : item && (
+          ) : item && (!titleOnPage || project) && (
             // Keyed by the item, so the name arrives (a rise, a tint in its colour) only when the item changes.
             <span key={item.id} className="bar-name" title={item.title}>
-              <span className="bar-title">{item.title}</span>
-              {projects > 1 && item.source?.repo && <span className="bar-project">{item.source.repo}</span>}
-              {round > 1 && firstQ && <span className="bar-round">round {round}</span>}
+              {!titleOnPage && <span className="bar-title">{item.title}</span>}
+              {project && <span className="bar-project">{project}</span>}
             </span>
           )}
-          <span ref={setSteps} className="bar-steps" hidden={!!said} />
         </div>
         <div className="bar-right">
-          {item && after > 0 && <span className="bar-sentence">{after === 1 ? 'One more after this' : `${after} more after this`}</span>}
           {failed && <span className="bar-sentence late"><Spinner variant="ellipsis" size={14} aria-hidden />Not connected. Is <span className="rec">bateson serve</span> running?</span>}
-          {!failed && item && !settings && item.reach !== 'waiting' && (
-            <span className="bar-sentence reach" role="status" title={reachLine(item)}>{reachLine(item)}</span>
-          )}
         </div>
       </header>
 
@@ -285,9 +301,9 @@ export function App() {
           <Settings update={state?.update} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
         ) : !state ? <Loading /> : item ? (
           item.kind === 'interview'
-            ? <Interview key={viewKey} item={item} steps={steps} panel={state.config.preview} onDecide={decide} onFirst={setFirstQ} />
+            ? <Interview key={viewKey} item={item} panel={state.config.preview} onDecide={decide} />
             : item.kind === 'findings'
-              ? <Findings key={viewKey} item={item} steps={steps} onDecide={decide} onLater={later} />
+              ? <Findings key={viewKey} item={item} onDecide={decide} onLater={later} />
               : <Review key={viewKey} item={item} onDecide={decide} onLater={later} />
         ) : (
           <Empty agents={state.agents ?? []} writing={state.writing ?? []} update={state.update} onUpdate={() => setSettings(true)} />
@@ -318,6 +334,11 @@ export function App() {
 
 
 /** Where an answer goes when no agent is waiting for it, so you know it will not wake anything now. */
+/** Whether the answer reaches the agent that asked, said above the decision buttons when it would not at once. */
+export function Reach({ item }: { item: Item }) {
+  return item.reach === 'waiting' ? null : <span className="decide-reach" role="status">{reachLine(item)}</span>;
+}
+
 function reachLine(item: Item) {
   const repo = item.source?.repo;
   return item.reach === 'its-session'

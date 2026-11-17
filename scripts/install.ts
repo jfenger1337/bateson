@@ -28,13 +28,21 @@ const PLIST = path.join(HOME, 'Library', 'LaunchAgents', 'com.bateson.server.pli
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const RUN_VALUE = 'bateson';
 const WIN_LOGIN = `${RUN_KEY}\\${RUN_VALUE}`;
+// The queue and the port this install is for. A server started at login has none of your shell's variables, so
+// BATESON_HOME and BATESON_PORT, when set, are handed to it (launchd's plist, keepalive.ts's arguments).
+const ROOT = path.resolve(process.env.BATESON_HOME || path.join(HOME, '.bateson'));
+const PORT = Number.isInteger(Number(process.env.BATESON_PORT)) && Number(process.env.BATESON_PORT) > 0 ? String(Number(process.env.BATESON_PORT)) : '4848';
+const SERVER_ENV: Record<string, string> = {
+  ...(process.env.BATESON_HOME ? { BATESON_HOME: ROOT } : {}),
+  ...(process.env.BATESON_PORT ? { BATESON_PORT: PORT } : {}),
+};
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
 const uninstall = args.has('--uninstall');
 const login = args.has('--login') || args.has('--launchd');
 // What an install set up, so that a later uninstall removes that and nothing else, whatever this file says by then.
-const MANIFEST = path.join(process.env.BATESON_HOME || path.join(HOME, '.bateson'), 'install.json');
+const MANIFEST = path.join(ROOT, 'install.json');
 interface Manifest { at: string; repo: string; node: string; agents: string[]; settings: string[]; madeSettings?: boolean; links: string[]; shims?: string[]; loginItem: string | null }
 let installed: Partial<Manifest> | null = null;
 try { installed = JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) as Partial<Manifest>; } catch { /* an install from before the note, or none */ }
@@ -142,7 +150,12 @@ if (WIN && !uninstall && !(process.env.PATH || '').split(path.delimiter).some((d
   } else if (isOurs ? exists(BACKUP) : exists(GRILLING)) {
     if (!isOurs) {
       fs.mkdirSync(path.dirname(BACKUP), { recursive: true });
-      fs.rmSync(BACKUP, { recursive: true, force: true });
+      // A backup from before is kept beside it, never deleted: it may be the only copy of a skill you had.
+      if (exists(BACKUP)) {
+        const older = `${BACKUP}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+        fs.renameSync(BACKUP, older);
+        log(`kept the grilling skill backed up before at ${older.replace(HOME, '~')}`);
+      }
       fs.renameSync(GRILLING, BACKUP);
       log(`moved your grilling skill to ${BACKUP.replace(HOME, '~')}`);
     }
@@ -158,7 +171,7 @@ if (uninstall) for (const dir of [path.dirname(BIN), path.dirname(path.dirname(B
 // ---- your name, as agents say it ("Sam reviews it first"). Only when none is set: the first word of git's
 // user.name. Settings changes it; left empty, agents say "the user".
 if (!uninstall) {
-  const CONFIG = path.join(process.env.BATESON_HOME || path.join(HOME, '.bateson'), 'config.json');
+  const CONFIG = path.join(ROOT, 'config.json');
   let config: { name?: unknown } = {};
   // A settings file that is there but not JSON (a hand edit) is left alone: writing over it would lose every setting in it.
   let readable = !fs.existsSync(CONFIG);
@@ -178,23 +191,25 @@ if (!uninstall) {
 if (WIN) {
   // An update restarts a server an earlier --login set up, with or without --login this time: `bateson` runs
   // from this folder at once, and a server left on the old code disagrees with it.
-  const running = fs.existsSync(path.join(process.env.BATESON_HOME || path.join(HOME, '.bateson'), 'server.pid'));
+  const running = fs.existsSync(path.join(ROOT, 'server.pid'));
   if (login || uninstall || installed?.loginItem || running) {
     stopWindowsServer();
     if (uninstall) {
       try { execFileSync('reg', ['delete', RUN_KEY, '/v', RUN_VALUE, '/f'], { stdio: 'ignore' }); log('removed the login item'); } catch { /* there was none */ }
     } else {
       const keepalive = path.join(REPO, 'scripts', 'keepalive.ts');
-      execFileSync('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless "${NODE}" "${keepalive}"`, '/f'], { stdio: 'ignore' });
-      spawn(NODE, [keepalive], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref();
-      log(`the server starts at login (${WIN_LOGIN}): http://localhost:4848`);
+      const extra = [...(SERVER_ENV.BATESON_HOME ? ['--home', ROOT] : []), ...(SERVER_ENV.BATESON_PORT ? ['--port', PORT] : [])];
+      const quoted = extra.map((a) => (a.startsWith('--') ? a : `"${a}"`)).join(' ');
+      execFileSync('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
+      spawn(NODE, [keepalive, ...extra], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      log(`the server starts at login (${WIN_LOGIN}): http://localhost:${PORT}`);
     }
   }
 } else if (login || (uninstall && fs.existsSync(PLIST))) {
   try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); } catch { /* not loaded */ }
   if (uninstall) { fs.rmSync(PLIST, { force: true }); log('removed the login item'); }
   else {
-    const logFile = path.join(HOME, '.bateson', 'server.log');
+    const logFile = path.join(ROOT, 'server.log');
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
     fs.mkdirSync(path.dirname(PLIST), { recursive: true });
     // Paths go into XML: one with & or < in it (~/Code/R&D) would otherwise make a plist launchd refuses.
@@ -208,12 +223,22 @@ if (WIN) {
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${xml(logFile)}</string>
-  <key>StandardErrorPath</key><string>${xml(logFile)}</string>
+  <key>StandardErrorPath</key><string>${xml(logFile)}</string>${Object.keys(SERVER_ENV).length ? `
+  <key>EnvironmentVariables</key><dict>${Object.entries(SERVER_ENV).map(([k, v]) => `<key>${k}</key><string>${xml(v)}</string>`).join('')}</dict>` : ''}
 </dict></plist>
 `);
-    execFileSync('launchctl', ['load', PLIST]);
-    log('the server starts at login: http://localhost:4848');
+    try { execFileSync('launchctl', ['load', PLIST], { stdio: 'pipe' }); } catch (e) {
+      throw new Error(`launchd did not take ${PLIST}, so the server is not running: ${String((e as { stderr?: unknown }).stderr || (e as Error).message).trim()}`);
+    }
+    log(`the server starts at login: http://localhost:${PORT}`);
   }
+} else if (!uninstall && installed?.loginItem && fs.existsSync(PLIST) && !args.has('--updating')) {
+  // Installed again by hand (after a git pull, say) without --login: the server launchd keeps running is on the
+  // old code, so it is started again, as on Windows. An update from the app quits the server itself instead.
+  try {
+    execFileSync('launchctl', ['kickstart', '-k', `gui/${process.getuid?.() ?? ''}/com.bateson.server`], { stdio: 'ignore' });
+    log('restarted the server, so it runs this version');
+  } catch { /* not loaded: it starts at the next login */ }
 }
 
 if (uninstall) fs.rmSync(MANIFEST, { force: true });
@@ -247,7 +272,7 @@ function linkTarget(link: string) {
  * wait for it to go (scripts/keepalive.ts says why it is a file).
  */
 function stopWindowsServer() {
-  const root = process.env.BATESON_HOME || path.join(HOME, '.bateson');
+  const root = ROOT;
   const pid = path.join(root, 'server.pid');
   if (!fs.existsSync(pid)) return;
   fs.writeFileSync(path.join(root, 'server.stop'), '');
