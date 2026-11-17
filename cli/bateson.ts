@@ -41,6 +41,7 @@ Interview round JSON:
                      "options": [ { "label": "Global", "description": "why" }, ... ], "recommended": 0,
                      "recommendation": "markdown: why, and on what conditions, without repeating the option's name",
                      "opens": true, "show": "shots/install.png" } ] }
+  A round has two or more questions: a single question is asked in chat, never sent.
   Options come in a natural order (smallest change first, cheapest first), never by preference. A yes or no question
   has one option, your answer. "recommendation" shows under the recommended option; picking the recommended option accepts it whole, and the answer quotes it.
   "opens": true marks a question whose answer decides later questions. Its answer reaches you early.
@@ -161,6 +162,7 @@ async function cmdSend(o: Args) {
     try { parsed = JSON.parse(raw); } catch (e) { die(`--questions is not valid JSON: ${(e as Error).message}`); }
     const round = check(() => KINDS.interview.validate(parsed, process.cwd()));
     body = round;
+    if (round.questions.length < 2) die(`a single question is not sent to bateson. Ask it in chat, with your recommendation; bateson is for rounds of two or more questions.`);
     shown = round.files;
     const looks = round.questions.some((q) => [q.show, ...q.options.map((x) => x.show)].some((list) => list?.some((s) => !('audio' in s))));
     if (!store.readConfig().preview && (looks || o.attach.length)) die(`${Reviewer()} has the preview panel turned off in Settings, so a question is shown as words only and nothing in "show" or --attach would be seen (a sound on an option still plays). Send the round without them, and put what they need to know in the question and the options.`);

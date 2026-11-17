@@ -21,6 +21,8 @@ At session start bateson tells you which of these they want sent, and how finish
 
 Do not send work you can check yourself (tests pass, the build is green, a mechanical change). Carry on with it. Do not send status updates or summaries.
 
+**Never send a single question.** A round goes to bateson only when it has two or more questions. One question on its own, whether a decision, a taste call or a piece of context, is asked in chat, with your recommendation, and the command refuses a round of one. The same holds for a follow-up round that comes down to one question.
+
 If `command -v bateson` fails, bateson is not installed: ask in chat as usual. Do the same if `bateson send` is refused, for example by a sandbox that will not let it write outside the project.
 
 ## How to send
@@ -37,7 +39,11 @@ bateson send --title "Auth for the admin area" --questions - <<'EOF'
     { "id": "Q1", "title": "Who should be able to sign in?", "body": "Markdown: the question, the trade-offs, what each choice costs.",
       "options": [ { "label": "Email code", "description": "No passwords. One more step each time." },
                    { "label": "Passkeys", "description": "Fastest after setup. Needs a fallback." } ],
-      "recommended": 1, "recommendation": "Why you lean to it, and on what conditions.", "show": "shots/sign-in.png" } ] }
+      "recommended": 1, "recommendation": "Why you lean to it, and on what conditions.", "show": "shots/sign-in.png" },
+    { "id": "Q2", "title": "How long should a sign-in last?", "body": "Markdown: what a short or long session means for them.",
+      "options": [ { "label": "A day", "description": "Safer on shared machines. They sign in every morning." },
+                   { "label": "A month", "description": "Rarely asked again. A lost laptop stays signed in." } ],
+      "recommended": 1, "recommendation": "Why you lean to it, and on what conditions." } ] }
 EOF
 
 bateson send --title "Onboarding copy" --note "Is the second screen too chatty?" --file docs/onboarding.md
@@ -116,6 +122,7 @@ An example, before and after:
 ## Good interview rounds
 
 - Ask the whole frontier at once: every question whose prerequisites are settled. Questions that depend on an open answer go in a later round.
+- A round has at least two questions. When the frontier is a single question, ask it in chat instead.
 - Find facts yourself (code, docs, the filesystem) before asking. Ask only for what they alone can give: decisions, preferences, context.
 
 ## When a response arrives
@@ -127,7 +134,7 @@ It arrives as a reminder starting `bateson:`.
 - **Findings back**: fix the kept ones (their comment says how), and do not raise the dismissed ones again. Then send the fixes back the way the response says: a short report in plain words with screenshots of anything visual, or the diff if they asked for code. Answer each kept finding in one line: `--done "F1: what you fixed"` or `--not "F3: why not"`. They look at the result, and send it back if it is not fixed.
 - **Dropped**: stop that line of work. Leave the changes in place. Do not revert anything unless asked.
 - **Early answer** to a question marked `opens`: draft only its follow-ups with `bateson draft <id> --questions -` (or `--none`), then end your turn. See the ama skill.
-- **Answers** for an interview round: act on them. If they open new questions, send the next round with `bateson send --item <id> --questions -`. The interview is one item; each round is a new version of it, and earlier answers are not shown again.
+- **Answers** for an interview round: act on them. If they open new questions, send the next round with `bateson send --item <id> --questions -`, or ask in chat if only one question is left. The interview is one item; each round is a new version of it, and earlier answers are not shown again.
 
 **No response yet**: a reminder that the wait is about to run out and names `bateson rearm <id>`. Run that one command, then end your turn. Say nothing to the user and do no other work: they have not answered, and this only keeps you waiting for them. If the command prints a response instead (it arrived meanwhile), act on it as above.
 

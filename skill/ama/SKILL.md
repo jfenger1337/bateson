@@ -28,7 +28,7 @@ They answer in **bateson**, their review queue, by clicking and pressing ⏎. Lo
 
 Round one opens with **the frame**: your reading of their goal and the problem behind it, with one or two other readings as options. On engineering work it also says how they will know it worked. Mark it `"opens": true`. Later rounds do not repeat it.
 
-Each round then asks every ready decision. There is no target size: three hard questions or nine quick ones, each with the depth it needs. A question that depends on one still open waits for a later round, unless it builds on your recommendation: ask it now and open its body with the answer it assumes ("If you keep the table in Q3: ..."). If they choose otherwise, rework it next round.
+Each round then asks every ready decision. There is no target size: three hard questions or nine quick ones, each with the depth it needs. The floor is two: a round that would hold a single question is asked in chat instead, never sent to bateson. A question that depends on one still open waits for a later round, unless it builds on your recommendation: ask it now and open its body with the answer it assumes ("If you keep the table in Q3: ..."). If they choose otherwise, rework it next round.
 
 Every round carries one or two **challenge questions** that attack the plan: what is most likely to make it fail, what it costs that nobody has priced, who it is wrong for, what would make it unnecessary. They carry a recommendation like any other.
 

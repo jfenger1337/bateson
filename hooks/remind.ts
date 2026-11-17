@@ -41,7 +41,7 @@ guard(async () => {
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'PostToolUse',
-      additionalContext: `bateson: ${reviewer()} did not start this turn, and it has begun changing files. If you are about to make a call that is ${reviewer()}'s (direction, a trade-off, copy or UI taste, a plan for big work), send it with \`bateson send\` and end your turn instead of building on it. Otherwise carry on and do not mention this.`,
+      additionalContext: `bateson: ${reviewer()} did not start this turn, and it has begun changing files. If you are about to make a call that is ${reviewer()}'s (direction, a trade-off, copy or UI taste, a plan for big work), send it with \`bateson send\` and end your turn instead of building on it (a single question goes in chat instead). Otherwise carry on and do not mention this.`,
     },
   }));
 });

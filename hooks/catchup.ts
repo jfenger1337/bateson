@@ -51,7 +51,7 @@ const YOURSELF = 'decide or fix those yourself and say what you did';
 type Bring = Config['bring'];
 const BRING: Record<keyof Bring, { send: string; name: string; instead: string }> = {
   decisions: {
-    send: 'questions and decisions as interview rounds (direction, trade-offs, taste such as copy, UI and naming, and context only they have)',
+    send: 'questions and decisions as interview rounds (direction, trade-offs, taste such as copy, UI and naming, and context only they have), two or more questions to a round. A single question is asked in chat, never sent',
     name: 'questions or decisions',
     instead: 'ask them in chat. An interview they ask for themselves (/ama) still goes to bateson',
   },
