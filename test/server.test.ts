@@ -96,3 +96,16 @@ test('no other website may frame the app, and a file keeps its own sandboxing po
   assert.match(file.headers.get('content-security-policy') || '', /sandbox/);
   fs.rmSync(dist, { recursive: true, force: true });
 });
+
+test('a folder given as an attachment is refused before the unread version it would replace is touched', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { id } = sent();
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'bateson-attach-'));
+  assert.throws(() => store.send({ itemId: id, kind: 'review', bodyType: 'markdown', title: 'Copy', body: 'Again', attachments: [folder], source: {} }), /not a file/);
+  const item = store.getItem(id)!;
+  assert.equal(item.versions.length, 1);
+  assert.equal(store.readBody(item, store.currentVersion(item)), 'Hello', 'the version is still there, body and all');
+  fs.rmSync(folder, { recursive: true, force: true });
+});

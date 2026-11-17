@@ -225,7 +225,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     // A session that stopped waiting (answered, or cancelled by its agent) takes its notification with it.
     let stale = notified.subtracting(s.waiting.map { $0.id })
-    if !stale.isEmpty { UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: Array(stale)) }
+    // And is forgotten, so the item's next round (the same id, sent again) notifies again when a session waits on it.
+    if !stale.isEmpty {
+      UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: Array(stale))
+      notified.subtract(stale)
+    }
     firstPoll = false
   }
 

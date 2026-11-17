@@ -232,7 +232,7 @@ async function cmdSend(o: Args) {
     bodyType = type as BodyType;
     body = readStdin();
   }
-  const attach = o.attach.map((f) => (f && fs.existsSync(f) ? f : die(`no attachment ${f}`)));
+  const attach = o.attach.map((f) => (f && fs.statSync(f, { throwIfNoEntry: false })?.isFile() ? f : die(`no attachment ${f}: give a file, not a folder`)));
   const kind = bodyType === 'questions' ? 'decision' : 'review';
   if (o.item) {
     const it = findOrDie(o.item);
