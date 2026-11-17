@@ -514,6 +514,37 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .toast .toast-undo:hover { color: var(--surface); text-decoration: underline; }
 .toast .key { border-color: rgba(255, 255, 255, 0.28); color: rgba(255, 255, 255, 0.78); }
 
+/* ---- The right-click menu (Menu.tsx, components/ui/context-menu.tsx). A card that floats: 12 on the outside,
+   6 on a row, the menu shadow. It opens from where you clicked (Radix's transform origin) and scales in a hair,
+   fast, as anything you opened does. */
+.cm {
+  z-index: 50; min-width: 208px; max-width: 300px; padding: var(--space-4);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink);
+  box-shadow: var(--shadow-menu); font-size: var(--text-meta);
+  transform-origin: var(--radix-context-menu-content-transform-origin);
+  animation: cm-in var(--dur-fast) var(--ease-out);
+}
+.cm[data-state='closed'] { animation: cm-out var(--dur-instant) ease-in forwards; }
+@keyframes cm-in { from { opacity: 0; scale: 0.96; } to { opacity: 1; scale: 1; } }
+@keyframes cm-out { from { opacity: 1; } to { opacity: 0; scale: 0.98; } }
+.cm-item {
+  position: relative; display: flex; align-items: center; gap: var(--space-8);
+  height: var(--control); padding: 0 var(--space-8); border-radius: var(--radius-md);
+  color: var(--ink); cursor: default; user-select: none; outline: none; white-space: nowrap;
+}
+.cm-item[data-highlighted], .cm-item[data-state='open'] { background: var(--hover); }
+.cm-item[data-disabled] { color: var(--muted); pointer-events: none; }
+/* A radio row leaves room for its tick, so the three names line up whichever is chosen. */
+.cm-check { padding-left: var(--space-4); }
+.cm-mark { display: inline-flex; width: 16px; justify-content: center; color: var(--ink); } /* off-scale: the tick's width */
+.cm-shortcut, .cm-chevron { margin-left: auto; padding-left: var(--space-16); color: var(--muted); font-size: var(--text-label); }
+.cm-chevron { box-sizing: content-box; }
+.cm-label {
+  padding: var(--space-6) var(--space-8) var(--space-4); color: var(--muted); font-family: var(--serif); font-style: italic;
+  font-size: var(--text-meta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cm-sep { height: 1px; margin: var(--space-4) var(--space-4); background: var(--border-soft); }
+
 /* ---- Narrow */
 @media (max-width: 1000px) {
   .work:has(.with-preview) { padding-bottom: calc(var(--decide-h, 60px) + var(--space-24)); }
