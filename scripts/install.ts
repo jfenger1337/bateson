@@ -241,6 +241,16 @@ if (WIN) {
   } catch { /* not loaded: it starts at the next login */ }
 }
 
+// The Mac app, opened from Finder, has no BATESON_PORT to go by: a port set at install is saved in its defaults,
+// where it looks (mac/Sources/App.swift), and taken out again when none is set or bateson is uninstalled.
+if (process.platform === 'darwin') {
+  const custom = !uninstall && SERVER_ENV.BATESON_PORT;
+  try {
+    if (custom) { execFileSync('defaults', ['write', 'app.bateson', 'port', '-int', PORT], { stdio: 'ignore' }); log(`the Mac app looks for the server on port ${PORT}`); }
+    else execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' });
+  } catch { /* nothing saved to take out */ }
+}
+
 if (uninstall) fs.rmSync(MANIFEST, { force: true });
 else {
   fs.mkdirSync(path.dirname(MANIFEST), { recursive: true });

@@ -1,4 +1,4 @@
-// bateson for Mac: a thin native shell around the web UI on localhost:4848 (or BATESON_PORT, like the server).
+// bateson for Mac: a thin native shell around the web UI on localhost:4848 (or another port: see `port`).
 // A normal window (shown and hidden with ⌃⌥Space), a Dock icon with the count, a menubar ring with the count,
 // and a notification when a live session is waiting on you. The server itself runs as a login item.
 import AppKit
@@ -6,7 +6,11 @@ import Carbon
 import UserNotifications
 import WebKit
 
-let port = ProcessInfo.processInfo.environment["BATESON_PORT"].flatMap { Int($0) } ?? 4848
+// The server's port: BATESON_PORT, like the server, when the app is started from a shell that has it. Opened from
+// Finder or the Dock it has no such variable, so the installer also saves a port set at install in the app's
+// defaults (`defaults read app.bateson port`); 0 when none was.
+let savedPort = UserDefaults.standard.integer(forKey: "port")
+let port = ProcessInfo.processInfo.environment["BATESON_PORT"].flatMap { Int($0) } ?? (savedPort > 0 ? savedPort : 4848)
 let serverURL = URL(string: "http://localhost:\(port)/")!
 let summaryURL = URL(string: "http://localhost:\(port)/api/summary")!
 // The web app's --work, light and dark (web/src/app.css), so the window never flashes the other one.
