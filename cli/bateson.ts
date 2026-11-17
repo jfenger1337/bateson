@@ -136,14 +136,19 @@ function check<T>(validate: () => T): T {
   try { return validate(); } catch (e) { die((e as Error).message); }
 }
 
-/** Whether the server answers, and how many bateson pages are open (0 when an older server does not say). */
-async function appStatus(): Promise<{ running: boolean; pages: number }> {
+/**
+ * Whether the server answers, and how many bateson pages are open: null when it does not say, which a server
+ * started before this version does not. A page may well be open then, so nothing is opened.
+ */
+async function appStatus(): Promise<{ running: boolean; pages: number | null }> {
   try {
-    const res = await fetch(`http://localhost:${PORT}/api/health`, { signal: AbortSignal.timeout(400) });
-    if (!res.ok) return { running: false, pages: 0 };
+    // 127.0.0.1, where the server listens: on Windows "localhost" tries ::1 first, and a refused connection
+    // there takes long enough to miss the timeout.
+    const res = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(1000) });
+    if (!res.ok) return { running: false, pages: null };
     const body = await res.json().catch(() => ({})) as { pages?: unknown };
-    return { running: true, pages: typeof body.pages === 'number' ? body.pages : 0 };
-  } catch { return { running: false, pages: 0 }; }
+    return { running: true, pages: typeof body.pages === 'number' ? body.pages : null };
+  } catch { return { running: false, pages: null }; }
 }
 
 /**
@@ -239,6 +244,7 @@ async function cmdSend(o: Args) {
   // The rewake hook reads the first line, so keep its shape.
   console.log(`queued ${res.id} v${res.n}${res.replaced ? ' (replaced the unread version)' : ''}`);
   if (running && pages === 0 && openPage()) console.log(`(Opened the bateson window for ${reviewer()}.)`);
+  if (running && pages === null && pageOpener('')) console.log(`(The bateson server is older than this command. Tell ${reviewer()} to run the installer again, which restarts it.)`);
   if (!running) console.log(`(The bateson app is not running. It is waiting in ~/.bateson; ${reviewer()} can start the app with \`bateson serve\`.)`);
   // What the agent does next depends on whether anything can wake it, which it cannot know and this can check.
   // The bateson skill tells agents to do what the last line says, so this stays last.

@@ -20,6 +20,7 @@ type DecideBody = Partial<Decision> & { n?: unknown; at?: string };
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(HERE, '..', 'web', 'dist');
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const PAGE_SEEN_MS = 20_000;
 
 /** The app without a socket. `changed` and `rebuilt` are how pages hear about the queue and a new build. */
 export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
@@ -27,6 +28,9 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
   const app = new Hono();
   const listeners = new Set<() => void>();
   const reloaders = new Set<() => void>();
+  // When a page last asked for the queue or its live updates. A page whose live updates were cut (a proxy or an
+  // antivirus that ends long responses) holds no /api/events, but still reconnects every 2 seconds.
+  let pageSeen = 0;
 
   // Who may ask. The Host header must be this machine (a rebinding page arrives with its own name), and anything
   // that changes the queue must come from the app's own pages: same origin, JSON bodies.
@@ -46,7 +50,8 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
   const json = async (c: Context): Promise<unknown> => { try { return await c.req.json(); } catch { return null; } };
 
   // pages: how many bateson pages are open now (each holds /api/events), so a send knows whether to open one.
-  app.get('/api/health', (c) => c.json({ ok: true, pages: listeners.size }));
+  // One that asked in the last 20 seconds counts too, even without a live connection.
+  app.get('/api/health', (c) => c.json({ ok: true, pages: Math.max(listeners.size, Date.now() - pageSeen < PAGE_SEEN_MS ? 1 : 0) }));
 
   app.get('/api/config', (c) => c.json(store.readConfig()));
   app.put('/api/config', async (c) => c.json(store.writeConfig(await json(c))));
@@ -61,10 +66,13 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
 
   app.get('/api/summary', (c) => c.json(summaryView()));
 
-  app.get('/api/state', (c) => c.json(stateView({
-    skip: (c.req.query('skip') || '').split(',').filter(Boolean),
-    prefer: c.req.query('prefer') || undefined,
-  })));
+  app.get('/api/state', (c) => {
+    pageSeen = Date.now();
+    return c.json(stateView({
+      skip: (c.req.query('skip') || '').split(',').filter(Boolean),
+      prefer: c.req.query('prefer') || undefined,
+    }));
+  });
 
   app.post('/api/items/:id/decide', async (c) => {
     const body = await json(c);
@@ -119,6 +127,7 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
   });
 
   app.get('/api/events', (c) => streamSSE(c, async (stream) => {
+    pageSeen = Date.now();
     let alive = true;
     const fn = () => { stream.writeSSE({ data: 'change' }).catch(() => {}); };
     const reload = () => { stream.writeSSE({ event: 'reload', data: '' }).catch(() => {}); };
