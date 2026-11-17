@@ -13,6 +13,7 @@ import { Settings as Gear } from 'lucide-react';
 import { MOD, MOD_KEY, modHeld } from './lib/keys';
 import { setTheme } from '@/lib/theme';
 import { forgetKept } from '@/lib/kept';
+import { Logo } from './Logo';
 
 
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
@@ -212,7 +213,7 @@ export function App() {
     <div className="frame">
       <header className={`bar${item ? ` hue-${item.hue}` : ''}`}>
         <div className="bar-left">
-          <span className="wordmark">bateson</span>
+          <Logo />
           {said ? (
             <span className="bar-sentence said" role="status">
               {said.label}
