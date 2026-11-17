@@ -9,13 +9,12 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { streamSSE } from 'hono/streaming';
 import store, { PORT } from '../lib/store.ts';
-import { kindOf } from '../lib/kinds.ts';
+import { kindOf, checkDecision } from '../lib/kinds.ts';
 import { missingHooks, writeHooks } from '../lib/claude-settings.ts';
 import { stateView, summaryView } from '../lib/view.ts';
-import type { Decision } from '../lib/types.ts';
 
 /** What the app posts to decide: the version it saw (its number and createdAt) and the decision on it. */
-type DecideBody = Partial<Decision> & { n?: unknown; at?: string };
+type DecideBody = { n?: unknown; at?: unknown };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(HERE, '..', 'web', 'dist');
@@ -77,13 +76,13 @@ export function createApp({ dist = DIST }: { dist?: string | null } = {}) {
   app.post('/api/items/:id/decide', async (c) => {
     const body = await json(c);
     if (!body) return c.json({ error: 'Bad request' }, 400);
-    const { n, at, decision, comments, answers, marks } = body as DecideBody;
+    const { n, at } = body as DecideBody;
     const item = store.getItem(c.req.param('id'));
     if (!item) return c.json({ error: 'No such item' }, 404);
-    const kind = kindOf(item, store.currentVersion(item));
-    if (!decision || !kind.decisions[decision]) return c.json({ error: `A ${kind.name} item cannot be decided with ${decision}` }, 400);
-    if (decision === 'send-back' && !(comments || []).length) return c.json({ error: 'Send back needs a comment' }, 400);
-    try { store.decide(item.id, typeof n === 'number' ? n : NaN, { decision, comments, answers, marks }, { at }); }
+    let decision;
+    try { decision = checkDecision(kindOf(item, store.currentVersion(item)), body); }
+    catch (e) { return c.json({ error: (e as Error).message }, 400); }
+    try { store.decide(item.id, typeof n === 'number' ? n : NaN, decision, { at: typeof at === 'string' ? at : undefined }); }
     catch (e) { const { message, code } = e as NodeJS.ErrnoException; return c.json({ error: message, code }, 409); }
     return c.json({ ok: true });
   });

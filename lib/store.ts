@@ -40,8 +40,12 @@ export interface ItemFile {
 /** An item as the store hands it out: item.json and the folder it lives in, which only the store looks at. */
 export type StoredItem = ItemFile & { readonly dir: string };
 export type Body = string | Round | { findings: Finding[] };
-/** decision.json: the reviewer's decision, with when it was made. */
-export type DecisionFile = Decision & { decidedAt: string };
+/**
+ * decision.json: the reviewer's decision, with when it was made and `versionAt`, the createdAt of the version it
+ * was made on. A version replaced in place keeps its number, so that is what tells a decision on the text the
+ * reviewer saw from one on text that took its place meanwhile.
+ */
+export type DecisionFile = Decision & { decidedAt: string; versionAt?: string };
 /** delivered.json. A wake-up's delivery also names the session and its transcript, where it can be checked. */
 export interface Delivered { at: string; by?: string; sessionId?: string; transcript?: string }
 /** waiter.json: a live hook waiting on version n. */
@@ -267,7 +271,18 @@ export function openStore(
   const currentVersion = (item: StoredItem) => item.versions[item.versions.length - 1];
   const versionOf = (item: StoredItem, n: number) => item.versions.find((v) => v.n === n) || null;
 
-  const readDecision = (item: StoredItem, n: number) => readOnce(vfile(item, n, 'decision.json')) as DecisionFile | null;
+  /**
+   * A version's decision, or null. One made on an earlier body of the same version number (it was replaced in
+   * place while the reviewer decided) is not this version's: it is ignored, and forgotten so a later one is read.
+   */
+  function readDecision(item: StoredItem, n: number) {
+    const file = vfile(item, n, 'decision.json');
+    const at = versionOf(item, n)?.createdAt;
+    const stale = (d: DecisionFile | null) => !!d?.versionAt && !!at && d.versionAt !== at;
+    let d = readOnce(file) as DecisionFile | null;
+    if (stale(d)) { once.delete(file); d = readOnce(file) as DecisionFile | null; }
+    return stale(d) ? null : d;
+  }
   const readDelivered = (item: StoredItem, n: number) => readOnce(vfile(item, n, 'delivered.json')) as Delivered | null;
   const isDelivered = (item: StoredItem, n: number) => { const f = vfile(item, n, 'delivered.json'); return once.has(f) || fs.existsSync(f); };
 
@@ -320,7 +335,7 @@ export function openStore(
       }
       item = load(dir)!;
       const last = currentVersion(item);
-      const lastDecided = fs.existsSync(vfile(item, last.n, 'decision.json'));
+      const lastDecided = !!readDecision(item, last.n);
       let n;
       if (!lastDecided) {
         n = last.n; // replace in place
@@ -351,6 +366,10 @@ export function openStore(
     }
     item.hue ??= freeHue(item.id);
     writeJson(path.join(dir, 'item.json'), item);
+    // A decision the reviewer made while this was being written was made on the text it replaced (item.json still
+    // said so): it is not a decision on this version, which is waiting now.
+    const made = readJson(vfile(item, v.n, 'decision.json')) as DecisionFile | null;
+    if (made && made.versionAt !== v.createdAt) dropDecision(item, v.n);
     return { id: item.id, n: v.n, replaced: !!v.replaced };
   }
 
@@ -364,14 +383,31 @@ export function openStore(
     const v = currentVersion(item);
     if (v.n !== n || (at && v.createdAt !== at)) throw Object.assign(new Error('A newer version arrived.'), { code: 'stale' });
     const file = vfile(item, n, 'decision.json');
+    const stale = () => Object.assign(new Error('A newer version arrived.'), { code: 'stale' });
     let fd;
-    try { fd = fs.openSync(file, 'wx'); } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('This was already decided.');
-      throw e;
+    for (let tries = 0; ; tries++) {
+      try { fd = fs.openSync(file, 'wx'); break; } catch (e) {
+        const { code } = e as NodeJS.ErrnoException;
+        if (code === 'ENOENT') throw stale(); // the version's folder is being replaced right now
+        if (code !== 'EEXIST') throw e;
+        // Left from an earlier body of this version number: not a decision on this one.
+        if (tries === 0 && !readDecision(item, n)) { dropDecision(item, n); continue; }
+        throw Object.assign(new Error('This was already decided.'), { code: 'decided' });
+      }
     }
-    fs.writeSync(fd, JSON.stringify({ ...decision, decidedAt: now() }, null, 2));
+    fs.writeSync(fd, JSON.stringify({ ...decision, decidedAt: now(), versionAt: v.createdAt } satisfies DecisionFile, null, 2));
     fs.closeSync(fd);
+    // The version was replaced while this was written: the new body has not been seen. The CLI drops this
+    // decision once its item.json is written; say so now.
+    if (getItem(id)?.versions.at(-1)?.createdAt !== v.createdAt) throw stale();
     fs.rmSync(path.join(item.dir, 'later.json'), { force: true });
+  }
+
+  /** Remove a decision that is not the version's (see readDecision). */
+  function dropDecision(item: StoredItem, n: number) {
+    const file = vfile(item, n, 'decision.json');
+    fs.rmSync(file, { force: true });
+    once.delete(file);
   }
 
   function later(id: string) {

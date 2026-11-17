@@ -66,12 +66,12 @@ Sorted highest severity first and numbered by the CLI, which also captures `exce
 ## decision.json
 
 ```json
-{ "decision": "approve" | "send-back" | "drop" | "answer" | "findings", "decidedAt": "...",
+{ "decision": "approve" | "send-back" | "drop" | "answer" | "findings", "decidedAt": "...", "versionAt": "...",
   "comments": [ { "id": "...", "text": "...", "anchor": { "kind": "text" | "item", "quote": "...", "prefix": "...", "suffix": "...", "start": 0, "end": 10, "file": "src/a.ts", "line": 42, "side": "new" } } ],
   "answers":  [ { "id": "Q1", "choice": 0, "accepted": true }, { "id": "Q2", "choice": null, "other": "free text" } ] }
 ```
 
-`comments` come with `send-back`, `answers` with `answer`, and with `findings` the marks: `"marks": [ { "id": "F1", "mark": "keep", "comment": "..." }, { "id": "F2", "mark": "dismiss", "reason": "..." } ]`. A finding with no mark counts as kept. The version after it answers each kept finding by id in `replies.json`.
+`versionAt` is the `createdAt` of the version the reviewer decided. A version replaced in place keeps its number, so a decision whose `versionAt` is not the version's `createdAt` was made on the text it replaced, and does not count (a decision without `versionAt` is taken as it is). `comments` come with `send-back`, `answers` with `answer`, and with `findings` the marks: `"marks": [ { "id": "F1", "mark": "keep", "comment": "..." }, { "id": "F2", "mark": "dismiss", "reason": "..." } ]`. A finding with no mark counts as kept. The version after it answers each kept finding by id in `replies.json`.
 
 ## Writing an item without the CLI
 

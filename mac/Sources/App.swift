@@ -119,10 +119,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.reload() }
   }
 
-  // Links out of the app open in the browser.
+  // Links out of the app open in the browser. Only web and mail links: a link can come from an agent's markup
+  // (a component example, a live preview), and a file, a network share or another app's link is never opened
+  // from one.
   func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     if let url = action.request.url, action.navigationType == .linkActivated, url.host != "localhost" {
-      NSWorkspace.shared.open(url)
+      if ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") { NSWorkspace.shared.open(url) }
       decisionHandler(.cancel)
       return
     }

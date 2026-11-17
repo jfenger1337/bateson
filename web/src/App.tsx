@@ -86,14 +86,30 @@ export function App() {
 
   const commit = useCallback(async (h: Held) => {
     h.done = true;
-    const res = await fetch(`/api/items/${h.id}/decide`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ n: h.n, at: h.at, ...h.decision }),
-    });
+    // The server restarts after an update: a decision made at that moment is tried again for a few seconds
+    // rather than lost. Until it lands, the item stays held, so it is not shown again under you.
+    let res: Response | null = null;
+    let tries = 0;
+    for (; tries < 6 && !res; tries++) {
+      if (tries) await new Promise((r) => setTimeout(r, 1000));
+      try {
+        res = await fetch(`/api/items/${h.id}/decide`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ n: h.n, at: h.at, ...h.decision }),
+        });
+      } catch { /* not answering yet */ }
+    }
     setHeld((hs) => hs.filter((x) => x.id !== h.id));
-    if (res.ok) forgetKept(h.id);
-    if (!res.ok) {
-      const { error, code } = await res.json().catch(() => ({ error: 'It did not go through.' }));
+    if (!res) {
+      toast('Your decision did not reach bateson: the server is not answering. The item is back in the queue; decide it again.', { duration: Infinity, action: { label: 'Dismiss', onClick: () => {} } });
+      return;
+    }
+    const body = res.ok ? null : await res.json().catch(() => ({ error: 'It did not go through.' }));
+    // A try that went through but whose answer was lost, then tried again: it is decided, by this.
+    const landed = res.ok || (tries > 1 && body?.code === 'decided');
+    if (landed) forgetKept(h.id);
+    else {
+      const { error, code } = body;
       // Refused because the agent sent a newer version meanwhile: that version is now waiting, so offer to bring it to the front.
       const action = code === 'stale'
         ? { label: 'Show it', onClick: () => { shownRef.current = h.id; load(); } }

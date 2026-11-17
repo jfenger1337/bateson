@@ -134,3 +134,54 @@ test('a lost wake-up whose session has ended goes to bateson inbox in the repo',
   wokeUp(item, 'A', path.join(REPO, '..', 'gone.jsonl'));
   assert.equal(collect({ sessionId: 'B', cwd: REPO }, 'test').length, 1);
 });
+
+// ---- A version replaced in place while the reviewer decides it.
+
+test('a decision made while the agent replaced the version is not a decision on the new text', () => {
+  const first = answered(null);
+  // A send-back, so the agent's next send is a new version 2, and then a revision of it before it is read.
+  const back = store.send({ itemId: first.id, kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'v2', body: 'Text the reviewer read', source: {} });
+  const seen = store.currentVersion(store.getItem(back.id)!).createdAt;
+  const shot = path.join(REPO, 'shot.png');
+  fs.writeFileSync(shot, 'png');
+  // The reviewer's decision lands while the replacement is being written (the server is another process: here it
+  // runs in the middle of copying the attachment, after the version's folder is made and before item.json says so).
+  const copy = fs.copyFileSync;
+  fs.copyFileSync = ((...args: Parameters<typeof copy>) => {
+    fs.copyFileSync = copy;
+    store.decide(back.id, back.n, { decision: 'approve' }, { at: seen });
+    return copy(...args);
+  }) as typeof copy;
+  try {
+    store.send({ itemId: back.id, kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'v2 again', body: 'Text nobody read', attachments: [shot], source: {} });
+  } finally { fs.copyFileSync = copy; }
+  const it = store.getItem(back.id)!;
+  const v = store.currentVersion(it);
+  assert.equal(store.readBody(it, v), 'Text nobody read');
+  assert.equal(store.readDecision(it, v.n), null, 'the new text is waiting, not approved');
+  assert.ok(store.pending().some((r) => r.item.id === back.id));
+  store.decide(back.id, v.n, { decision: 'approve' }, { at: v.createdAt });
+  assert.equal(store.readDecision(it, v.n)?.decision, 'approve');
+});
+
+test('a decision left from an earlier body of the version is ignored, and the version can still be decided', () => {
+  const res = store.send({ kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Hello', source: {} });
+  let it = store.getItem(res.id)!;
+  const file = path.join(store.ROOT, 'items', res.id, 'v1', 'decision.json');
+  fs.writeFileSync(file, JSON.stringify({ decision: 'approve', decidedAt: new Date().toISOString(), versionAt: '2000-01-01T00:00:00.000Z' }));
+  assert.equal(store.readDecision(it, 1), null);
+  assert.deepEqual(collect({ sessionId: 'A' }, 'test'), []);
+  store.decide(res.id, 1, { decision: 'drop' }, { at: store.currentVersion(it).createdAt });
+  it = store.getItem(res.id)!;
+  assert.equal(store.readDecision(it, 1)?.decision, 'drop');
+});
+
+test('a decision that cannot be told is left undelivered, not marked delivered and lost', () => {
+  sessionOpen(A_PID, 'A');
+  const res = store.send({ kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Hello', source: {} });
+  own(store.getItem(res.id)!, { sessionId: 'A' });
+  // Written by hand, not by the app, in a shape the agent's message cannot be made from.
+  fs.writeFileSync(path.join(store.ROOT, 'items', res.id, 'v1', 'decision.json'), JSON.stringify({ decision: 'send-back', comments: 'x', decidedAt: new Date().toISOString() }));
+  assert.throws(() => collect({ sessionId: 'A' }, 'test'));
+  assert.equal(store.isDelivered(store.getItem(res.id)!, 1), false);
+});
