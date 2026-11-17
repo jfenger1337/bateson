@@ -19,7 +19,7 @@ export function Empty({ agents, writing, update, onUpdate }: Pick<State, 'agents
 
   return (
     <div className={`calm${again ? ' again' : ''}`}>
-      <h1 className="calm-head">All caught up</h1>
+      <Settled />
       {/* Only here, where nothing waits on you: a new version never comes between you and a question. */}
       {update?.state === 'available' && (
         <p className="calm-update">A new version of bateson is ready. <button type="button" className="btn-link" onClick={onUpdate}>See what’s new</button></p>
@@ -49,6 +49,23 @@ export function Empty({ agents, writing, update, onUpdate }: Pick<State, 'agents
         </ul>
       )}
     </div>
+  );
+}
+
+// bateson's mark with nothing left pending: the two open rings filled in like the dot, drawn quietly in grey.
+// The same inked edge as the logo (Logo.tsx), under its own filter so it does not depend on the bar being there.
+function Settled() {
+  return (
+    <svg className="calm-mark" width="84" height="40" viewBox="3 11 32 15" fill="currentColor" role="img" aria-label="Nothing waiting on you">
+      <defs>
+        <filter id="bt-rough-calm" x="-20%" y="-40%" width="140%" height="180%"><feTurbulence type="fractalNoise" baseFrequency="0.1" numOctaves="2" seed="4" result="noise" /><feDisplacementMap in="SourceGraphic" in2="noise" scale="1.1" xChannelSelector="R" yChannelSelector="G" /></filter>
+      </defs>
+      <g filter="url(#bt-rough-calm)">
+        <circle cx="8" cy="16" r="3.4" />
+        <circle cx="19" cy="16" r="3.4" />
+        <circle cx="30" cy="21" r="4" />
+      </g>
+    </svg>
   );
 }
 

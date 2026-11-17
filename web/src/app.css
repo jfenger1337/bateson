@@ -581,7 +581,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .calm { max-width: 720px; margin: 0 auto; padding-top: clamp(48px, 16vh, 180px); display: flex; flex-direction: column; }
 .calm-update { margin-top: var(--space-12); font-size: var(--text-meta); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 .calm.again .calm-update { animation: none; }
-.calm-head { font-family: var(--serif); font-size: var(--work-title); font-weight: 400; line-height: 1.15; letter-spacing: -0.012em; color: var(--ink); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+.calm-mark { display: block; color: var(--faint-3); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 
 @keyframes qr-fade { from { opacity: 0; } } /* base.css's .page-loading */
 
@@ -639,7 +639,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 @keyframes qr-arrive-ring { from { opacity: 0; scale: 0.6; } }
 @media (prefers-reduced-motion: reduce) { .agents .ring-dashed { animation: none; } }
 /* Back on this page after the first time (Empty.tsx): nothing arrives again, it is simply there. The ring keeps turning. */
-.calm.again :is(.calm-head, .agents li) { animation: none; }
+.calm.again :is(.calm-mark, .agents li) { animation: none; }
 .calm.again .agents .ring-dashed { animation: check-spin 3.2s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .calm.again .agents .ring-dashed { animation: none; } }
 
