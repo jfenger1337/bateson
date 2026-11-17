@@ -137,25 +137,32 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   }, [onCode]);
   useEffect(() => { if (!pointed) setMarkHot(false); }, [pointed]);
 
+  // A note with words in it not yet added is never replaced by another: whatever would open one (the title, a
+  // selection, the gutter, C, the right-click menu, another comment) takes you back to it instead. A comment
+  // reopened and not changed holds nothing back, so it gives way.
+  const unsaved = !!draft?.text.trim() && (!draft.id || comments.find((x) => x.id === draft.id)?.text !== draft.text.trim());
+  const openDraft = useCallback((next: NonNullable<typeof draft>) => {
+    if (unsaved) { document.querySelector<HTMLTextAreaElement>('.note-field')?.focus(); return false; }
+    setDraft(next);
+    return true;
+  }, [unsaved, setDraft]);
   const startComment = useCallback((anchor: Anchor, send = false) => {
-    setDraft({ anchor, text: '', send });
+    if (!openDraft({ anchor, text: '', send })) return false;
     setPicked(null);
-  }, []);
+    return true;
+  }, [openDraft]);
 
   // Comment, from the right-click menu (Menu.tsx): on the selection as it was when the menu opened, since clicking
-  // a row in the menu can clear it. A comment already half written is not thrown away for it: you are taken back to it.
+  // a row in the menu can clear it.
   useEffect(() => {
-    const field = () => document.querySelector<HTMLTextAreaElement>('.note-field');
     const onComment = (e: Event) => {
-      if (draft?.text.trim()) { field()?.focus(); return; }
       const anchor = anchorOf((e as CustomEvent<Range>).detail);
-      if (!anchor) return;
-      startComment(anchor);
-      window.setTimeout(() => field()?.focus()); // An open box keeps its element, so autoFocus does not run again.
+      // An open box keeps its element, so autoFocus does not run again.
+      if (anchor && startComment(anchor)) window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('.note-field')?.focus());
     };
     window.addEventListener('qr-comment', onComment);
     return () => window.removeEventListener('qr-comment', onComment);
-  }, [anchorOf, startComment, draft]);
+  }, [anchorOf, startComment]);
 
   const save = () => {
     if (!draft?.text.trim()) { setDraft(null); return; }
@@ -392,7 +399,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
               className={`note-card mine${active === c.id ? ' active' : ''}`}
               onMouseEnter={() => setActive(c.id)}
               onMouseLeave={() => setActive(null)}
-              onClick={(e) => { if (!(e.target as Element).closest('button')) setDraft({ anchor: c.anchor, text: c.text, id: c.id }); }}
+              onClick={(e) => { if (!(e.target as Element).closest('button')) openDraft({ anchor: c.anchor, text: c.text, id: c.id }); }}
             >
               <Where anchor={c.anchor} />
               <p className="note-text">{c.text}</p>
@@ -400,7 +407,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
             </div>
           ))}
           {draft && (
-            <div data-slot="draft" className="note-card composing drop-in">
+            <div key={draft.id ?? 'new'} data-slot="draft" className="note-card composing drop-in">
               <Where anchor={draft.anchor} />
               <textarea
                 autoFocus
