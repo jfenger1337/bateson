@@ -148,25 +148,37 @@ async function appStatus(): Promise<{ running: boolean; pages: number }> {
 
 /**
  * Windows has no bateson app for now, so nothing there tells the reviewer a question is waiting. On Windows, and
- * in WSL, a send opens the page in their default browser instead, through explorer.exe. BATESON_NO_OPEN turns it off,
- * and BATESON_OPEN_WITH names another program to open it with (for trying it off Windows).
+ * in WSL, a send opens the page itself: in a window of its own (Chrome's or Edge's --app, no tabs or address bar),
+ * else in the default browser through explorer.exe. BATESON_NO_OPEN turns it off, and BATESON_OPEN_WITH names
+ * another program to open the address with (for trying it off Windows).
  */
-function windowsExplorer(): string | null {
+function pageOpener(url: string): { exe: string; args: string[] } | null {
   if (process.env.BATESON_NO_OPEN) return null;
-  if (process.env.BATESON_OPEN_WITH) return process.env.BATESON_OPEN_WITH;
-  if (process.platform === 'win32') return path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
-  if (process.platform === 'linux' && (process.env.WSL_DISTRO_NAME || /microsoft/i.test(os.release()))) {
-    const exe = '/mnt/c/Windows/explorer.exe';
-    return fs.existsSync(exe) ? exe : null;
+  if (process.env.BATESON_OPEN_WITH) return { exe: process.env.BATESON_OPEN_WITH, args: [url] };
+  let roots: string[], windir: string;
+  if (process.platform === 'win32') {
+    roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA].filter((r): r is string => !!r);
+    windir = process.env.SystemRoot || 'C:\\Windows';
+  } else if (process.platform === 'linux' && (process.env.WSL_DISTRO_NAME || /microsoft/i.test(os.release()))) {
+    roots = ['/mnt/c/Program Files', '/mnt/c/Program Files (x86)'];
+    windir = '/mnt/c/Windows';
+  } else return null;
+  // Chrome first, where it is installed (it is likely theirs), then Edge, which every Windows machine has.
+  for (const browser of [['Google', 'Chrome', 'Application', 'chrome.exe'], ['Microsoft', 'Edge', 'Application', 'msedge.exe']]) {
+    for (const root of roots) {
+      const exe = path.join(root, ...browser);
+      if (fs.existsSync(exe)) return { exe, args: [`--app=${url}`] };
+    }
   }
-  return null;
+  const explorer = path.join(windir, 'explorer.exe');
+  return fs.existsSync(explorer) ? { exe: explorer, args: [url] } : null;
 }
 
 function openPage(): boolean {
-  const exe = windowsExplorer();
-  if (!exe) return false;
+  const how = pageOpener(`http://localhost:${PORT}/`);
+  if (!how) return false;
   try {
-    const child = spawn(exe, [`http://localhost:${PORT}/`], { detached: true, stdio: 'ignore', windowsHide: true });
+    const child = spawn(how.exe, how.args, { detached: true, stdio: 'ignore', windowsHide: true });
     child.on('error', () => {});
     child.unref();
     return true;
@@ -226,7 +238,7 @@ async function cmdSend(o: Args) {
   const { running, pages } = await appStatus();
   // The rewake hook reads the first line, so keep its shape.
   console.log(`queued ${res.id} v${res.n}${res.replaced ? ' (replaced the unread version)' : ''}`);
-  if (running && pages === 0 && openPage()) console.log(`(Opened bateson in ${reviewer()}'s browser.)`);
+  if (running && pages === 0 && openPage()) console.log(`(Opened the bateson window for ${reviewer()}.)`);
   if (!running) console.log(`(The bateson app is not running. It is waiting in ~/.bateson; ${reviewer()} can start the app with \`bateson serve\`.)`);
   // What the agent does next depends on whether anything can wake it, which it cannot know and this can check.
   // The bateson skill tells agents to do what the last line says, so this stays last.
