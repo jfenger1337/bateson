@@ -52,19 +52,15 @@ export function Empty({ agents, writing, update, onUpdate }: Pick<State, 'agents
   );
 }
 
-// bateson's mark with nothing left pending: the two open rings filled in like the dot, drawn quietly in grey.
+// One filled dot, quietly in grey: in bateson's notation a decided thing, so nothing is left pending.
 // The same inked edge as the logo (Logo.tsx), under its own filter so it does not depend on the bar being there.
 function Settled() {
   return (
-    <svg className="calm-mark" width="84" height="40" viewBox="3 11 32 15" fill="currentColor" role="img" aria-label="Nothing waiting on you">
+    <svg className="calm-mark" width="28" height="28" viewBox="0 0 12 12" fill="currentColor" role="img" aria-label="Nothing waiting on you">
       <defs>
-        <filter id="bt-rough-calm" x="-20%" y="-40%" width="140%" height="180%"><feTurbulence type="fractalNoise" baseFrequency="0.1" numOctaves="2" seed="4" result="noise" /><feDisplacementMap in="SourceGraphic" in2="noise" scale="1.1" xChannelSelector="R" yChannelSelector="G" /></filter>
+        <filter id="bt-rough-calm" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.25" numOctaves="2" seed="4" result="noise" /><feDisplacementMap in="SourceGraphic" in2="noise" scale="0.5" xChannelSelector="R" yChannelSelector="G" /></filter>
       </defs>
-      <g filter="url(#bt-rough-calm)">
-        <circle cx="8" cy="16" r="3.4" />
-        <circle cx="19" cy="16" r="3.4" />
-        <circle cx="30" cy="21" r="4" />
-      </g>
+      <circle cx="6" cy="6" r="4.6" filter="url(#bt-rough-calm)" />
     </svg>
   );
 }
