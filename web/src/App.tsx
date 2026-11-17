@@ -210,7 +210,6 @@ export function App() {
   }, []);
 
   const item = state?.current ?? null;
-  const after = Math.max(0, count - 1);
   // Where you are in an interview or a set of findings: its dots sit in the bar, after the item's name.
   const [steps, setSteps] = useState<HTMLElement | null>(null);
   // The project is said only when the queue holds more than one, which is when it tells items apart.
@@ -272,7 +271,6 @@ export function App() {
           <span ref={setSteps} className="bar-steps" hidden={!!said} />
         </div>
         <div className="bar-right">
-          {item && after > 0 && <span className="bar-sentence">{after === 1 ? 'One more after this' : `${after} more after this`}</span>}
           {failed && <span className="bar-sentence late"><Spinner variant="ellipsis" size={14} aria-hidden />Not connected. Is <span className="rec">bateson serve</span> running?</span>}
           {!failed && item && !settings && item.reach !== 'waiting' && (
             <span className="bar-sentence reach" role="status" title={reachLine(item)}>{reachLine(item)}</span>
