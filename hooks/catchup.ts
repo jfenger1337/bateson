@@ -24,9 +24,7 @@ guard(async () => {
   // Where the working tree stands as the turn begins, for the Stop check.
   if (config.stopCheck) saveSnapshot(hook.session_id, snapshot(hook.cwd));
   if (event === 'SessionStart') sweepSnapshots();
-  // Decisions on what this session sent, and nothing else: no cwd, so nothing from other sessions in the repo.
   const who: Who = { sessionId: hook.session_id };
-  const msgs = who.sessionId ? collect(who, `${event}:${hook.session_id}`) : [];
   const parts = event === 'SessionStart' ? [howTheyWork(config.bring, config.preview), lately(hook.cwd)].filter(Boolean) : [];
   if (prompt && heard) { const line = whatChanged(heard, config.bring); if (line) parts.push(line); }
   // "ama" anywhere in a message is the user asking to be interviewed; /ama loads the skill by itself.
@@ -36,6 +34,10 @@ guard(async () => {
   // You wrote in the terminal while this session has something waiting in the queue: if this message calls it
   // off, the agent takes it out of the queue rather than leaving you something to answer that nobody wants.
   if (prompt && who.sessionId) { const line = stillOpen(who.sessionId); if (line) parts.push(line); }
+  // Decisions on what this session sent, and nothing else: no cwd, so nothing from other sessions in the repo.
+  // Taken last, with nothing left to do but say them: a decision taken is marked delivered, so anything that failed
+  // (or ran out the hook's time) between taking it and writing it out would lose it for good.
+  const msgs = who.sessionId ? collect(who, `${event}:${hook.session_id}`) : [];
   if (msgs.length) {
     const lead = event === 'SessionStart'
       ? 'Responses from bateson to what this session sent, that had not reached it yet:'

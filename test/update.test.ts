@@ -150,6 +150,10 @@ test('a server started by hand is not stopped: it says to restart it', async () 
   assert.match(v.reason!, /Restart bateson serve/);
   await sleep(400);
   assert.equal(exited(), 0);
+  // The next check, by this same old server, still says to restart; the new server's start clears it.
+  assert.equal((await u.check()).state, 'restart');
+  u.recover();
+  assert.equal(u.read().state, 'current');
 });
 
 test('an update left halfway by a closed server is said as failed at the next start', () => {
@@ -167,4 +171,14 @@ test('GitHub out of reach: the last answer stands, with a note', async () => {
   const v = await u.check();
   assert.equal(v.state, 'current');
   assert.match(v.error!, /could not be reached/);
+});
+
+test('an installer that fails is undone by the old one, after going back', async () => {
+  const { u, calls } = updater({ fail: ['node'] });
+  commit(OTHER, 'README.md', 'two\n', 'Installer breaks');
+  const v = await u.apply();
+  assert.equal(v.state, 'failed');
+  const installs = calls.filter((c) => c.includes(`${path.join('scripts', 'install.ts')} --updating`));
+  assert.equal(installs.length, 2, 'the new installer, then the old one on the way back');
+  assert.ok(calls.lastIndexOf(installs[1]) > calls.findIndex((c) => c.startsWith('git reset --keep')));
 });

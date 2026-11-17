@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import store from '../lib/store.ts';
-import { collect, own, checkoutOf, reachOf } from '../lib/delivery.ts';
+import { claim, collect, own, checkoutOf, reachOf } from '../lib/delivery.ts';
 import { deliveryMark } from '../lib/kinds.ts';
 
 // Two Claude Code processes that are really alive, so the session list counts them as running.
@@ -146,10 +146,11 @@ test('a decision made while the agent replaced the version is not a decision on 
   fs.writeFileSync(shot, 'png');
   // The reviewer's decision lands while the replacement is being written (the server is another process: here it
   // runs in the middle of copying the attachment, after the version's folder is made and before item.json says so).
+  // It is refused as stale, so the app says so instead of saying it went through.
   const copy = fs.copyFileSync;
   fs.copyFileSync = ((...args: Parameters<typeof copy>) => {
     fs.copyFileSync = copy;
-    store.decide(back.id, back.n, { decision: 'approve' }, { at: seen });
+    assert.throws(() => store.decide(back.id, back.n, { decision: 'approve' }, { at: seen }), { code: 'stale' });
     return copy(...args);
   }) as typeof copy;
   try {
@@ -195,4 +196,16 @@ test('a decision that cannot be told is left undelivered, not marked delivered a
   fs.writeFileSync(path.join(store.ROOT, 'items', res.id, 'v1', 'decision.json'), JSON.stringify({ decision: 'send-back', comments: 'x', decidedAt: new Date().toISOString() }));
   assert.throws(() => collect({ sessionId: 'A' }, 'test'));
   assert.equal(store.isDelivered(store.getItem(res.id)!, 1), false);
+});
+
+test('while a send is writing the next version, a decision waits and none is delivered', () => {
+  const res = store.send({ kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Text', source: {} });
+  const item = store.getItem(res.id)!;
+  const at = store.currentVersion(item).createdAt;
+  store.decide(res.id, res.n, { decision: 'approve' }, { at });
+  const mark = path.join(item.dir, 'replacing.json');
+  fs.writeFileSync(mark, '{}');
+  assert.equal(claim(res.id, res.n, 'test'), null, 'not delivered while the version may change under it');
+  fs.rmSync(mark);
+  assert.match(claim(res.id, res.n, 'test') || '', /Approved/);
 });

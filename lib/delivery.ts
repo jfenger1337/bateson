@@ -20,7 +20,8 @@ import { agent } from './agent.ts';
  */
 export function claim(id: string, n: number, by?: string, to: { sessionId?: string; transcript?: string } = {}) {
   const item = store.getItem(id);
-  if (!item || !store.readDecision(item, n)) return null;
+  // Not while a send is writing the item's next version: what is decided may be about to change under it.
+  if (!item || store.replacing(item) || !store.readDecision(item, n)) return null;
   // The message first: a decision that cannot be told is left undelivered (and the error logged by the caller),
   // never marked delivered and lost.
   const msg = formatDecision(item, n);
@@ -95,9 +96,11 @@ export async function awaitDecision(id: string, { n, pid, by, to, alive, until =
     if (v.n !== want) { if (pid != null) store.clearWaiter(item, pid); return { kind: 'elsewhere' }; }
     // Checked before taking the decision: a waiter whose session is gone must leave it for a session that is not.
     if (alive && !alive()) { if (pid != null) store.clearWaiter(item, pid); return { kind: 'abandoned' }; }
-    if (store.readDecision(item, want)) {
+    // A send writing the next version: wait for it, and see what it left.
+    if (!store.replacing(item) && store.readDecision(item, want)) {
       const message = claim(id, want, by, to);
-      return message ? { kind: 'decision', message } : { kind: 'elsewhere' };
+      if (message) return { kind: 'decision', message };
+      if (!store.replacing(item)) return { kind: 'elsewhere' };
     }
     if (early) {
       const answers = store.unreportedEarly(item, want);
@@ -163,7 +166,7 @@ export function lostFor(who: Who) {
   const live = store.liveSessions();
   const here = who.cwd ? checkoutOf(who.cwd) : null;
   const out: { item: StoredItem; n: number }[] = [];
-  for (const { item, n, delivered } of store.unconfirmed()) {
+  for (const { item, n, delivered } of store.unconfirmed()) try {
     if (Date.now() - Date.parse(delivered.at) < SETTLE_MS) continue;
     const transcript = delivered.transcript || store.readSession(item)?.transcriptPath;
     // Nowhere to look: there is no telling, and asking again on every prompt would repeat it for ever.
@@ -172,7 +175,7 @@ export function lostFor(who: Who) {
     try { text = fs.readFileSync(transcript, 'utf8'); } catch { /* gone with its session: lost */ }
     if (text?.includes(deliveryMark(item.id, n))) { store.confirmDelivery(item, n); continue; }
     if (mayTakeLost(item, who, delivered.sessionId, live, here)) out.push({ item, n });
-  }
+  } catch (e) { store.logHookError('lostFor', e); } // moved meanwhile (sent again, say): looked at next time
   return out;
 }
 
@@ -187,9 +190,16 @@ const AGAIN = 'bateson: this response was handed to a session earlier but may no
 
 /** Claim everything pendingFor() and lostFor() find: the messages, in order. */
 export function collect(who: Who, by: string) {
+  // The lost ones first, each on its own: a delivery to check can fail (its item moved meanwhile), and nothing that
+  // goes wrong there may come after a fresh decision has been taken and so cost it.
+  const again: string[] = [];
+  for (const { item, n } of lostFor(who)) {
+    try {
+      const m = formatDecision(item, n);
+      if (m != null && store.claimRedelivery(item, n, by)) again.push(`${AGAIN}\n${m}`);
+    } catch (e) { store.logHookError('collect: redelivery', e); }
+  }
   const fresh = pendingFor(who).map((it) => claim(it.id, store.currentVersion(it).n, by)).filter((m) => m !== null);
-  const again = lostFor(who).map(({ item, n }) => { const m = formatDecision(item, n); return m != null && store.claimRedelivery(item, n, by) ? m : null; })
-    .filter((m) => m !== null).map((m) => `${AGAIN}\n${m}`);
   return [...fresh, ...again];
 }
 
