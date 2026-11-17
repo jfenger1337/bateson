@@ -46,19 +46,19 @@ The installer will:
 
 If Apple's command line tools are there (step 5), the Mac app build will also put `bateson.app` in `~/Applications`, and restart it if it is running. There is no Windows app for now: on Windows bateson is http://localhost:4848 in their browser.
 
-Nothing is sent anywhere, and `node scripts/install.ts --uninstall` undoes all of it except the queue folder and the app.
+Nothing is sent anywhere, and `node scripts/install.mjs --uninstall` undoes all of it except the queue folder and the app.
 
 ## 4. Run the installer
 
 ```bash
-node scripts/install.ts --login
+node scripts/install.mjs --login
 ```
 
 (`--launchd`, the old name, still works.)
 
 It prints every file it touched. Pass that list on as it is.
 
-If it stops partway, the lines it printed are what it already did. Say so, with the error. Running it again and `node scripts/install.ts --uninstall` are both safe from there, and which one is the person's call.
+If it stops partway, the lines it printed are what it already did. Say so, with the error. Running it again and `node scripts/install.mjs --uninstall` are both safe from there, and which one is the person's call.
 
 ## 5. The app
 

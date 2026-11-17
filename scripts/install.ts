@@ -3,6 +3,7 @@
 // skill, the hooks in ~/.claude/settings.json, and (with --login) the server at login. Idempotent. What it set up
 // is noted in ~/.bateson/install.json, and --uninstall undoes exactly that. --only <agent> limits it to one agent.
 // --launchd is the old name of --login and still works.
+// Run it as scripts/install.mjs, which first checks that this Node can run it at all.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -42,13 +43,6 @@ try { installed = JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) as Partial<Manif
 const only = args.has('--only') ? argv[argv.indexOf('--only') + 1] : null;
 if (args.has('--only') && !(only && only in AGENTS)) {
   console.error(`bateson: --only takes one of: ${Object.keys(AGENTS).join(', ')}.`);
-  process.exit(1);
-}
-
-// bateson is TypeScript, which Node runs as it is from 22.18 on.
-const [major, minor] = process.versions.node.split('.').map(Number);
-if (!uninstall && (major < 22 || (major === 22 && minor < 18))) {
-  console.error(`bateson needs Node 22.18 or newer, which runs its TypeScript files directly. This is Node ${process.versions.node}.`);
   process.exit(1);
 }
 
