@@ -220,7 +220,7 @@ export function validateQuestions(body: unknown, cwd?: string): Round & { readon
   (body.questions as Loose[]).forEach((q, i) => {
     q.id = q.id || `Q${i + 1}`;
     if (!q.title) throw new Error(`question ${q.id} needs a title.`);
-    if (!/\?\s*$/.test(String(q.title))) throw new Error(`question ${q.id}: the title is the question itself and ends in a question mark ("Which turns should get the reminder?", not "Which turns get checked"). See "Writing for him" in the bateson skill.`);
+    if (!/\?\s*$/.test(String(q.title))) throw new Error(`question ${q.id}: the title is the question itself and ends in a question mark ("Which turns should get the reminder?", not "Which turns get checked").`);
     if (!Array.isArray(q.options) || !q.options.length) throw new Error(`question ${q.id} needs options: two to four, or for a yes or no question one, your answer.`);
     const options = q.options as Loose[];
     if (options.length === 1 && q.recommended !== 0) throw new Error(`question ${q.id}: a single option is your answer to a yes or no question, so set "recommended": 0.`);

@@ -90,6 +90,6 @@ removes everything the installer added and restores `~/.claude/settings.json`. y
 
 MIT, see [LICENSE](LICENSE). fonts in `web/public/fonts/` are under the SIL open font license 1.1.
 
-asking in rounds grew out of matt pocock's `grilling` skill, and the way `/ama` frames and sorts its questions comes from poteto's pstack. thank you both.
+`/ama` is matt pocock's `grilling` skill with its rounds sent to bateson, and the question that opens it, checking the agent read your goal right, comes from poteto's pstack. thank you both.
 
 named after gregory bateson, who saw a mind as a loop that includes the things it works on.
