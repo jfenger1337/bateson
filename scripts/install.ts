@@ -23,7 +23,7 @@ const BIN = path.join(BIN_DIR, 'bateson');
 const SKILL = path.join(HOME, '.claude', 'skills', 'bateson');
 const SETUP = path.join(HOME, '.claude', 'skills', 'setup-bateson');
 const PLIST = path.join(HOME, 'Library', 'LaunchAgents', 'com.bateson.server.plist');
-// Windows has no launchd: a value in the user's Run key starts scripts/keepalive.ts at login, which keeps the
+// Windows has no launchd: a value in the user's Run key starts scripts/keepalive.mjs at login, which keeps the
 // server running. conhost --headless runs it without a console window.
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const RUN_VALUE = 'bateson';
@@ -201,7 +201,7 @@ if (WIN) {
     if (uninstall) {
       try { execFileSync('reg', ['delete', RUN_KEY, '/v', RUN_VALUE, '/f'], { stdio: 'ignore' }); log('removed the login item'); } catch { /* there was none */ }
     } else {
-      const keepalive = path.join(REPO, 'scripts', 'keepalive.ts');
+      const keepalive = path.join(REPO, 'scripts', 'keepalive.mjs');
       const extra = [...(SERVER_ENV.BATESON_HOME ? ['--home', ROOT] : []), ...(SERVER_ENV.BATESON_PORT ? ['--port', PORT] : [])];
       const quoted = extra.map((a) => (a.startsWith('--') ? a : `"${a}"`)).join(' ');
       execFileSync('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
@@ -226,7 +226,7 @@ if (WIN) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.bateson.server</string>
-  <key>ProgramArguments</key><array><string>${xml(NODE)}</string><string>${xml(path.join(REPO, 'server', 'server.ts'))}</string></array>
+  <key>ProgramArguments</key><array><string>${xml(NODE)}</string><string>${xml(path.join(REPO, 'server', 'server.mjs'))}</string></array>
   <key>WorkingDirectory</key><string>${xml(REPO)}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
