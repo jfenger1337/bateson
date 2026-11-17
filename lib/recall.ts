@@ -34,7 +34,8 @@ function answers(item: StoredItem, v: StoredVersion, d: DecisionFile, base: Omit
     const q: Partial<Question> = qs.find((x) => x.id === a.id) || {};
     const rec = q.recommended != null ? q.options?.[q.recommended]?.label : undefined;
     let said: string, answer: string, override: Recalled['override'];
-    if (a.other) { said = `wrote: "${clip(a.other)}"`; answer = norm(a.other); override = { chose: `their own answer, "${clip(a.other, 100)}"`, over: rec }; }
+    if (a.other) { said = `wrote: "${clip(a.other)}"${a.images?.length ? ' (with a screenshot)' : ''}`; answer = norm(a.other); override = { chose: `their own answer, "${clip(a.other, 100)}"`, over: rec }; }
+    else if (a.images?.length) { said = 'answered with a screenshot'; answer = `screenshot ${a.images.join(' ')}`; override = { chose: 'their own answer, a screenshot', over: rec }; }
     else if (a.choice != null && q.options?.[a.choice]) {
       const label = q.options[a.choice].label;
       answer = norm(label);

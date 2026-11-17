@@ -169,6 +169,19 @@
   width: 100%; min-height: 24px; padding: 0; border: 0; background: transparent;
   font-family: var(--sans); font-size: var(--text-title); font-weight: 500; line-height: 1.4; color: var(--ink); resize: none; field-sizing: content;
 }
+/* Screenshots pasted or dropped into your own answer, small under what you wrote: a click shows one large. */
+.own-body { display: grid; gap: var(--space-10); min-width: 0; }
+.own-pics { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.own-pic { position: relative; display: block; width: 96px; height: 64px; border: 1px solid var(--border-soft); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.own-pic img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+.opt.own.kept .own-pic img { opacity: 0.6; }
+.own-pic-x {
+  position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 18px; height: 18px; padding: 0;
+  border: 0; border-radius: var(--radius-full); background: var(--ink); color: var(--paper); opacity: 0; cursor: pointer;
+}
+.own-pic:hover .own-pic-x, .own-pic-x:focus-visible { opacity: 0.85; }
+.own-pic.adding { animation: own-adding 1s var(--ease-out) infinite alternate; }
+@keyframes own-adding { from { opacity: 0.4; } }
 
 .iv-steps { display: flex; align-items: center; gap: var(--space-2); flex: none; }
 .iv-step { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--faint); cursor: pointer; }

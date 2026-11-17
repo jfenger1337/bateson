@@ -8,7 +8,7 @@ Hold `⌘` in the app to see the keys for the screen you are on. On Windows it i
 
 | Where | Keys |
 |---|---|
-| Interview | `A`–`I` choose an option, `W` write your own, `J`/`K` or `←`/`→` move between questions, `⏎` next (on the last question it sends), `⇧⏎` send now: only the answers you gave so far, and the interview goes on. |
+| Interview | `A`–`I` choose an option, `W` write your own (`⌘V` or a drop puts a screenshot in it), `J`/`K` or `←`/`→` move between questions, `⏎` next (on the last question it sends), `⇧⏎` send now: only the answers you gave so far, and the interview goes on. |
 | Findings | `K` keep, `X` dismiss (type a reason if you like), `C` comment, `←`/`→` move, `⏎` next, `⌘⏎` send, `L` later, `⇧D` drop. |
 | Review | On code, select lines then `C` to comment. Click the title to comment on the whole piece. `A` approve, `S` send back, `L` later, `⇧D` drop. |
 | Anywhere | `⌘Z` undoes a decision for a few seconds. `⌘,` opens settings. |

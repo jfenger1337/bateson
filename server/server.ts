@@ -48,6 +48,9 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     await next();
   });
 
+  // The types bateson serves files as; anything else is plain text.
+  const TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', pdf: 'application/pdf', mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', wav: 'audio/wav', mp3: 'audio/mpeg', m4a: 'audio/mp4', aif: 'audio/aiff', aiff: 'audio/aiff' };
+
   const json = async (c: Context): Promise<unknown> => { try { return await c.req.json(); } catch { return null; } };
 
   // pages: how many bateson pages are open now (each holds /api/events), so a send knows whether to open one.
@@ -102,9 +105,27 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     catch (e) { return c.json({ error: (e as Error).message }, 409); }
   });
 
+  // A screenshot pasted or dropped into your own answer, saved as it arrives so the answer only names it. JSON like
+  // everything else that changes the queue: { n, type, data } with the picture in base64.
+  app.post('/api/items/:id/pasted', async (c) => {
+    const { n, type, data } = ((await json(c)) || {}) as { n?: unknown; type?: unknown; data?: unknown };
+    if (typeof type !== 'string' || typeof data !== 'string') return c.json({ error: 'Bad request' }, 400);
+    try { return c.json({ name: store.savePasted(c.req.param('id'), typeof n === 'number' ? n : NaN, type, Buffer.from(data, 'base64')) }); }
+    catch (e) { return c.json({ error: (e as Error).message }, 409); }
+  });
+  app.get('/api/items/:id/pasted/:n/:name', (c) => {
+    const item = store.getItem(c.req.param('id'));
+    const name = c.req.param('name');
+    const file = item && store.pastedPath(item, Number(c.req.param('n')), name);
+    if (!file) return c.notFound();
+    return c.body(fs.readFileSync(file), 200, {
+      'content-type': TYPES[name.split('.').pop()!], 'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; sandbox",
+    });
+  });
+
   app.post('/api/items/:id/later', (c) => { store.later(c.req.param('id')); return c.json({ ok: true }); });
 
-  const TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', pdf: 'application/pdf', mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', wav: 'audio/wav', mp3: 'audio/mpeg', m4a: 'audio/mp4', aif: 'audio/aiff', aiff: 'audio/aiff' };
   app.get('/api/items/:id/files/:n/:name', (c) => {
     const item = store.getItem(c.req.param('id'));
     const name = c.req.param('name');
