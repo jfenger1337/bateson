@@ -11,6 +11,11 @@ import type { ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// --home and --port: the BATESON_HOME and BATESON_PORT the install was made with, which a login has not set. They
+// are set here, so the server under this (and anything it starts) uses the same queue and port.
+const arg = (name: string) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
+if (arg('--home')) process.env.BATESON_HOME = arg('--home');
+if (arg('--port')) process.env.BATESON_PORT = arg('--port');
 const ROOT = process.env.BATESON_HOME || path.join(os.homedir(), '.bateson');
 const PID = path.join(ROOT, 'server.pid');
 const STOP = path.join(ROOT, 'server.stop');
