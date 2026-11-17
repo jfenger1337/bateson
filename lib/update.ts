@@ -141,7 +141,8 @@ export function openUpdater({
       try {
         if (deps) { step('Installing what it needs'); await run('npm', ['ci', '--no-audit', '--no-fund']); }
         step('Building'); await run('npm', ['run', 'build']);
-        step('Setting it up'); await run(process.execPath, [path.join(repo, 'scripts', 'install.ts')]);
+        // --updating: the installer leaves the server to quit by itself (below); restarting it from here would stop this.
+        step('Setting it up'); await run(process.execPath, [path.join(repo, 'scripts', 'install.ts'), '--updating']);
       } catch (e) {
         step('Going back to the version you had');
         try {

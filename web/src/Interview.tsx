@@ -254,8 +254,18 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       fired = false;
       if (qRef.current) { qRef.current.style.transition = ''; qRef.current.style.transform = ''; }
     };
+    // A sideways scroll over something that scrolls sideways itself (a long line of code, an answer being typed)
+    // is that thing's, not a turn to the next question.
+    const scrollsSideways = (t: EventTarget | null) => {
+      for (let el = t instanceof Element ? t : null; el && el !== document.body; el = el.parentElement) {
+        if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) return true;
+        const o = getComputedStyle(el).overflowX;
+        if ((o === 'auto' || o === 'scroll') && el.scrollWidth > el.clientWidth) return true;
+      }
+      return false;
+    };
     const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || scrollsSideways(e.target)) return;
       e.preventDefault();
       clearTimeout(idle);
       idle = window.setTimeout(settle, 180);
@@ -617,7 +627,14 @@ function Shown({ show: s, base, onZoom, sound, onSound }: { show: Show; base: st
   if ('markdown' in s) return <Markdown className="prose shown-copy" text={s.markdown} />;
   if ('text' in s) return <div className="prose plain shown-copy">{s.text}</div>;
   if ('html' in s) return <Example html={s.html} />;
-  if ('url' in s) return <iframe className="shown-live" src={s.url} title="Live preview" sandbox="allow-scripts allow-same-origin allow-forms" />;
+  if ('url' in s) {
+    // Another page on this machine keeps its own origin in the frame. bateson's own origin never does: with scripts
+    // and its origin together, a page there could reach out of the frame into bateson.
+    let own = true;
+    // (127.0.0.1 and [::1] on bateson's port are bateson too, by another name.)
+    try { const u = new URL(s.url); own = !/^https?:$/.test(u.protocol) || u.origin === location.origin || (u.port || '80') === (location.port || '80'); } catch { /* not a URL: treated as ours */ }
+    return <iframe className="shown-live" src={s.url} title="Live preview" sandbox={own ? 'allow-scripts allow-forms' : 'allow-scripts allow-same-origin allow-forms'} />;
+  }
   if ('audio' in s) return null; // heard on its option or the question, never in the panel
   return <Lines show={s} />;
 }

@@ -76,25 +76,40 @@ interface Args {
   [flag: string]: unknown;
 }
 
+/** Every flag the commands read; anything else is a typo, said at once rather than quietly ignored. */
+const FLAGS = new Set([...VALUE_FLAGS, 'attach', 'done', 'not', 'stdin', 'none', 'show', 'diff', 'set', 'help']);
+
 function parseArgs(argv: string[]) {
   const out: Args = { _: [], attach: [], replies: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith('--')) { out._.push(a); continue; }
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    const takesValue = next !== undefined && !next.startsWith('--');
+    // --key=value is the same as --key value.
+    const eq = a.indexOf('=');
+    const key = eq > 0 ? a.slice(2, eq) : a.slice(2);
+    if (!FLAGS.has(key)) die(`there is no --${key}. Run bateson with no arguments for what it takes.`);
+    const inline = eq > 0 ? a.slice(eq + 1) : undefined;
+    const next = inline ?? argv[i + 1];
+    const takesValue = next !== undefined && (inline !== undefined || !next.startsWith('--'));
+    const took = () => { if (inline === undefined) i++; };
     if (VALUE_FLAGS.has(key)) {
       if (next === undefined) die(`--${key} needs a value.`);
-      out[key] = next; i++; continue;
+      out[key] = next; took(); continue;
     }
-    if (key === 'attach') { out.attach.push(next); i++; continue; }
-    if (key === 'done' || key === 'not') { out.replies.push({ addressed: key === 'done', raw: next }); i++; continue; }
-    if (['stdin', 'none', 'show'].includes(key)) { out[key] = true; continue; }
-    if (key === 'diff') { out.diff = takesValue ? next : 'HEAD'; if (takesValue) i++; continue; }
-    if ((key === 'questions' || key === 'findings') && next === '-') { out[key] = '-'; i++; continue; }
+    // These always take a value: the next flag is never mistaken for one (--attach --title T).
+    if (key === 'attach' || key === 'done' || key === 'not') {
+      if (!takesValue) die(`--${key} needs a value.`);
+      if (key === 'attach') out.attach.push(next); else out.replies.push({ addressed: key === 'done', raw: next });
+      took(); continue;
+    }
+    if (['stdin', 'none', 'show', 'help'].includes(key)) {
+      if (inline !== undefined) die(`--${key} takes no value.`);
+      out[key] = true; continue;
+    }
+    if (key === 'diff') { out.diff = takesValue ? next : 'HEAD'; if (takesValue) took(); continue; }
+    if ((key === 'questions' || key === 'findings') && next === '-') { out[key] = '-'; took(); continue; }
     out[key] = takesValue ? next : true;
-    if (takesValue) i++;
+    if (takesValue) took();
   }
   return out;
 }
@@ -126,10 +141,11 @@ function diffBody(base: string) {
   // Untracked files are part of the change too, anywhere in the repository: git diff covers all of it, but
   // ls-files only lists the folder it runs in, so both run from the top.
   const top = git(['rev-parse', '--show-toplevel']) ?? undefined;
-  const untracked = (git(['ls-files', '--others', '--exclude-standard'], top) || '').split('\n').filter(Boolean);
+  // -z: names as they are, not C-quoted ("caf\303\251.md"), which no command would find.
+  const untracked = (git(['ls-files', '-z', '--others', '--exclude-standard'], top) || '').split('\0').filter(Boolean);
   for (const f of untracked) {
     try {
-      execFileSync('git', ['diff', '--no-color', '--no-index', '/dev/null', f], { cwd: top, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
+      execFileSync('git', ['diff', '--no-color', '--no-index', '--', '/dev/null', f], { cwd: top, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
     } catch (e) { const out = (e as { stdout?: string }).stdout; if (out) diff += (diff ? '\n' : '') + out.trim(); }
   }
   if (!diff.trim()) die('the diff is empty: nothing changed against ' + base + '.');
@@ -233,6 +249,10 @@ async function cmdSend(o: Args) {
     body = readStdin();
   }
   const attach = o.attach.map((f) => (f && fs.statSync(f, { throwIfNoEntry: false })?.isFile() ? f : die(`no attachment ${f}: give a file, not a folder`)));
+  // Attachments are stored by name: a second file of the same name would replace the first without a word.
+  const names = attach.map((f) => path.basename(f));
+  const twice = names.find((n, i) => names.indexOf(n) !== i);
+  if (twice) die(`two attachments are named ${twice}: rename one, or copy it under another name.`);
   const kind = bodyType === 'questions' ? 'decision' : 'review';
   if (o.item) {
     const it = findOrDie(o.item);

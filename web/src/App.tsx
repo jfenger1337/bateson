@@ -19,7 +19,7 @@ import { AppMenu } from './Menu';
 
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
 // the decision instead of letting it land on text you never read.
-interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; undo?: () => void }
+interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; sent?: boolean; undo?: () => void }
 
 export function App() {
   const [state, setState] = useState<State | null>(null);
@@ -147,20 +147,34 @@ export function App() {
   }, [commit]);
 
   const later = useCallback(async (item: Item) => {
-    await fetch(`/api/items/${item.id}/later`, { method: 'POST', headers: { 'content-type': 'application/json' } });
+    try {
+      const res = await fetch(`/api/items/${item.id}/later`, { method: 'POST', headers: { 'content-type': 'application/json' } });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      toast('Later did not go through: bateson’s server did not take it. Try again in a moment.');
+      return;
+    }
     if (shownRef.current === item.id) shownRef.current = undefined;
     load();
   }, [load]);
 
-  // Commit anything held if the page closes, so nothing is lost.
+  // Commit anything held if the page closes, so nothing is lost. Each is then done: its timer stops, so a page
+  // brought back from the browser's cache does not send it a second time, and it is let go when that happens.
   useEffect(() => {
     const flush = () => {
       for (const h of heldRef.current) {
+        if (h.done) continue; // on its way already
+        h.done = true;
+        h.sent = true;
+        clearTimeout(h.timer);
         navigator.sendBeacon(`/api/items/${h.id}/decide`, new Blob([JSON.stringify({ n: h.n, at: h.at, ...h.decision })], { type: 'application/json' }));
+        forgetKept(h.id);
       }
     };
+    const back = (e: PageTransitionEvent) => { if (e.persisted) setHeld((hs) => hs.filter((h) => !h.sent)); };
     window.addEventListener('pagehide', flush);
-    return () => window.removeEventListener('pagehide', flush);
+    window.addEventListener('pageshow', back);
+    return () => { window.removeEventListener('pagehide', flush); window.removeEventListener('pageshow', back); };
   }, []);
 
   // The selection is drawn as a highlight on the text itself. WebKit's own selection paints whole blocks,
