@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
-import { isTyping } from './App';
+import { isTyping, Reach } from './App';
 import { ArrowRight, Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { keptKey, useKept, useKeptRef } from './lib/kept';
@@ -20,7 +20,7 @@ const ADVANCE_MS = 260;
 // How long the pointer rests on an option before its sound plays: crossing the list on the way somewhere stays silent.
 const REST_MS = 150;
 
-export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Item; steps: HTMLElement | null; panel: boolean; onDecide: (i: Item, d: Decision) => void; onFirst: (first: boolean) => void }) {
+export function Interview({ item, steps, panel, onDecide }: { item: Item; steps: HTMLElement | null; panel: boolean; onDecide: (i: Item, d: Decision) => void }) {
   const round = item.version.body as Round;
   const qs = round.questions ?? [];
   // The rounds you already answered in this interview, for the dots.
@@ -36,7 +36,6 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
   const [passed, setPassed] = useKept<string[]>(`${kk}:passed`, () => []);
   // Kept from before the answers screen went, a place past the last question means the last one.
   const at = Math.min(kept, Math.max(0, qs.length - 1));
-  useEffect(() => { onFirst(at === 0); }, [at, onFirst]);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
   // The option under the pointer or the focus: the preview shows what it would look like.
   const [peek, setPeek] = useState<string | null>(null);
@@ -323,23 +322,23 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       <div className="iv-main">
         {(qs.length > 1 || past.length > 0) && steps && createPortal(
           <nav className="iv-steps" aria-label="Questions">
-            {/* Earlier rounds first, a little apart, so you see where one round ended and this one began. */}
-            {past.map((r) => (
-              <span key={r.n} className="iv-round">
-                {r.questions.map((x) => {
-                  const answer = pastAnswer(x, r.answers.find((a) => a.id === x.id));
-                  return (
-                    <span key={x.id} className="iv-step past" aria-label={`${x.title} ${answer}`}>
-                      <Ring kind="dot" size={10} />
-                      <span className="iv-step-tip" aria-hidden>
+            {/* The earlier rounds, all in one dot a little apart from this round's: pointing at it lists what you
+                answered, the latest round first. */}
+            {past.length > 0 && (
+              <span className="iv-round">
+                <span className="iv-step past earlier" aria-label={`${past.reduce((n, r) => n + r.questions.length, 0)} answers from earlier rounds`}>
+                  <Ring kind="dot" size={10} />
+                  <span className="iv-step-tip" aria-hidden>
+                    {[...past].reverse().flatMap((r) => r.questions.map((x) => (
+                      <span key={`${r.n}:${x.id}`} className="iv-step-pair">
                         <span className="iv-step-q">{x.title}</span>
-                        <span className="iv-step-a">{answer}</span>
+                        <span className="iv-step-a">{pastAnswer(x, r.answers.find((a) => a.id === x.id))}</span>
                       </span>
-                    </span>
-                  );
-                })}
+                    )))}
+                  </span>
+                </span>
               </span>
-            ))}
+            )}
             <span className="iv-round">
             {qs.map((x, i) => {
               const answer = shownAnswer(x, drafts[x.id]);
@@ -492,6 +491,7 @@ export function Interview({ item, steps, panel, onDecide, onFirst }: { item: Ite
       <footer className="decide">
         <div className="decide-in">
           <p className="decide-sentence">
+            <Reach item={item} />
             {adding ? 'Adding your screenshot…' : !answered(q.id) ? 'Pick one, or write your own, to go on.' : ''}
           </p>
           <div className="decide-actions">

@@ -4,7 +4,7 @@ import { keptKey, useKept } from './lib/kept';
 import type { Decision, Finding, Item, Mark } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
-import { isTyping } from './App';
+import { isTyping, Reach } from './App';
 
 // Findings one at a time, like an interview. K keeps, X dismisses (with an optional reason), C comments. A finding
 // you pass without marking counts as kept: its ring stays dashed until you touch it.
@@ -219,6 +219,7 @@ export function Findings({ item, steps, onDecide, onLater }: { item: Item; steps
       <footer className="decide">
         <div className="decide-in">
           <p className="decide-sentence">
+            <Reach item={item} />
             {list.length - kept ? `${kept} kept, ${list.length - kept} dismissed.` : `All ${list.length} kept so far.`} Unmarked findings count as kept.
           </p>
           <div className="decide-actions">

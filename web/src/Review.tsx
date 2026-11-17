@@ -5,7 +5,7 @@ import type { Anchor, Comment, Decision, Item } from '@lib/types';
 import { locate, newLines, proseChanges } from './changes';
 import { Markdown, markdownHtml } from './Markdown';
 import { Diff } from './Diff';
-import { isTyping } from './App';
+import { isTyping, Reach } from './App';
 import { MOD } from './lib/keys';
 
 // Comment on the work. Select any passage and comment on it; on code the comment also records the file and line.
@@ -435,6 +435,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       <footer className="decide">
         <div className="decide-in">
           <p className="decide-sentence">
+            <Reach item={item} />
             {comments.length
               ? `${comments.length} comment${comments.length === 1 ? '' : 's'}. Sending back gives the agent exactly these.`
               : onCode
