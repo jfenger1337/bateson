@@ -1,5 +1,6 @@
-// Who gets a response: the session that asked while it is open, another session in its repository only once
-// it has ended, nobody in another repository, and never twice.
+// Who gets a response: the session that asked; `bateson inbox` in its repository (a Who with a cwd) only once
+// that session has ended; nobody in another repository; and never twice. The hooks ask only for their own
+// session (test/hooks.test.ts).
 import { REPO, OTHER, sessionOpen, sessionClosed, reset } from './setup.ts';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +44,7 @@ test('the session that asked gets its answer on its next prompt, once', () => {
   assert.deepEqual(collect({ sessionId: 'A' }, 'test'), []);
 });
 
-test('once the session that asked has ended, the next session in the repo gets it', () => {
+test('once the session that asked has ended, bateson inbox in the repo may take it', () => {
   sessionOpen(A_PID, 'A');
   sessionOpen(B_PID, 'B');
   answered('A');
@@ -52,7 +53,7 @@ test('once the session that asked has ended, the next session in the repo gets i
   assert.deepEqual(collect({ sessionId: 'A' }, 'test'), [], 'and nobody gets it twice');
 });
 
-test('a /clear counts as the session ending: its process is on another session now', () => {
+test('for bateson inbox, a /clear counts as the session ending: its process is on another session now', () => {
   sessionOpen(A_PID, 'A');
   answered('A');
   sessionOpen(A_PID, 'A-after-clear');
@@ -64,7 +65,7 @@ test('a session in another repository never gets it', () => {
   assert.deepEqual(collect({ sessionId: 'B', cwd: OTHER }, 'test'), []);
 });
 
-test('an item no session claimed goes to the next session in its repo', () => {
+test('an item no session claimed goes to bateson inbox in its repo', () => {
   sessionOpen(B_PID, 'B');
   answered(null);
   assert.equal(collect({ sessionId: 'B', cwd: REPO }, 'test').length, 1);
@@ -85,14 +86,14 @@ test('the app is told where an undecided answer will go', () => {
   sessionOpen(A_PID, 'A');
   const res = store.send({ kind: 'review', bodyType: 'markdown', title: 't', note: 'n', body: 'b', source: { cwd: REPO, top: checkoutOf(REPO)!, repo: 'repo' } });
   const item = store.getItem(res.id)!;
-  assert.equal(reachOf(item), 'next-session', 'nobody claimed it');
+  assert.equal(reachOf(item), 'ended', 'nobody claimed it');
   own(item, { sessionId: 'A' });
   assert.equal(reachOf(item), 'its-session');
   store.writeWaiter(item, { pid: process.pid, sessionId: 'A', n: 1 });
   assert.equal(reachOf(item), 'waiting');
   sessionClosed(A_PID);
   store.clearWaiter(item);
-  assert.equal(reachOf(item), 'next-session');
+  assert.equal(reachOf(item), 'ended');
 });
 
 /** A wake-up delivered the answer to session `to` two minutes ago, with this transcript. */
@@ -127,7 +128,7 @@ test('a wake-up that never reached its conversation is handed over again, once, 
   assert.deepEqual(collect({ sessionId: 'A' }, 'test'), [], 'only once');
 });
 
-test('a lost wake-up whose session has ended goes to the next session in the repo', () => {
+test('a lost wake-up whose session has ended goes to bateson inbox in the repo', () => {
   sessionOpen(B_PID, 'B');
   const item = answered('A');
   wokeUp(item, 'A', path.join(REPO, '..', 'gone.jsonl'));

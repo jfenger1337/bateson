@@ -75,10 +75,10 @@ export interface Item {
   waiting: boolean;
   /**
    * Where your decision goes: 'waiting', an agent is waiting and wakes with it; 'its-session', the session that
-   * asked is open but stopped waiting, and gets it when you next write there; 'next-session', that session has
-   * ended, and the next one started in its repository gets it.
+   * asked is open but stopped waiting, and gets it when you next write there; 'ended', that session has
+   * ended, and gets it only if it is resumed (or an agent in its repository runs `bateson inbox`).
    */
-  reach: 'waiting' | 'its-session' | 'next-session';
+  reach: 'waiting' | 'its-session' | 'ended';
 }
 
 export interface QueueRow { id: string; n: number; title: string; kind: KindName; repo?: string; waiting: boolean }

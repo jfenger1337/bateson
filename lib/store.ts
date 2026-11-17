@@ -450,7 +450,7 @@ export function openStore(
 
   /**
    * Whether the session that sent an item has ended, by Claude Code's list of running sessions. An item no
-   * session claimed, or a machine without that list, counts as ended: its decision may go to the next session.
+   * session claimed, or a machine without that list, counts as ended: `bateson inbox` in its checkout may take its decision.
    */
   function ownerGone(item: StoredItem, live = liveSessions()) {
     const id = readSession(item)?.sessionId;

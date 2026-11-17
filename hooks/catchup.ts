@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// UserPromptSubmit and SessionStart. Hand the session any decision that no agent has received yet:
-// on a prompt, decisions on items this session sent; at session start, those and decisions for this repo whose
-// own session has ended (lib/delivery.ts decides who may take what).
+// UserPromptSubmit and SessionStart. Hand the session any decision on what it sent that it has not received yet
+// (on a prompt, or when it is resumed or compacted). Never one another session sent, even once that one has
+// ended: it belongs to that conversation, and lands in an unrelated one if handed on. Resuming the session that
+// asked gets it there; `bateson inbox` takes it on purpose.
 import store, { reviewer, Reviewer } from '../lib/store.ts';
 import path from 'node:path';
 import { collect, checkoutOf } from '../lib/delivery.ts';
@@ -23,11 +24,9 @@ guard(async () => {
   // Where the working tree stands as the turn begins, for the Stop check.
   if (config.stopCheck) saveSnapshot(hook.session_id, snapshot(hook.cwd));
   if (event === 'SessionStart') sweepSnapshots();
-  // On a prompt: decisions on what this session sent. At session start (a new session, a resume, a /clear or a
-  // compaction): those, and decisions from this repository whose own session has ended. Never one whose session
-  // is still open: that one gets it itself.
-  const who: Who = prompt ? { sessionId: hook.session_id } : { sessionId: hook.session_id, cwd: hook.cwd };
-  const msgs = who.sessionId || who.cwd ? collect(who, `${event}:${hook.session_id}`) : [];
+  // Decisions on what this session sent, and nothing else: no cwd, so nothing from other sessions in the repo.
+  const who: Who = { sessionId: hook.session_id };
+  const msgs = who.sessionId ? collect(who, `${event}:${hook.session_id}`) : [];
   const parts = event === 'SessionStart' ? [howTheyWork(config.bring, config.preview), lately(hook.cwd)].filter(Boolean) : [];
   if (prompt && heard) { const line = whatChanged(heard, config.bring); if (line) parts.push(line); }
   // "ama" anywhere in a message is the user asking to be interviewed; /ama loads the skill by itself.
@@ -36,7 +35,7 @@ guard(async () => {
   if (prompt && AMA.test(said) && !/^\s*\/ama\b/i.test(said) && !/\bbateson: /.test(said)) parts.push(AMA_ASK);
   if (msgs.length) {
     const lead = event === 'SessionStart'
-      ? 'Responses from bateson that had not reached their session yet: sent from this session, or from one in this repo that has since ended. Act on them if they belong to work you are continuing; otherwise mention them to the user in one line.'
+      ? 'Responses from bateson to what this session sent, that had not reached it yet:'
       : 'While you were waiting, responses arrived from bateson:';
     parts.push(`${lead}\n\n${msgs.join('\n\n')}`);
   }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // PostToolUse (Bash), asyncRewake. After `bateson send` (or `draft`, or `rearm`), wait in the background for
 // the decision, then wake the session with it (exit 2: the output reaches the model). If this hook gives up,
-// catchup.ts delivers later, to this session, or to the next one in the repository once this one has ended.
+// catchup.ts delivers later, to this session only: on its next prompt, or when it is resumed.
 //
 // Claude Code stops the hook after REWAKE_TIMEOUT_S. Shortly before that, it wakes the session to run
 // `bateson rearm <id>`, which starts this hook again for another stretch: a wait outlasts the timeout without

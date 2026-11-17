@@ -140,37 +140,54 @@ function check<T>(validate: () => T): T {
   try { return validate(); } catch (e) { die((e as Error).message); }
 }
 
-/** Whether the server answers, and how many bateson pages are open (0 when an older server does not say). */
-async function appStatus(): Promise<{ running: boolean; pages: number }> {
+/**
+ * Whether the server answers, and how many bateson pages are open: null when it does not say, which a server
+ * started before this version does not. A page may well be open then, so nothing is opened.
+ */
+async function appStatus(): Promise<{ running: boolean; pages: number | null }> {
   try {
-    const res = await fetch(`http://localhost:${PORT}/api/health`, { signal: AbortSignal.timeout(400) });
-    if (!res.ok) return { running: false, pages: 0 };
+    // 127.0.0.1, where the server listens: on Windows "localhost" tries ::1 first, and a refused connection
+    // there takes long enough to miss the timeout.
+    const res = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(1000) });
+    if (!res.ok) return { running: false, pages: null };
     const body = await res.json().catch(() => ({})) as { pages?: unknown };
-    return { running: true, pages: typeof body.pages === 'number' ? body.pages : 0 };
-  } catch { return { running: false, pages: 0 }; }
+    return { running: true, pages: typeof body.pages === 'number' ? body.pages : null };
+  } catch { return { running: false, pages: null }; }
 }
 
 /**
  * Windows has no bateson app for now, so nothing there tells the reviewer a question is waiting. On Windows, and
- * in WSL, a send opens the page in their default browser instead, through explorer.exe. BATESON_NO_OPEN turns it off,
- * and BATESON_OPEN_WITH names another program to open it with (for trying it off Windows).
+ * in WSL, a send opens the page itself: in a window of its own (Chrome's or Edge's --app, no tabs or address bar),
+ * else in the default browser through explorer.exe. BATESON_NO_OPEN turns it off, and BATESON_OPEN_WITH names
+ * another program to open the address with (for trying it off Windows).
  */
-function windowsExplorer(): string | null {
+function pageOpener(url: string): { exe: string; args: string[] } | null {
   if (process.env.BATESON_NO_OPEN) return null;
-  if (process.env.BATESON_OPEN_WITH) return process.env.BATESON_OPEN_WITH;
-  if (process.platform === 'win32') return path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
-  if (process.platform === 'linux' && (process.env.WSL_DISTRO_NAME || /microsoft/i.test(os.release()))) {
-    const exe = '/mnt/c/Windows/explorer.exe';
-    return fs.existsSync(exe) ? exe : null;
+  if (process.env.BATESON_OPEN_WITH) return { exe: process.env.BATESON_OPEN_WITH, args: [url] };
+  let roots: string[], windir: string;
+  if (process.platform === 'win32') {
+    roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA].filter((r): r is string => !!r);
+    windir = process.env.SystemRoot || 'C:\\Windows';
+  } else if (process.platform === 'linux' && (process.env.WSL_DISTRO_NAME || /microsoft/i.test(os.release()))) {
+    roots = ['/mnt/c/Program Files', '/mnt/c/Program Files (x86)'];
+    windir = '/mnt/c/Windows';
+  } else return null;
+  // Chrome first, where it is installed (it is likely theirs), then Edge, which every Windows machine has.
+  for (const browser of [['Google', 'Chrome', 'Application', 'chrome.exe'], ['Microsoft', 'Edge', 'Application', 'msedge.exe']]) {
+    for (const root of roots) {
+      const exe = path.join(root, ...browser);
+      if (fs.existsSync(exe)) return { exe, args: [`--app=${url}`] };
+    }
   }
-  return null;
+  const explorer = path.join(windir, 'explorer.exe');
+  return fs.existsSync(explorer) ? { exe: explorer, args: [url] } : null;
 }
 
 function openPage(): boolean {
-  const exe = windowsExplorer();
-  if (!exe) return false;
+  const how = pageOpener(`http://localhost:${PORT}/`);
+  if (!how) return false;
   try {
-    const child = spawn(exe, [`http://localhost:${PORT}/`], { detached: true, stdio: 'ignore', windowsHide: true });
+    const child = spawn(how.exe, how.args, { detached: true, stdio: 'ignore', windowsHide: true });
     child.on('error', () => {});
     child.unref();
     return true;
@@ -230,7 +247,8 @@ async function cmdSend(o: Args) {
   const { running, pages } = await appStatus();
   // The rewake hook reads the first line, so keep its shape.
   console.log(`queued ${res.id} v${res.n}${res.replaced ? ' (replaced the unread version)' : ''}`);
-  if (running && pages === 0 && openPage()) console.log(`(Opened bateson in ${reviewer()}'s browser.)`);
+  if (running && pages === 0 && openPage()) console.log(`(Opened the bateson window for ${reviewer()}.)`);
+  if (running && pages === null && pageOpener('')) console.log(`(The bateson server is older than this command. Tell ${reviewer()} to run the installer again, which restarts it.)`);
   if (!running) console.log(`(The bateson app is not running. It is waiting in ~/.bateson; ${reviewer()} can start the app with \`bateson serve\`.)`);
   // What the agent does next depends on whether anything can wake it, which it cannot know and this can check.
   // The bateson skill tells agents to do what the last line says, so this stays last.
@@ -309,7 +327,7 @@ async function cmdWait(o: Args) {
   if (res.kind === 'decision') console.log(res.message);
   else if (res.kind === 'elsewhere') console.log(`bateson: the response on ${id} already reached a session. \`bateson status ${id}\` shows it.`);
   else if (Date.now() - sentAt < WAIT_FOR) console.log(`bateson: still waiting on ${id}. Run \`bateson wait ${id}\` again.`);
-  else console.log(`bateson: still waiting on ${id} after ten minutes. Stop waiting: end your turn, and tell ${reviewer()} their response will be picked up when they next write. ${agent() === 'claude-code' ? 'It reaches the next session in this repo by itself.' : 'When they do, run `bateson inbox` before anything else.'}`);
+  else console.log(`bateson: still waiting on ${id} after ten minutes. Stop waiting: end your turn, and tell ${reviewer()} their response will be picked up when they next write. ${agent() === 'claude-code' ? 'It reaches this session by itself when they do.' : 'When they do, run `bateson inbox` before anything else.'}`);
 }
 
 // The rewake hook wakes the session shortly before Claude Code would stop it, and asks for this: the hook
@@ -319,7 +337,7 @@ function cmdRearm(o: Args) {
   const v = store.currentVersion(item);
   if (store.readDecision(item, v.n)) {
     // Answered in the meantime: hand it over here rather than wait for it, if it is this session's to take.
-    const mine = pendingFor({ sessionId: currentSession(), cwd: process.cwd() }).some((it) => it.id === item.id);
+    const mine = pendingFor({ sessionId: currentSession() }).some((it) => it.id === item.id);
     const msg = mine ? claim(item.id, v.n, 'rearm') : null;
     console.log(msg ?? `bateson: the response on ${item.id} is not this session's to take, or already reached a session. End your turn.`);
     return;
@@ -333,7 +351,8 @@ function cmdRearm(o: Args) {
 
 function cmdInbox() {
   // This session's own responses, and those from sessions in this repo that have ended: never one whose
-  // session is still open, which would take it from the conversation that asked.
+  // session is still open, which would take it from the conversation that asked. The hooks never hand on another
+  // session's response; this does, because an agent runs it on purpose.
   const msgs = collect({ sessionId: currentSession(), cwd: process.cwd() }, 'inbox');
   console.log(msgs.length ? msgs.join('\n\n') : 'bateson: no responses for this session, or from this repo\'s ended sessions.');
 }

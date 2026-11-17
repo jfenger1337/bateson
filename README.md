@@ -42,11 +42,11 @@ you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json
 
 ## get started
 
-1. open http://localhost:4848. on a mac you can build the app for notifications, a count and a hotkey: `./mac/build.sh --install`. on windows bateson is that page in your browser, and an agent that asks you something opens it if it isn't open already; the windows app is retired for now.
+1. open http://localhost:4848. on a mac you can build the app for notifications, a count and a hotkey: `./mac/build.sh --install`. on windows bateson is that page, in a window of its own: an agent that asks you something opens it if it isn't open already, and edge or chrome can install it as an app (taskbar icon, no address bar). the windows app is retired for now.
 2. in a new claude code session, run [`/setup-bateson`](./skill/setup-bateson/SKILL.md) to choose what agents bring you.
 3. work as usual. agents send on their own when they hit a call that's yours. you can also ask, e.g. `/ama i want to add team accounts. ask me anything before you build.`
 
-if you closed the terminal that asked, the next session in the same repository gets the answer.
+an answer only ever goes to the session that asked. if you closed it, resume it (`claude --resume`) and it gets the answer there, or run `bateson inbox` in another session in the same repository to hand it over on purpose.
 
 ## what can come to you
 
@@ -90,6 +90,6 @@ removes everything the installer added and restores `~/.claude/settings.json`. y
 
 MIT, see [LICENSE](LICENSE). fonts in `web/public/fonts/` are under the SIL open font license 1.1.
 
-asking in rounds grew out of matt pocock's `grilling` skill, and the way `/ama` frames and sorts its questions comes from poteto's pstack. thank you both.
+`/ama` is matt pocock's `grilling` skill with its rounds sent to bateson, and the question that opens it, checking the agent read your goal right, comes from poteto's pstack. thank you both.
 
 named after gregory bateson, who saw a mind as a loop that includes the things it works on.

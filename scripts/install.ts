@@ -180,7 +180,10 @@ if (!uninstall) {
 
 // ---- the server at login
 if (WIN) {
-  if (login || uninstall) {
+  // An update restarts a server an earlier --login set up, with or without --login this time: `bateson` runs
+  // from this folder at once, and a server left on the old code disagrees with it.
+  const running = fs.existsSync(path.join(process.env.BATESON_HOME || path.join(HOME, '.bateson'), 'server.pid'));
+  if (login || uninstall || installed?.loginItem || running) {
     stopWindowsServer();
     if (uninstall) {
       try { execFileSync('reg', ['delete', RUN_KEY, '/v', RUN_VALUE, '/f'], { stdio: 'ignore' }); log('removed the login item'); } catch { /* there was none */ }

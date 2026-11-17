@@ -2,9 +2,9 @@
 // catch-up hook and `bateson inbox` hand over what nobody received, and `bateson wait` blocks on it. All of them
 // go through claim(), so a decision is told once however many of them race.
 //
-// Who may take a decision: the session that sent the item, always. Another session in the same checkout only
-// once that session has ended (by Claude Code's own list of running sessions), so an answer never lands in an
-// unrelated conversation while the one that asked is still open.
+// Who may take a decision: the session that sent the item, always. The hooks ask only for that. `bateson inbox`
+// also asks for its checkout, and may then take one whose session has ended (by Claude Code's own list of
+// running sessions); never one whose session is still open.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -191,10 +191,10 @@ export function collect(who: Who, by: string) {
 
 /**
  * Where an undecided item's decision will go, for the app: a hook is waiting for it ('waiting'), the session
- * that sent it is still open and gets it on its next prompt ('its-session'), or that session has ended and the
- * next session started in its checkout gets it ('next-session').
+ * that sent it is still open and gets it on its next prompt ('its-session'), or that session has ended and gets
+ * it if resumed, or `bateson inbox` in its checkout takes it ('ended').
  */
-export function reachOf(item: StoredItem, live = store.liveSessions()): 'waiting' | 'its-session' | 'next-session' {
+export function reachOf(item: StoredItem, live = store.liveSessions()): 'waiting' | 'its-session' | 'ended' {
   if (store.waiter(item)) return 'waiting';
-  return store.ownerGone(item, live) ? 'next-session' : 'its-session';
+  return store.ownerGone(item, live) ? 'ended' : 'its-session';
 }

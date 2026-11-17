@@ -279,7 +279,7 @@ function reachLine(item: Item) {
   const repo = item.source?.repo;
   return item.reach === 'its-session'
     ? 'Its agent stopped waiting. It gets your answer when you next write to it.'
-    : `No session is waiting for it. The next one you start${repo ? ` in ${repo}` : ''} gets your answer.`;
+    : `The session that asked${repo ? ` in ${repo}` : ''} has ended. It gets your answer if you resume it.`;
 }
 
 export function isTyping(e: KeyboardEvent) {
