@@ -201,7 +201,7 @@
 .iv-q.iv-back { animation-name: qr-in-back; }
 @keyframes qr-in-fwd { from { opacity: 0; transform: translateX(8px); } }
 @keyframes qr-in-back { from { opacity: 0; transform: translateX(-8px); } }
-.iv-title { font-family: var(--serif); font-size: 32px; font-weight: 400; line-height: 1.2; letter-spacing: -0.012em; color: var(--ink); }
+.iv-title { font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.25; letter-spacing: -0.012em; color: var(--ink); }
 .interview .q-body { margin: var(--space-12) 0 0; }
 /* A long question keeps every word, so the page does the work: paragraphs and bullets get room so the detail
    does not run together.
@@ -347,6 +347,8 @@
 .iv-step-q { font-size: var(--text-label); color: var(--muted); }
 .iv-step-a { font-size: var(--text-meta); font-weight: 500; color: var(--ink); white-space: pre-wrap; }
 .iv-step-a.none { font-weight: 400; color: var(--late); }
+/* In an interview the dots sit above the question, the first ring level with the title's first letter. */
+.iv-main > .iv-steps { margin: 0 0 var(--space-16) -6px; }
 
 /* ---- Rings */
 .ring { flex: none; display: block; }
