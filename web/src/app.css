@@ -196,6 +196,12 @@
    does not run together.
    The words keep a reading measure while the choices use the full column. */
 .interview .iv-text .prose, .interview .opt-desc { max-width: 68ch; }
+/* A question on its own is as wide as those words, so the column is centred on what you read: in the 800px
+   column a 68ch measure left the words a hand's width short of the right edge, and the page leaned left. */
+.page.interview.asks:not(.with-preview) { --main-w: 700px; }
+/* The reason under the recommendation is set in --iv-text, so its measure is counted in that size too: counted
+   in the 14px around it, it wrapped well short of the description above it. */
+.interview .opt-why { font-size: var(--iv-text); }
 .interview .q-body > * + * { margin-top: 1em; }
 .interview .q-body li + li { margin-top: 0.5em; }
 .interview .options { margin: 0 0 0 -13px; }
