@@ -164,6 +164,17 @@ test('a decision made while the agent replaced the version is not a decision on 
   assert.equal(store.readDecision(it, v.n)?.decision, 'approve');
 });
 
+test('a version replaced in the same millisecond still has its own createdAt, so the old one cannot decide it', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-01-01T00:00:00.000Z') });
+  const res = store.send({ kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Text the reviewer read', source: {} });
+  const seen = store.currentVersion(store.getItem(res.id)!).createdAt;
+  store.send({ itemId: res.id, kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Text nobody read', source: {} });
+  const v = store.currentVersion(store.getItem(res.id)!);
+  assert.equal(v.n, res.n);
+  assert.ok(v.createdAt > seen, 'the replacement is dated after the text it replaced');
+  assert.throws(() => store.decide(res.id, v.n, { decision: 'approve' }, { at: seen }), { code: 'stale' });
+});
+
 test('a decision left from an earlier body of the version is ignored, and the version can still be decided', () => {
   const res = store.send({ kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Hello', source: {} });
   let it = store.getItem(res.id)!;

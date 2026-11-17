@@ -360,7 +360,7 @@ export function openStore(
   }) {
     if (!BODY_EXT[bodyType]) throw new Error(`Unknown body type ${bodyType}`);
     ensureDirs();
-    const at = now();
+    let at = now();
     let item = itemId ? getItem(itemId) : null;
     if (itemId && !item) throw new Error(`No item ${itemId}. Leave out --item to start a new one.`);
     let dir;
@@ -381,6 +381,10 @@ export function openStore(
         fs.rmSync(vdir(item, n), { recursive: true, force: true });
         item.versions.pop();
       } else n = last.n + 1;
+      // createdAt is what a decision names its version by, so a replacement must never share the one it replaced:
+      // two sends in the same millisecond (or a clock set back) would let a decision on the old text pass as one
+      // on the new. Keep it strictly later than the version before it.
+      if (at <= last.createdAt) at = new Date(Date.parse(last.createdAt) + 1).toISOString();
       item.versions.push({ n, bodyType, note, title, createdAt: at, replaced: !lastDecided || undefined });
       item.title = title || item.title;
       item.updatedAt = at;
