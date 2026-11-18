@@ -1,4 +1,4 @@
-<!-- From poteto's pstack (https://github.com/poteto/plugins/tree/main/pstack/skills/unslop), MIT, copyright Lauren Tan. Its license is at the end of this file. -->
+<!-- From poteto's pstack (https://github.com/poteto/plugins/tree/main/pstack/skills/unslop), MIT, copyright Lauren Tan. Its license is at the end of this file. Kept at the version taken on 2026-11-18: update it by hand when asked, never from upstream automatically. -->
 
 # Unslop
 
