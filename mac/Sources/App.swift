@@ -32,7 +32,7 @@ enum Main {
 }
 
 struct Summary: Decodable {
-  struct Waiting: Decodable { let id: String; let title: String; let repo: String? }
+  struct Waiting: Decodable { let id: String; let n: Int?; let title: String; let repo: String? }
   struct Config: Decodable { let blocked: String; let sound: Bool; let hotkey: String; let theme: String? }
   let count: Int
   let waiting: [Waiting]
@@ -44,7 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   var web: WKWebView!
   var status: NSStatusItem!
   var countItem: NSMenuItem!
+  // Rounds notified for ("<id>#<n>"), and those whose notification is still in Notification Centre.
   var notified = Set<String>()
+  var showing = Set<String>()
   var firstPoll = true
   var hotKey: EventHotKeyRef?
   var hotKeyName = ""
@@ -135,6 +137,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     guard let url = action.request.url else { decisionHandler(.allow); return }
     if let frame = action.targetFrame, !frame.isMainFrame { decisionHandler(.allow); return }
     let scheme = url.scheme?.lowercased() ?? ""
+    // A new window (an attachment's link, Open link in the menu): this app has none to give, so a web or mail link
+    // opens in the browser, bateson's own included (an attachment opens there from the server).
+    if action.targetFrame == nil {
+      if ["http", "https", "mailto"].contains(scheme) { NSWorkspace.shared.open(url) }
+      decisionHandler(.cancel)
+      return
+    }
     let ours = scheme == "http" && url.host == "localhost" && url.port == port
     if ours || scheme == "about" { decisionHandler(.allow); return }
     if action.navigationType == .linkActivated, ["http", "https", "mailto"].contains(scheme) { NSWorkspace.shared.open(url) }
@@ -223,22 +232,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     if window.appearance?.name != look?.name { window.appearance = look }
 
     // A notification only when a live session is waiting on you, once per item, never for what was there at launch.
-    for w in s.waiting where !notified.contains(w.id) {
-      notified.insert(w.id)
+    // Once per round: an item's next round (the same id) is news, but a wait that lapses for a moment within a round
+    // (an early answer handed over, a wait renewed) is not.
+    let round = { (w: Summary.Waiting) in "\(w.id)#\(w.n ?? 0)" }
+    for w in s.waiting where !notified.contains(round(w)) {
+      notified.insert(round(w))
       if firstPoll || mode == "none" { continue }
       let content = UNMutableNotificationContent()
       content.title = "A session is waiting on you"
       content.body = [w.title, w.repo].compactMap { $0 }.joined(separator: " · ")
       if s.config?.sound ?? true { content.sound = UNNotificationSound(named: UNNotificationSoundName("Notify.wav")) }
-      UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: w.id, content: content, trigger: nil))
+      UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: round(w), content: content, trigger: nil))
+      showing.insert(round(w))
       if mode == "notify-forward" { show() }
     }
     // A session that stopped waiting (answered, or cancelled by its agent) takes its notification with it.
-    let stale = notified.subtracting(s.waiting.map { $0.id })
-    // And is forgotten, so the item's next round (the same id, sent again) notifies again when a session waits on it.
+    let stale = showing.subtracting(s.waiting.map(round))
     if !stale.isEmpty {
       UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: Array(stale))
-      notified.subtract(stale)
+      showing.subtract(stale)
     }
     firstPoll = false
   }

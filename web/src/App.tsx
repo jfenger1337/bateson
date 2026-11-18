@@ -19,7 +19,7 @@ import { AppMenu } from './Menu';
 
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
 // the decision instead of letting it land on text you never read.
-interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; sent?: boolean; undo?: () => void }
+interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; undone?: boolean; sent?: boolean; undo?: () => void }
 
 export function App() {
   const [state, setState] = useState<State | null>(null);
@@ -28,8 +28,6 @@ export function App() {
   const [settings, setSettings] = useState(false);
   const undoMs = useRef(4000);
   const heldRef = useRef<Held[]>([]);
-  // The undo for the newest held decision, for ⌘Z.
-  const undoRef = useRef<(() => void) | null>(null);
   heldRef.current = held;
   // The item on screen stays in front while it is still waiting, so a revision or a waiting session arriving
   // elsewhere does not pull it away mid-comment. Later clears it, to let the queue move on.
@@ -59,6 +57,8 @@ export function App() {
       // say so, rather than have it vanish.
       const gone = lastShown.current && lastShown.current !== s.current?.id ? s.cancelled?.find((c) => c.id === lastShown.current) : undefined;
       if (gone && !heldRef.current.some((h) => h.id === gone.id)) toast(`Cancelled by its agent: ${gone.title}`);
+      // What you had started on an item its agent cancelled is not needed any more.
+      for (const c of s.cancelled || []) forgetKept(c.id);
       lastText.current = text;
       shownRef.current = lastShown.current = s.current?.id;
       setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
@@ -136,13 +136,12 @@ export function App() {
     const undo = () => {
       if (h.done) return;
       h.done = true;
+      h.undone = true;
       clearTimeout(h.timer);
       shownRef.current = h.id; // back in front, where it was decided
       setHeld((hs) => hs.filter((x) => x.id !== h.id));
-      if (undoRef.current === undo) undoRef.current = null;
     };
     h.undo = undo;
-    undoRef.current = undo;
     setHeld((hs) => [...hs, h]);
   }, [commit]);
 
@@ -158,12 +157,14 @@ export function App() {
     load();
   }, [load]);
 
-  // Commit anything held if the page closes, so nothing is lost. Each is then done: its timer stops, so a page
-  // brought back from the browser's cache does not send it a second time, and it is let go when that happens.
+  // Commit anything held if the page closes, so nothing is lost: one still waiting out its Undo, and one being sent
+  // (tried again while the server restarts), which the closing page would cut off; a second arrival is refused as
+  // already decided. Each is then done: its timer stops, so a page brought back from the browser's cache does not
+  // send it a second time, and it is let go when that happens.
   useEffect(() => {
     const flush = () => {
       for (const h of heldRef.current) {
-        if (h.done) continue; // on its way already
+        if (h.undone || h.sent) continue;
         h.done = true;
         h.sent = true;
         clearTimeout(h.timer);
@@ -214,10 +215,12 @@ export function App() {
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('qr-settings', open); };
   }, []);
 
-  // ⌘Z undoes the last held decision.
+  // ⌘Z undoes the newest decision still on hold: the one the bar offers to take back.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && undoRef.current && !isTyping(e)) { e.preventDefault(); undoRef.current(); }
+      if (!(e.metaKey || e.ctrlKey) || e.key !== 'z' || isTyping(e)) return;
+      const last = [...heldRef.current].reverse().find((h) => h.undo && !h.done);
+      if (last) { e.preventDefault(); last.undo!(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -258,11 +261,18 @@ export function App() {
   }, [viewKey, settings]);
 
   // The theme from the right-click menu: saved as the Appearance setting is (Settings.tsx).
+  // One the server does not take is put back as it was.
   const theme = useCallback(async (t: Config['theme']) => {
-    setTheme(t);
-    setState((s) => s && { ...s, config: { ...s.config, theme: t } });
-    try { await fetch('/api/config', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ theme: t }) }); }
-    catch { toast('The appearance did not save: the server is not answering.'); }
+    let was: Config['theme'] | undefined;
+    const show = (x: Config['theme']) => { setTheme(x); setState((s) => { if (s && x === t) was ??= s.config.theme; return s && { ...s, config: { ...s.config, theme: x } }; }); };
+    show(t);
+    try {
+      const res = await fetch('/api/config', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ theme: t }) });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      if (was) show(was);
+      toast('The appearance did not save: bateson’s server did not take it. Try again in a moment.');
+    }
   }, []);
 
   return (
@@ -298,7 +308,7 @@ export function App() {
 
       <main className="work">
         {settings ? (
-          <Settings update={state?.update} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
+          <Settings update={state?.update} theme={state?.config.theme} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
         ) : !state ? <Loading /> : item ? (
           item.kind === 'interview'
             ? <Interview key={viewKey} item={item} panel={state.config.preview} onDecide={decide} />
@@ -348,5 +358,6 @@ function reachLine(item: Item) {
 
 export function isTyping(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
-  return !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable);
+  // In a menu, keys move and pick in the menu: none is a shortcut for the item behind it.
+  return !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable || !!t.closest?.('[role="menu"]'));
 }

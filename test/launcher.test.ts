@@ -1,12 +1,13 @@
 // The bateson command, the installer and the hooks start at plain JavaScript files (cli/bateson.mjs,
 // scripts/install.mjs, hooks/*.mjs), so that a Node too old to run TypeScript says why it cannot run bateson
 // instead of "Unknown file extension .ts".
-import { childEnv, REPO } from './setup.ts';
+import { childEnv, REPO, TMP } from './setup.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -32,6 +33,29 @@ test('on a Node older than 22.18, the command says which Node it found and to ru
   assert.match(r.stderr, /scripts[\\/]install\.mjs/);
   assert.doesNotMatch(r.stderr, /ERR_UNKNOWN_FILE_EXTENSION/);
 });
+
+/** install.json naming a Node at another path than this one (a link to it), as an install on a newer Node notes it. */
+function installedWith(fn: () => void) {
+  const root = process.env.BATESON_HOME!;
+  const node = path.join(root, 'installed-node');
+  fs.rmSync(node, { force: true });
+  fs.symlinkSync(process.execPath, node);
+  fs.writeFileSync(path.join(root, 'install.json'), JSON.stringify({ node }));
+  try { fn(); } finally { fs.rmSync(path.join(root, 'install.json')); fs.rmSync(node); }
+}
+
+test('started by an old Node, the command runs itself with the Node it was installed with', () => installedWith(() => {
+  const r = run(CLI, ['list'], OLD_NODE);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stderr, '');
+  assert.match(r.stdout, /Nothing is waiting/);
+}));
+
+test('when the installed Node cannot run it either, the command says so once instead of going round', () => installedWith(() => {
+  const r = spawnSync(process.execPath, [CLI, 'list'], { env: childEnv({ NODE_OPTIONS: '--no-experimental-strip-types' }), cwd: REPO, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.equal(r.stderr.match(/TypeScript support turned off/g)?.length, 1);
+}));
 
 test('on a new Node with TypeScript turned off, it names the flag instead of asking for a newer Node', () => {
   const r = run(CLI, ['list'], ['--no-experimental-strip-types']);
@@ -89,4 +113,39 @@ test('every hook in the settings is a launcher that runs on this Node', () => {
     const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', `${name}.mjs`)], { env: childEnv(), cwd: REPO, input: '{}', encoding: 'utf8' });
     assert.equal(r.status, 0, `${name}: ${r.stderr}`);
   }
+});
+
+const SERVER = path.join(ROOT, 'server', 'server.mjs');
+const KEEPALIVE = path.join(ROOT, 'scripts', 'keepalive.mjs');
+const freePort = () => new Promise<number>((resolve) => {
+  const s = net.createServer().listen(0, '127.0.0.1', () => { const { port } = s.address() as net.AddressInfo; s.close(() => resolve(port)); });
+});
+
+test('on a Node that runs TypeScript, the server launcher starts the server', async () => {
+  const port = await freePort();
+  const child = spawn(process.execPath, [SERVER], { env: childEnv({ BATESON_PORT: String(port) }), cwd: ROOT, stdio: 'ignore' });
+  try {
+    let ok = false;
+    for (let i = 0; i < 100 && !ok; i++) {
+      try { ok = (await fetch(`http://127.0.0.1:${port}/api/health`)).ok; } catch { await new Promise((r) => setTimeout(r, 100)); }
+    }
+    assert.ok(ok, 'the server answers');
+  } finally { child.kill(); }
+});
+
+test('on a Node older than 22.18, the server says so instead of starting', () => {
+  const r = spawnSync(process.execPath, [...OLD_NODE, SERVER], { env: childEnv({ BATESON_PORT: '1' }), cwd: ROOT, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /needs Node 22\.18 or newer/);
+  assert.match(r.stderr, /This is Node 20\.19\.5/);
+  assert.match(r.stderr, /install\.mjs --login/);
+  assert.doesNotMatch(r.stderr, /ERR_UNKNOWN_FILE_EXTENSION/);
+});
+
+test('on a Node older than 22.18, the Windows login item says so in server.log, having no window', () => {
+  const home = path.join(TMP, 'keepalive-home');
+  const r = spawnSync(process.execPath, [...OLD_NODE, KEEPALIVE, '--home', home], { env: childEnv(), cwd: ROOT, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(fs.readFileSync(path.join(home, 'server.log'), 'utf8'), /^\S+Z bateson: needs Node 22\.18 or newer.*\nInstall Node .*install\.mjs --login/m);
+  assert.ok(!fs.existsSync(path.join(home, 'server.pid')), 'keepalive.ts never ran');
 });

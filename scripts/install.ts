@@ -23,7 +23,7 @@ const BIN = path.join(BIN_DIR, 'bateson');
 const SKILL = path.join(HOME, '.claude', 'skills', 'bateson');
 const SETUP = path.join(HOME, '.claude', 'skills', 'setup-bateson');
 const PLIST = path.join(HOME, 'Library', 'LaunchAgents', 'com.bateson.server.plist');
-// Windows has no launchd: a value in the user's Run key starts scripts/keepalive.ts at login, which keeps the
+// Windows has no launchd: a value in the user's Run key starts scripts/keepalive.mjs at login, which keeps the
 // server running. conhost --headless runs it without a console window.
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const RUN_VALUE = 'bateson';
@@ -192,22 +192,30 @@ if (WIN) {
   // An update restarts a server an earlier --login set up, with or without --login this time: `bateson` runs
   // from this folder at once, and a server left on the old code disagrees with it.
   const running = fs.existsSync(path.join(ROOT, 'server.pid'));
+  // Run from an update in the app (--updating), the server running is the one doing the update: it is left to quit
+  // by itself once the update is in, and keepalive.ts starts it again on the new code. Stopping it here would stop
+  // the update halfway.
+  const updating = args.has('--updating');
   if (login || uninstall || installed?.loginItem || running) {
-    stopWindowsServer();
+    if (!updating) stopWindowsServer();
     if (uninstall) {
       try { execFileSync('reg', ['delete', RUN_KEY, '/v', RUN_VALUE, '/f'], { stdio: 'ignore' }); log('removed the login item'); } catch { /* there was none */ }
     } else {
-      const keepalive = path.join(REPO, 'scripts', 'keepalive.ts');
+      const keepalive = path.join(REPO, 'scripts', 'keepalive.mjs');
       const extra = [...(SERVER_ENV.BATESON_HOME ? ['--home', ROOT] : []), ...(SERVER_ENV.BATESON_PORT ? ['--port', PORT] : [])];
       const quoted = extra.map((a) => (a.startsWith('--') ? a : `"${a}"`)).join(' ');
       execFileSync('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
-      spawn(NODE, [keepalive, ...extra], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      if (!updating) spawn(NODE, [keepalive, ...extra], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref();
       log(`the server starts at login (${WIN_LOGIN}): http://localhost:${PORT}`);
     }
   }
 } else if (login || (uninstall && fs.existsSync(PLIST))) {
   try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); } catch { /* not loaded */ }
-  if (uninstall) { fs.rmSync(PLIST, { force: true }); log('removed the login item'); }
+  if (uninstall) {
+    fs.rmSync(PLIST, { force: true });
+    try { execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' }); } catch { /* none saved */ }
+    log('removed the login item');
+  }
   else {
     const logFile = path.join(ROOT, 'server.log');
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
@@ -218,7 +226,7 @@ if (WIN) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.bateson.server</string>
-  <key>ProgramArguments</key><array><string>${xml(NODE)}</string><string>${xml(path.join(REPO, 'server', 'server.ts'))}</string></array>
+  <key>ProgramArguments</key><array><string>${xml(NODE)}</string><string>${xml(path.join(REPO, 'server', 'server.mjs'))}</string></array>
   <key>WorkingDirectory</key><string>${xml(REPO)}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -227,6 +235,12 @@ if (WIN) {
   <key>EnvironmentVariables</key><dict>${Object.entries(SERVER_ENV).map(([k, v]) => `<key>${k}</key><string>${xml(v)}</string>`).join('')}</dict>` : ''}
 </dict></plist>
 `);
+    // The Mac app, opened from Finder, has no BATESON_PORT to go by: the server's port is saved in its defaults, where
+    // it looks (mac/Sources/App.swift). Only here, with the plist: the two always name the same port.
+    try {
+      if (SERVER_ENV.BATESON_PORT) { execFileSync('defaults', ['write', 'app.bateson', 'port', '-int', PORT], { stdio: 'ignore' }); log(`the Mac app looks for the server on port ${PORT}`); }
+      else execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' });
+    } catch { /* nothing saved to take out */ }
     try { execFileSync('launchctl', ['load', PLIST], { stdio: 'pipe' }); } catch (e) {
       throw new Error(`launchd did not take ${PLIST}, so the server is not running: ${String((e as { stderr?: unknown }).stderr || (e as Error).message).trim()}`);
     }
@@ -239,16 +253,6 @@ if (WIN) {
     execFileSync('launchctl', ['kickstart', '-k', `gui/${process.getuid?.() ?? ''}/com.bateson.server`], { stdio: 'ignore' });
     log('restarted the server, so it runs this version');
   } catch { /* not loaded: it starts at the next login */ }
-}
-
-// The Mac app, opened from Finder, has no BATESON_PORT to go by: a port set at install is saved in its defaults,
-// where it looks (mac/Sources/App.swift), and taken out again when none is set or bateson is uninstalled.
-if (process.platform === 'darwin') {
-  const custom = !uninstall && SERVER_ENV.BATESON_PORT;
-  try {
-    if (custom) { execFileSync('defaults', ['write', 'app.bateson', 'port', '-int', PORT], { stdio: 'ignore' }); log(`the Mac app looks for the server on port ${PORT}`); }
-    else execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' });
-  } catch { /* nothing saved to take out */ }
 }
 
 if (uninstall) fs.rmSync(MANIFEST, { force: true });

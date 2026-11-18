@@ -34,7 +34,7 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 
 | Path | What |
 |---|---|
-| [`cli/bateson.mjs`](../cli/bateson.mjs) | What the `bateson` command starts. Plain JavaScript, so that on a Node older than 22.18 it says so, and what to do, instead of failing on the `.ts` extension ([`lib/node-check.mjs`](../lib/node-check.mjs)). Then it runs `cli/bateson.ts`. |
+| [`cli/bateson.mjs`](../cli/bateson.mjs) | What the `bateson` command starts. Plain JavaScript, so that on a Node older than 22.18 it first runs itself again with the Node bateson was installed with (noted in `install.json`), and only if there is none says so, and what to do, instead of failing on the `.ts` extension ([`lib/node-check.mjs`](../lib/node-check.mjs)). Then it runs `cli/bateson.ts`. |
 | [`cli/bateson.ts`](../cli/bateson.ts) | `bateson send / status / wait / rearm / cancel / inbox / list / recall / serve`. After a send it tells the agent what to do next: end the turn where a wake-up is in place, wait where it is not. `cancel` is what an agent runs when you tell it in the terminal to stop: the item leaves the app, and the wait for it ends without waking anyone. |
 | [`lib/store.ts`](../lib/store.ts) | The queue on disk, shared by everything. |
 | [`lib/update.ts`](../lib/update.ts) | Updates from the app. It checks once a day with `git fetch`. **Update** fast-forwards `~/bateson` to GitHub's version, runs `npm ci` if the dependencies changed, builds, runs the installer, and rebuilds the Mac app if it changed and is installed. Then the server quits, and launchd or `scripts/keepalive.ts` starts the new one. A checkout with changed files or commits of its own is left alone, and a failed build goes back to the commit it started from. A server started by hand is not stopped: the page asks you to restart it. |
@@ -46,17 +46,20 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 | [`hooks/nudge.ts`](../hooks/nudge.ts) | When a turn ends: marks the session idle and records the working tree. |
 | [`hooks/remind.ts`](../hooks/remind.ts) | The first time a turn you did not start changes files, quietly reminds the agent that calls which are yours go to the queue. It never blocks. |
 | [`skill/`](../skill) | The skills. |
+| [`server/server.mjs`](../server/server.mjs) | What starts the server (`npm start`, `bateson serve`, the login item): checks the Node, as `cli/bateson.mjs` does, then runs `server/server.ts`. On a Node that cannot, it says so in `~/.bateson/server.log`. |
 | [`server/server.ts`](../server/server.ts) | Hono on `:4848`: the API, live updates, the built UI. Local requests only. |
 | [`web/`](../web) | Vite and React 19. |
+| [`web/public/sw.js`](../web/public/sw.js) | A service worker that only steps in when a page load fails: while the server is down (at login, during an update's restart), the browser or installed app shows "Waiting for the bateson server" instead of its own error page, and reloads into bateson once the server answers. It caches nothing of bateson but one font. It works from the second load on, and a hard reload (Ctrl+Shift+R) skips it. |
 | [`mac/`](../mac) | The Mac shell, AppKit and WKWebView. `./mac/build.sh --install` puts it in `~/Applications`. |
 | [`scripts/install.mjs`](../scripts/install.mjs) | What you run to install: checks the Node, as `cli/bateson.mjs` does, then runs `scripts/install.ts`. |
 | [`scripts/install.ts`](../scripts/install.ts) | Sets all of it up, and `--uninstall` takes it away. `--login` starts the server at login: a launchd item on a Mac, a value in the user's `Run` key on Windows. |
+| [`scripts/keepalive.mjs`](../scripts/keepalive.mjs) | What the Windows login item runs: checks the Node, then runs `scripts/keepalive.ts`. |
 | [`scripts/keepalive.ts`](../scripts/keepalive.ts) | On Windows, what the login item runs: it keeps the server running, as launchd does on a Mac. |
 
 ## Working on it
 
 `npm start` runs the server. `npm run dev` runs Vite on `:5848` with the API proxied. `npm run typecheck` checks the app and the contract it shares with the server.
 
-`BATESON_HOME` and `BATESON_PORT` point everything at another queue, so you can try changes without touching your own. An install made with them set keeps them: the server at login is given both, and the Mac app the port (saved in its defaults, as `defaults read app.bateson port` shows). `BATESON_CLAUDE_DIR` points at another list of running Claude Code sessions (normally `~/.claude/sessions`). On Windows and in WSL, `bateson send` opens the page when none is open, in a window of its own (Chrome's or Edge's `--app`), else in the default browser; `BATESON_NO_OPEN` turns that off, and `BATESON_OPEN_WITH` opens it with another program instead of `explorer.exe`.
+`BATESON_HOME` and `BATESON_PORT` point everything at another queue, so you can try changes without touching your own. An install with `--login` made with them set keeps them: the server at login is given both, and the Mac app the port (saved in its defaults, as `defaults read app.bateson port` shows). `BATESON_CLAUDE_DIR` points at another list of running Claude Code sessions (normally `~/.claude/sessions`). On Windows and in WSL, `bateson send` opens the page when none is open, in a window of its own (Chrome's or Edge's `--app`), else in the default browser; `BATESON_NO_OPEN` turns that off, and `BATESON_OPEN_WITH` opens it with another program instead of `explorer.exe`.
 
 When a hook fails, it exits quietly so the session carries on, and writes a line to `~/.bateson/hooks.log`. Settings says when the last day has any.

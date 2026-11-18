@@ -175,6 +175,17 @@ export function openStore(
   const vfile = (item: StoredItem, n: number, name: string) => path.join(vdir(item, n), name);
   const ifile = (item: StoredItem, name: string) => path.join(item.dir, name);
 
+  /**
+   * replacing.json: a send is writing the item's next version (or a new body for the unread one), and item.json does
+   * not say so yet. While it is there a decision waits for it to finish before it counts, and none is delivered.
+   * One left by a send that died is ignored after half a minute.
+   */
+  const REPLACING_MS = 30_000;
+  function replacing(item: StoredItem) {
+    const st = fs.statSync(ifile(item, 'replacing.json'), { throwIfNoEntry: false });
+    return !!st && Date.now() - st.mtimeMs < REPLACING_MS;
+  }
+
   // ---- Settings
 
   function readConfig(): Config {
@@ -370,6 +381,8 @@ export function openStore(
     let item = itemId ? getItem(itemId) : null;
     if (itemId && !item) throw new Error(`No item ${itemId}. Leave out --item to start a new one.`);
     let dir;
+    let mark: string | null = null;
+    try {
     if (item) {
       dir = item.dir;
       // A finished item coming back for another round re-enters the queue.
@@ -378,6 +391,10 @@ export function openStore(
         fs.renameSync(dir, back);
         dir = back;
       }
+      // Marked before the version is looked at: a decision written from here on waits for this send to finish
+      // (decide), and one written before it is seen below, so this becomes the next version instead.
+      mark = path.join(dir, 'replacing.json');
+      fs.writeFileSync(mark, JSON.stringify({ pid: process.pid, at: now() }));
       item = load(dir)!;
       const last = currentVersion(item);
       const lastDecided = !!readDecision(item, last.n);
@@ -422,6 +439,7 @@ export function openStore(
     const made = readJson(vfile(item, v.n, 'decision.json')) as DecisionFile | null;
     if (made && made.versionAt !== v.createdAt) dropDecision(item, v.n);
     return { id: item.id, n: v.n, replaced: !!v.replaced };
+    } finally { if (mark) fs.rmSync(mark, { force: true }); }
   }
 
   /**
@@ -436,6 +454,7 @@ export function openStore(
     if (v.n !== n || (at && v.createdAt !== at)) throw Object.assign(new Error('A newer version arrived.'), { code: 'stale' });
     const file = vfile(item, n, 'decision.json');
     const stale = () => Object.assign(new Error('A newer version arrived.'), { code: 'stale' });
+    if (replacing(item)) throw stale(); // its agent is sending a newer one right now
     let fd;
     for (let tries = 0; ; tries++) {
       try { fd = fs.openSync(file, 'wx'); break; } catch (e) {
@@ -449,9 +468,15 @@ export function openStore(
     }
     fs.writeSync(fd, JSON.stringify({ ...decision, decidedAt: now(), versionAt: v.createdAt } satisfies DecisionFile, null, 2));
     fs.closeSync(fd);
-    // The version was replaced while this was written: the new body has not been seen. The CLI drops this
-    // decision once its item.json is written; say so now.
-    if (getItem(id)?.versions.at(-1)?.createdAt !== v.createdAt) throw stale();
+    // A send that began meanwhile has either seen this decision (and is writing the next version) or replaced the
+    // version under it (new text, never seen). Wait for it to finish, then look: the version decided must still be
+    // the one the reviewer read, or the decision is not one on it and is taken out again.
+    for (let i = 0; i < 60 && replacing(item); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    const after = getItem(id);
+    if (after?.versions.find((x) => x.n === n)?.createdAt !== v.createdAt) {
+      if (after && (readJson(vfile(after, n, 'decision.json')) as DecisionFile | null)?.versionAt === v.createdAt) dropDecision(after, n);
+      throw stale();
+    }
     fs.rmSync(path.join(item.dir, 'later.json'), { force: true });
   }
 
@@ -817,7 +842,7 @@ export function openStore(
 
   return {
     ROOT: root, readConfig, writeConfig, ensureDirs,
-    getItem, allQueued, allDone, isQueued, currentVersion, versionOf, readDecision, isDelivered, readBody,
+    getItem, allQueued, allDone, isQueued, replacing, currentVersion, versionOf, readDecision, isDelivered, readBody,
     readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
     readWithdrawn, withdraw, withdrawnSince,
     claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
@@ -844,7 +869,7 @@ export function Reviewer() {
 }
 export const {
   ROOT, readConfig, writeConfig, ensureDirs,
-  getItem, allQueued, allDone, isQueued, currentVersion, versionOf, readDecision, isDelivered, readBody,
+  getItem, allQueued, allDone, isQueued, replacing, currentVersion, versionOf, readDecision, isDelivered, readBody,
   readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
   readWithdrawn, withdraw, withdrawnSince,
   claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,

@@ -56,8 +56,10 @@ guard(async () => {
     process.exit(2);
   }
   if (res.kind !== 'decision' && res.kind !== 'early') process.exit(0);
-  store.touchSession(hook.session_id, hook.cwd, 'working', { transcript: hook.transcript_path });
+  // The message first: it is taken, and nothing may stand between taking it and saying it.
   process.stderr.write(res.message + '\n');
+  try { store.touchSession(hook.session_id, hook.cwd, 'working', { transcript: hook.transcript_path }); }
+  catch (e) { store.logHookError('rewake.ts touchSession', e); }
   process.exit(2);
 });
 
