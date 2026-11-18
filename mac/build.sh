@@ -12,8 +12,8 @@ cp Info.plist "$APP/Contents/Info.plist"
 # The notification sound: a short rising pop, made for bateson (sine, 320 to 580 Hz, 0.2 s).
 cp Notify.wav "$APP/Contents/Resources/Notify.wav"
 
-# The icon: Bateson's mark in ink on the highlighter. AppIcon.png is AppIcon.svg rendered at 1024; render it
-# again after changing the SVG (its inked edge is an SVG filter), e.g. with headless Chrome:
+# The icon: Bateson's mark in pixels on the highlighter, the favicon's larger drawing. AppIcon.png is AppIcon.svg
+# rendered at 1024; render it again after changing the SVG (its shadow is an SVG filter), e.g. with headless Chrome:
 #   chrome --headless --default-background-color=00000000 --window-size=1024,1024 --screenshot=AppIcon.png AppIcon.svg
 ICONSET=build/AppIcon.iconset && mkdir -p "$ICONSET"
 for s in 16 32 128 256 512; do
