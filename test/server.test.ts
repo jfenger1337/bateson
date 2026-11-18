@@ -1,11 +1,11 @@
 // What the server tells `bateson send` about open pages, so a send opens a window only when none is open.
-import { reset, TMP } from './setup.ts';
+import { reset, TMP, HOME } from './setup.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { createApp } from '../server/server.ts';
-import store from '../lib/store.ts';
+import { createApp, watchQueue } from '../server/server.ts';
+import store, { openStore } from '../lib/store.ts';
 
 beforeEach(reset);
 
@@ -139,4 +139,60 @@ test('the service worker and its waiting page are served as themselves and never
     assert.equal(res.headers.get('cache-control'), 'no-cache', file);
     assert.equal(await res.text(), body, file);
   }
+});
+
+// ---- What the server watches and keeps. A waiting agent touches its waiter.json every few seconds; that used to
+// have every page read the whole queue again each time.
+
+const quiet = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+test('a waiter coming and going, and a decision, reach the pages; its heartbeat and the logs do not', async () => {
+  const { id } = sent();
+  const item = store.getItem(id)!;
+  let calls = 0;
+  const settled = async () => { await quiet(600); const c = calls; calls = 0; return c; };
+  const watch = watchQueue(HOME, () => calls++, { settle: 50 });
+  try {
+    await settled();
+    store.writeWaiter(item, { pid: process.pid, n: 1 });
+    assert.equal(await settled(), 1, 'a waiter arrives');
+    for (let i = 0; i < 3; i++) { store.beat(item, process.pid); await quiet(150); }
+    assert.equal(await settled(), 0, 'its heartbeat');
+    fs.appendFileSync(path.join(HOME, 'hooks.log'), 'x\n');
+    fs.appendFileSync(path.join(HOME, 'server.log'), 'x\n');
+    assert.equal(await settled(), 0, 'the logs');
+    store.decide(id, 1, { decision: 'approve' });
+    assert.equal(await settled(), 1, 'a decision');
+    store.clearWaiter(item);
+    assert.equal(await settled(), 1, 'the waiter goes');
+  } finally { watch.close(); }
+});
+
+test('a done item the server kept is read again once it is told the item changed', () => {
+  const root = fs.mkdtempSync(path.join(TMP, 'kept-'));
+  const s = openStore(root, { claudeDir: null });
+  s.keepDone();
+  const send = (itemId?: string) => s.send({ itemId, kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Hello', source: {} });
+  const { id } = send();
+  s.decide(id, 1, { decision: 'approve' });
+  s.fileAway(s.getItem(id)!);
+  const done = s.getItem(id)!;
+  assert.equal(s.isQueued(done), false);
+  assert.equal(s.readWithdrawn(done), null);
+  // Another process (an agent's `bateson cancel`) writes to it: kept as it was until the watcher says so.
+  const file = path.join(done.dir, 'withdrawn.json');
+  fs.writeFileSync(file, JSON.stringify({ at: new Date().toISOString(), n: 1 }));
+  assert.equal(s.readWithdrawn(done), null);
+  s.forget(file);
+  assert.equal(s.readWithdrawn(s.getItem(id)!)?.n, 1);
+  // What it does itself needs no telling: another round takes it back into the queue, and it is filed again.
+  fs.rmSync(file);
+  s.forget(null);
+  send(id);
+  s.decide(id, 2, { decision: 'approve' });
+  s.fileAway(s.getItem(id)!);
+  const again = s.getItem(id)!;
+  assert.equal(again.versions.length, 2);
+  assert.equal(s.readDecision(again, 2)?.decision, 'approve');
+  assert.deepEqual(s.allDone().map((it) => it.versions.length), [2]);
 });

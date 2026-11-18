@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import store from '../lib/store.ts';
-import { claim, collect, own, checkoutOf, reachOf } from '../lib/delivery.ts';
+import { claim, collect, own, checkoutOf, reachOf, awaitDecision } from '../lib/delivery.ts';
 import { deliveryMark } from '../lib/kinds.ts';
 
 // Two Claude Code processes that are really alive, so the session list counts them as running.
@@ -80,6 +80,15 @@ test('a hook still waiting keeps the answer; a waiter that stopped touching its 
   const old = new Date(Date.now() - 60_000);
   fs.utimesSync(path.join(item.dir, 'waiter.json'), old, old);
   assert.equal(collect({ sessionId: 'A' }, 'test').length, 1);
+});
+
+test('a wait hears a decision as it is made, not at its next look', async () => {
+  const res = store.send({ kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Hello', source: { cwd: REPO } });
+  const t0 = Date.now();
+  const waiting = awaitDecision(res.id, { by: 'test', every: 60_000, until: Date.now() + 30_000 });
+  setTimeout(() => store.decide(res.id, res.n, { decision: 'approve' }), 300);
+  assert.equal((await waiting).kind, 'decision');
+  assert.ok(Date.now() - t0 < 10_000, `took ${Date.now() - t0} ms: it waited for its next look`);
 });
 
 test('the app is told where an undecided answer will go', () => {

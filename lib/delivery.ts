@@ -64,8 +64,6 @@ export function release(id: string, pid = process.pid) {
   if (item) store.clearWaiter(item, pid);
 }
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 /** How a wait ended. See awaitDecision. */
 export type Outcome = { kind: 'decision' | 'early'; message: string } | { kind: 'elsewhere' | 'gone' | 'withdrawn' | 'timeout' | 'abandoned' };
 
@@ -81,14 +79,43 @@ export type Outcome = { kind: 'decision' | 'early'; message: string } | { kind: 
  *   { kind: 'timeout' }
  * With `pid`, the caller is the item's registered waiter: it touches waiter.json each time round, so others can
  * tell it is still there, and gives up as soon as it is not the waiter any more. `to` is passed on to claim().
+ *
+ * Between looks it waits `every` ms, but the item's folder is watched, so a decision or an early answer is seen
+ * at once rather than at the next look. The looks are for what leaves no change there (the session going away),
+ * and for a system where the watch says nothing. Each look reads several files, which Windows makes slow, so
+ * they are spaced out. `pause`, given, replaces both the wait and the watch.
  */
-export async function awaitDecision(id: string, { n, pid, by, to, alive, until = Infinity, every = 1000, early = false, pause = sleep }: {
+export async function awaitDecision(id: string, { n, pid, by, to, alive, until = Infinity, every = 2000, early = false, pause }: {
   n?: number; pid?: number; by?: string; to?: { sessionId?: string; transcript?: string }; alive?: () => boolean;
   until?: number; every?: number; early?: boolean; pause?: (ms: number) => Promise<unknown>;
 } = {}): Promise<Outcome> {
+  let stop = null as (() => void) | null;
+  let changed = false;
+  let wake = null as (() => void) | null;
+  const watched = (ms: number) => new Promise<void>((resolve) => {
+    if (changed) { resolve(); return; }
+    const done = () => { clearTimeout(timer); wake = null; resolve(); };
+    let timer = setTimeout(done, ms);
+    // A send or a decision writes a few files in a row: look once they are written, not at the first. Never more
+    // than a few looks a second, whatever keeps changing in the folder.
+    wake = () => { clearTimeout(timer); timer = setTimeout(done, 200); };
+  });
+  try {
+    return await waitFor(id, { n, pid, by, to, alive, until, every, early, pause: pause ?? watched, before: (item) => {
+      changed = false;
+      if (!pause && !stop) stop = store.watchItem(item, () => { changed = true; wake?.(); });
+    } });
+  } finally { stop?.(); }
+}
+
+async function waitFor(id: string, { n, pid, by, to, alive, until, every, early, pause, before }: {
+  n?: number; pid?: number; by?: string; to?: { sessionId?: string; transcript?: string }; alive?: () => boolean;
+  until: number; every: number; early: boolean; pause: (ms: number) => Promise<unknown>; before: (item: StoredItem) => void;
+}): Promise<Outcome> {
   for (;;) {
     const item = store.getItem(id);
     if (!item) return { kind: 'gone' };
+    before(item);
     if (store.readWithdrawn(item)) { if (pid != null) store.clearWaiter(item, pid); return { kind: 'withdrawn' }; }
     const v = store.currentVersion(item);
     const want = n ?? v.n;

@@ -17,7 +17,7 @@
   },
   "scripts": {
     "dev": "vite --config web/vite.config.ts",
-    "build": "npm run typecheck && vite build --config web/vite.config.ts",
+    "build": "npm run typecheck && vite build --config web/vite.config.ts && node scripts/build-hooks.ts",
     "start": "node server/server.mjs",
     "typecheck": "tsc -p . && tsc -p web",
     "test": "node --test test/*.test.ts"

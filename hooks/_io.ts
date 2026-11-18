@@ -17,8 +17,10 @@ const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
 const obj = (v: unknown) => (v && typeof v === 'object' ? v as Loose : undefined);
 
 export function input(): HookInput {
+  // The launcher may have read stdin already (hooks/_node.mjs readInput), and stdin is read only once.
+  const read = (globalThis as { [key: symbol]: unknown })[Symbol.for('bateson.hookInput')];
   let parsed: unknown;
-  try { parsed = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch { return {}; }
+  try { parsed = JSON.parse((typeof read === 'string' ? read : fs.readFileSync(0, 'utf8')) || '{}'); } catch { return {}; }
   const h = obj(parsed) || {};
   const t = obj(h.tool_input);
   return {

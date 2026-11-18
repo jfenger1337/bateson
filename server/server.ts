@@ -12,6 +12,7 @@ import store, { PORT } from '../lib/store.ts';
 import { kindOf, checkDecision } from '../lib/kinds.ts';
 import { missingHooks, writeHooks } from '../lib/claude-settings.ts';
 import { stateView, summaryView } from '../lib/view.ts';
+import { reachOf } from '../lib/delivery.ts';
 import { openUpdater, due } from '../lib/update.ts';
 
 /** What the app posts to decide: the version it saw (its number and createdAt) and the decision on it. */
@@ -201,9 +202,50 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
   return {
     app,
     updater,
+    /** Whether any page is open: one holding live updates, or one that asked lately. */
+    pages: () => listeners.size > 0 || Date.now() - pageSeen < PAGE_SEEN_MS,
     changed: () => { for (const fn of listeners) fn(); },
     rebuilt: () => { for (const fn of reloaders) fn(); },
   };
+}
+
+// Files in the queue's folder that no page shows: the logs and the server's own marks, a session's working-tree
+// record (lib/worktree.ts), and a file still being written (it is renamed into place, and that is seen).
+const UNSHOWN = /^(server\.(log|pid|stop|error)|hooks\.log(\.old)?)$/;
+const UNSHOWN_ANYWHERE = /\.(tmp|tree)$/;
+
+/**
+ * Watch the queue's folder. Every change is told to the store, which drops what it kept of a done item that
+ * changed (store.keepDone); one the pages may show calls `changed`, once things have been quiet for `settle` ms.
+ * A waiting agent touches its waiter.json every few seconds to say it is still there; only its coming and going
+ * reaches the pages (one that stops touching it is caught by the pulse in start()). Before this, each touch had
+ * every page read the whole queue again, every second for as long as an agent waited.
+ */
+export function watchQueue(root: string, changed: () => void, { settle = 250 } = {}) {
+  const waiters = new Map<string, boolean>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const soon = () => { clearTimeout(timer); timer = setTimeout(changed, settle); };
+  const watcher = fs.watch(root, { recursive: true }, (event, name) => {
+    // A change the system could not name (its list of changes overflowed): anything may have changed.
+    if (name == null) { store.forget(null); soon(); return; }
+    const rel = String(name);
+    if (UNSHOWN.test(rel) || UNSHOWN_ANYWHERE.test(rel)) return;
+    const file = path.join(root, rel);
+    if (path.basename(rel) === 'waiter.json') {
+      const there = fs.existsSync(file);
+      // A heartbeat only changes the file's time. A new waiter writes it whole (renamed into place), even over
+      // one left by a waiter that died, and that is told.
+      if (event === 'change' && waiters.get(file) === there) return;
+      if (there) waiters.set(file, true); else waiters.delete(file);
+      soon();
+      return;
+    }
+    store.forget(file);
+    soon();
+  });
+  // A watch the system ends (the folder gone, too many changes at once): start over from the files.
+  watcher.on('error', () => { store.forget(null); soon(); });
+  return { close: () => { clearTimeout(timer); watcher.close(); } };
 }
 
 /** Waits, up to 20 seconds, for the server this one replaces (lib/update.ts relaunch) to quit and free the port. */
@@ -219,17 +261,29 @@ export async function start() {
   const old = Number(process.env.BATESON_REPLACES);
   delete process.env.BATESON_REPLACES;
   if (old) await replaced(old);
-  const { app, changed, rebuilt, updater } = createApp();
+  const { app, changed, rebuilt, updater, pages } = createApp();
   // Once a day, if Settings allows, ask GitHub whether there is a newer version. The first look waits a minute,
   // so a server that keeps restarting does not ask each time.
   updater.recover();
   const look = () => { if (store.readConfig().updates && due(updater.read())) updater.check().catch(() => {}); };
   setTimeout(look, 60_000);
   setInterval(look, 3600_000);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  fs.watch(store.ROOT, { recursive: true }, () => { clearTimeout(timer); timer = setTimeout(changed, 120); });
-  // A waiting hook that dies leaves no file event, so nudge the pages now and then.
-  setInterval(changed, 15000);
+  // Done items are read once and kept, which needs the watcher to say what changed.
+  store.keepDone();
+  watchQueue(store.ROOT, changed);
+  // Some changes leave no file event: a waiting hook that dies, a Claude Code session that ends, an answer older
+  // than a window the page counts in. So every 15 seconds, while a page is open, the state is worked out here, and
+  // the pages hear of it only if it reads differently, with each waiting item's reach (lib/delivery.ts) too. Every
+  // 5 minutes what was kept of done items is read again, for a change the watcher missed.
+  let pulse = '';
+  let beats = 0;
+  setInterval(() => {
+    if (++beats % 20 === 0) store.forget(null);
+    if (!pages()) return;
+    const live = store.liveSessions();
+    const now = JSON.stringify([stateView(), store.pending().map((r) => [r.item.id, reachOf(r.item, live)])]);
+    if (now !== pulse) { pulse = now; changed(); }
+  }, 15000);
   if (fs.existsSync(DIST)) {
     let reloadTimer: ReturnType<typeof setTimeout> | undefined;
     fs.watch(DIST, () => { clearTimeout(reloadTimer); reloadTimer = setTimeout(rebuilt, 300); });

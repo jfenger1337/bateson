@@ -101,7 +101,7 @@ function readJson(file: string, fallback: unknown = null): unknown {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
 }
 
-function writeJson(file: string, data: unknown) {
+function writeJsonFile(file: string, data: unknown) {
   const tmp = `${file}.${process.pid}.${crypto.randomBytes(3).toString('hex')}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
   replace(tmp, file);
@@ -152,7 +152,7 @@ function claudeSessionOf(dir: string | null, pid: number): { sessionId: string; 
   return s?.sessionId && pidAlive(pid) ? { sessionId: s.sessionId, status: String(s.status || '') } : null;
 }
 
-/** How long a waiter may go without touching waiter.json before it counts as gone (it touches it every second). */
+/** How long a waiter may go without touching waiter.json before it counts as gone (it touches it every 2 seconds). */
 const WAITER_STALE_MS = 15_000;
 
 /**
@@ -170,6 +170,9 @@ export function openStore(
   const PASTED = path.join(root, 'pasted');
   const CONFIG = path.join(root, 'config.json');
   const HOOK_LOG = path.join(root, 'hooks.log');
+
+  /** writeJson, and whatever the server kept of the file is dropped. */
+  const writeJson = (file: string, data: unknown) => { writeJsonFile(file, data); forget(file); };
 
   const vdir = (item: StoredItem, n: number) => path.join(item.dir, `v${n}`);
   const vfile = (item: StoredItem, n: number, name: string) => path.join(vdir(item, n), name);
@@ -245,7 +248,44 @@ export function openStore(
   const seen = new Map<string, { sig: string; text: string }>();
   const once = new Map<string, string>();
 
+  // Done items, once the server turns this on (keepDone): their files as read, absent ones included, by item id.
+  // Each rebuild of the page's state reads every done item, and there are more every day; on Windows each read,
+  // and above all each look for a file that is not there, is slow. A done item seldom changes again, and the
+  // server's watcher on the queue says when one does (forget), so what was read stays good until then.
+  let doneFiles: Map<string, Map<string, string | null>> | null = null;
+  /** The id of the done item a path is in, or null when it is not in one. */
+  const DONE_IN = DONE + path.sep;
+  function doneIdOf(file: string) {
+    if (!file.startsWith(DONE_IN)) return null;
+    const end = file.indexOf(path.sep, DONE_IN.length);
+    return file.slice(DONE_IN.length, end < 0 ? undefined : end) || null;
+  }
+  /** A file's text, or null when there is none; from the copy kept for a done item when there is one. */
+  function readText(file: string): string | null {
+    const id = doneFiles && doneIdOf(file);
+    const files = id ? doneFiles!.get(id) ?? doneFiles!.set(id, new Map()).get(id)! : null;
+    if (files?.has(file)) return files.get(file)!;
+    let text: string | null = null;
+    try { text = fs.readFileSync(file, 'utf8'); } catch { /* not there */ }
+    files?.set(file, text);
+    return text;
+  }
+  const parsed = (text: string | null) => { if (text === null) return null; try { return JSON.parse(text); } catch { return null; } };
+  /** Keep done items' files from now on (the server, which tells forget about every change). */
+  function keepDone() { doneFiles ??= new Map(); }
+  /**
+   * Something changed at `file` (a path the watcher reported, or a folder): what was kept of the done item it is in,
+   * or that was moved there, is dropped. null, for a change the watcher could not place, drops everything.
+   */
+  function forget(file: string | null) {
+    if (!doneFiles) return;
+    if (file === null) { doneFiles.clear(); return; }
+    const id = doneIdOf(file);
+    if (id) doneFiles.delete(id);
+  }
+
   function readItemJson(file: string): unknown {
+    if (doneFiles && doneIdOf(file)) return parsed(readText(file));
     const st = fs.statSync(file, { throwIfNoEntry: false });
     if (!st) { seen.delete(file); return null; }
     const sig = `${st.ino}:${st.mtimeMs}:${st.size}`;
@@ -261,8 +301,10 @@ export function openStore(
   function readOnce(file: string): unknown {
     let text = once.get(file);
     if (text === undefined) {
-      try { text = fs.readFileSync(file, 'utf8'); } catch { return null; }
-      try { JSON.parse(text); } catch { return null; } // still being written
+      const read = readText(file);
+      if (read === null) return null;
+      text = read;
+      try { JSON.parse(text); } catch { forget(file); return null; } // still being written
       once.set(file, text);
     }
     return JSON.parse(text);
@@ -389,6 +431,7 @@ export function openStore(
       if (!isQueued(item)) {
         const back = path.join(ITEMS, path.basename(dir));
         fs.renameSync(dir, back);
+        forget(dir);
         dir = back;
       }
       // Marked before the version is looked at: a decision written from here on waits for this send to finish
@@ -485,6 +528,7 @@ export function openStore(
     const file = vfile(item, n, 'decision.json');
     fs.rmSync(file, { force: true });
     once.delete(file);
+    forget(file);
   }
 
   function later(id: string) {
@@ -492,7 +536,7 @@ export function openStore(
     if (item) writeJson(ifile(item, 'later.json'), { at: now() });
   }
 
-  const readWithdrawn = (item: StoredItem) => readJson(ifile(item, 'withdrawn.json')) as Withdrawn | null;
+  const readWithdrawn = (item: StoredItem) => parsed(readText(ifile(item, 'withdrawn.json'))) as Withdrawn | null;
 
   /**
    * The agent calls an item off, because the user told it to in chat: it leaves the queue (filed under done,
@@ -528,6 +572,7 @@ export function openStore(
   function claimDelivery(item: StoredItem, n: number, by?: string, to: { sessionId?: string; transcript?: string } = {}) {
     try { fs.writeFileSync(vfile(item, n, 'delivered.json'), JSON.stringify({ at: now(), by, ...to } satisfies Delivered), { flag: 'wx' }); }
     catch { return false; }
+    forget(item.dir);
     return true;
   }
 
@@ -538,6 +583,7 @@ export function openStore(
   function claimRedelivery(item: StoredItem, n: number, by?: string) {
     try { fs.writeFileSync(vfile(item, n, 'redelivered.json'), JSON.stringify({ at: now(), by }), { flag: 'wx' }); }
     catch { return false; }
+    forget(item.dir);
     confirmDelivery(item, n);
     return true;
   }
@@ -560,9 +606,10 @@ export function openStore(
     if (!isQueued(item)) return;
     fs.mkdirSync(DONE, { recursive: true });
     try { fs.renameSync(item.dir, path.join(DONE, path.basename(item.dir))); } catch { /* already moved */ }
+    forget(path.join(DONE, path.basename(item.dir)));
   }
 
-  const readSession = (item: StoredItem) => readJson(ifile(item, 'session.json')) as ItemSession | null;
+  const readSession = (item: StoredItem) => parsed(readText(ifile(item, 'session.json'))) as ItemSession | null;
   const writeSession = (item: StoredItem, s: ItemSession) => writeJson(ifile(item, 'session.json'), s);
   const readWaiter = (item: StoredItem) => readJson(ifile(item, 'waiter.json')) as Waiter | null;
   const writeWaiter = (item: StoredItem, w: Waiter) => writeJson(ifile(item, 'waiter.json'), w);
@@ -572,6 +619,22 @@ export function openStore(
     if (readWaiter(item)?.pid !== pid) return;
     const t = new Date();
     try { fs.utimesSync(f, t, t); } catch { /* gone meanwhile */ }
+  }
+  /**
+   * Call `fn` when something in the item's folder changes: a decision, an early answer, a new version, a cancel.
+   * Not for its waiter.json, which the waiter itself touches every time round. Returns what stops watching. A
+   * folder that cannot be watched calls nothing, and a waiter still looks every few seconds.
+   */
+  function watchItem(item: StoredItem, fn: () => void): () => void {
+    let watcher: fs.FSWatcher;
+    try {
+      watcher = fs.watch(item.dir, { recursive: true, persistent: false }, (_event, name) => {
+        if (name != null && /(^|[\\/])waiter\.json$|\.tmp$/.test(String(name))) return;
+        fn();
+      });
+    } catch { return () => {}; }
+    watcher.on('error', () => watcher.close());
+    return () => watcher.close();
   }
   /** Remove the waiter, only if it is still `pid`'s (a newer send of the item has its own). */
   function clearWaiter(item: StoredItem, pid?: number | null) {
@@ -701,10 +764,12 @@ export function openStore(
     const t = Date.now();
     for (const it of all) {
       const v = currentVersion(it);
-      if (v.bodyType !== 'questions' || readDecision(it, v.n)?.decision !== 'answer' || readWithdrawn(it)) continue;
+      // Cheapest first: most items are not interviews, or were answered long ago.
+      if (v.bodyType !== 'questions') continue;
       const del = readDelivered(it, v.n);
       if (!del || t - Date.parse(del.at) > 15 * 60 * 1000) continue;
-      if (fs.existsSync(vfile(it, v.n, 'stopped.json'))) continue;
+      if (readDecision(it, v.n)?.decision !== 'answer' || readWithdrawn(it)) continue;
+      if (readText(vfile(it, v.n, 'stopped.json')) !== null) continue;
       const sessionId = readSession(it)?.sessionId;
       if (stillBusy(live, sessionId) === false) continue; // interrupted, cleared or closed: nobody is writing it
       out.push({ id: it.id, title: v.title || it.title, next: v.n + 1, sessionId });
@@ -846,11 +911,11 @@ export function openStore(
     readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
     readWithdrawn, withdraw, withdrawnSince,
     claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
-    beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
+    watchItem, beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
     saveEarly, unreportedEarly, markEarlyReported, readDraft, saveDraft,
     pending, hueOf, writing, markStopped,
     validSession, touchSession, sessionRecord, activeSessions, liveSessions, claudeSession, sessionsDir,
-    logHookError, hookErrors,
+    logHookError, hookErrors, keepDone, forget,
   };
 }
 
@@ -873,9 +938,9 @@ export const {
   readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
   readWithdrawn, withdraw, withdrawnSince,
   claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
-  beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
+  watchItem, beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
   saveEarly, unreportedEarly, markEarlyReported, readDraft, saveDraft,
   pending, hueOf, writing, markStopped,
   validSession, touchSession, sessionRecord, activeSessions, liveSessions, claudeSession, sessionsDir,
-  logHookError, hookErrors,
+  logHookError, hookErrors, keepDone, forget,
 } = store;

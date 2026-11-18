@@ -1,27 +1,65 @@
-// Shared by the hook launchers (hooks/*.mjs), which are what Claude Code runs: each checks that this Node runs
-// TypeScript (lib/node-check.mjs says why that needs a .mjs file), then imports the hook of the same name.
+// Shared by the hook launchers (hooks/*.mjs), which are what Claude Code runs. Each runs the hook of the same name.
 //
-// On a Node that cannot, the hook exits 1 with the reason on stderr: Claude Code shows that to the person as a
+// `npm run build` bundles each hook into plain JavaScript (scripts/build-hooks.ts), which starts several times
+// faster than the TypeScript it comes from: Claude Code waits for a hook after every Edit, Write and Bash call.
+// The bundle runs while it is newer than every file that went into it; otherwise (sources changed since the
+// build, or no build) the hook runs from source.
+//
+// Either way it first checks that this Node runs TypeScript (lib/node-check.mjs says why that needs a .mjs file):
+// a bundle would run without, but the bateson command and the server would not, and the hook is where the
+// person hears why. On a Node that cannot, the hook exits 1 with the reason on stderr: Claude Code shows that to the person as a
 // hook error, and the session carries on. Never exit 2, which would hand the text to the agent instead. The
 // reason also goes to ~/.bateson/hooks.log, as any hook error does (hooks/_io.ts), so Settings shows it.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { needTypeScript } from '../lib/node-check.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-/** Exit unless this Node can run hook `name` (catchup, nudge, remind or rewake). */
-export function hookNeedsTypeScript(name) {
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO = path.join(HERE, '..');
+// Where a launcher leaves what it read from stdin, for hooks/_io.ts: stdin can be read only once.
+const INPUT = Symbol.for('bateson.hookInput');
+
+/** The hook's input, as Claude Code sent it on stdin; read once, and kept for the hook itself. */
+export function readInput() {
+  if (typeof globalThis[INPUT] !== 'string') {
+    try { globalThis[INPUT] = fs.readFileSync(0, 'utf8'); } catch (e) { globalThis[INPUT] = ''; }
+  }
+  return globalThis[INPUT];
+}
+
+/** hooks/dist/<name>.js, if it was built from the files as they are now; else null. */
+function bundle(name) {
+  const file = path.join(HERE, 'dist', `${name}.js`);
+  try {
+    const { built, hooks } = JSON.parse(fs.readFileSync(path.join(HERE, 'dist', 'inputs.json'), 'utf8'));
+    const inputs = hooks && hooks[name];
+    if (typeof built !== 'number' || !Array.isArray(inputs) || !inputs.length || !fs.existsSync(file)) return null;
+    for (const rel of inputs) if (fs.statSync(path.join(REPO, rel)).mtimeMs > built) return null;
+    return file;
+  } catch (e) { return null; }
+}
+
+/** Run hook `name` (catchup, nudge, remind or rewake): its bundle if it is current, else its source. */
+export async function runHook(name) {
+  await hookNeedsTypeScript(name);
+  const built = bundle(name);
+  await import(built ? pathToFileURL(built).href : `./${name}.ts`);
+}
+
+/** Exit unless this Node runs TypeScript. */
+async function hookNeedsTypeScript(name) {
   if (process.features && process.features.typescript) return;
   // Other tools run the hooks they find in Claude Code's settings. These are for Claude Code alone, so elsewhere
   // they do nothing, as hooks/_io.ts does.
   if (process.env.CLAUDECODE !== '1') process.exit(0);
-  const install = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'install.mjs');
+  const { needTypeScript } = await import('../lib/node-check.mjs');
+  const install = path.join(REPO, 'scripts', 'install.mjs');
   needTypeScript(`run \`node ${install}\` with it, so the hooks use that Node`, (text) => {
     try {
       const root = process.env.BATESON_HOME || path.join(os.homedir(), '.bateson');
       fs.mkdirSync(root, { recursive: true });
       fs.appendFileSync(path.join(root, 'hooks.log'), `${new Date().toISOString()} ${name}.ts ${text.split('\n').join(' | ')}\n`);
-    } catch { /* nowhere to write: stderr has it */ }
+    } catch (e) { /* nowhere to write: stderr has it */ }
   });
 }

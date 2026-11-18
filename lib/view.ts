@@ -46,19 +46,20 @@ export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: str
   for (const r of [...rows].sort((a, b) => a.item.createdAt.localeCompare(b.item.createdAt))) store.hueOf(r.item);
   const front = rows.find((r) => r.item.id === prefer) || rows[0];
   const sent = lastSentBy(all);
+  const writing = store.writing(all, live);
   return {
     reviewer: reviewer(),
     queue: rows.map((r) => ({ id: r.item.id, n: r.v.n, title: r.v.title || r.item.title, kind: kindOf(r.item, r.v).name, repo: r.item.source?.repo, waiting: r.waiting })),
     current: front ? itemView(front.item) : null,
     config: store.readConfig(),
-    writing: store.writing(all, live).map(({ id, title, next, sessionId }) => ({ id, title, next, sessionId })),
+    writing: writing.map(({ id, title, next, sessionId }) => ({ id, title, next, sessionId })),
     cancelled: store.withdrawnSince(Date.now() - 10 * 60 * 1000, all.filter((it) => !store.isQueued(it)))
       .map(({ item, w }) => ({ id: item.id, title: store.versionOf(item, w.n)?.title || item.title, at: w.at })),
     // Only agents that have sent you something today: a session that is just busy has nothing coming your way.
     agents: store.activeSessions(live).filter(({ sessionId }) => sent.has(sessionId))
       .map(({ sessionId, repo, title, since }) => ({ sessionId, repo, title: sent.get(sessionId) || title || undefined, since })),
     update: readUpdate(),
-    amas: amas(all, new Set(store.writing(all, live).map((w) => w.id))),
+    amas: amas(all, new Set(writing.map((w) => w.id))),
   };
 }
 

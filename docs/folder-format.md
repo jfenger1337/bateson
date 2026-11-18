@@ -8,7 +8,7 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
     item.json                 written by the producer
     session.json              the agent session that sent it: { agent, sessionId, cwd, transcriptPath } (written by
                               `bateson send` and the rewake hook). While that session runs, only it gets the decision.
-    waiter.json               a live hook waiting on it: { pid, sessionId, n }. The hook touches it every second;
+    waiter.json               a live hook waiting on it: { pid, sessionId, n }. The hook touches it every 2 seconds;
                               one untouched for 15 seconds counts as gone.
     later.json                put off with Later: { at }
     withdrawn.json            its agent cancelled it (`bateson cancel`), because you called it off in chat: { at, by, n }.
