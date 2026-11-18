@@ -37,7 +37,8 @@ test('on a Node older than 22.18, the command says which Node it found and to ru
 /** install.json naming a Node at another path than this one (a link to it), as an install on a newer Node notes it. */
 function installedWith(fn: () => void) {
   const root = process.env.BATESON_HOME!;
-  const node = path.join(root, 'installed-node');
+  // With .exe on Windows, as install.json has it there: a program without an extension is not run at all.
+  const node = path.join(root, process.platform === 'win32' ? 'installed-node.exe' : 'installed-node');
   fs.rmSync(node, { force: true });
   fs.symlinkSync(process.execPath, node);
   fs.writeFileSync(path.join(root, 'install.json'), JSON.stringify({ node }));
