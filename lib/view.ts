@@ -58,7 +58,30 @@ export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: str
     agents: store.activeSessions(live).filter(({ sessionId }) => sent.has(sessionId))
       .map(({ sessionId, repo, title, since }) => ({ sessionId, repo, title: sent.get(sessionId) || title || undefined, since })),
     update: readUpdate(),
+    amas: amas(all, new Set(store.writing(all, live).map((w) => w.id))),
   };
+}
+
+/**
+ * The interviews (/ama) behind you, newest first, for the empty page. One waiting on you is in the queue, and one
+ * whose next round is being written is listed with the agents, so neither is here.
+ */
+function amas(all: StoredItem[], writing: Set<string>, limit = 8): State['amas'] {
+  return all
+    .filter((item) => item.kind === 'decision' && !writing.has(item.id))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, limit * 3) // newest touched first: only these are worth reading decisions for
+    .flatMap((item) => {
+      const v = store.currentVersion(item);
+      const d = store.readDecision(item, v.n);
+      if (!d) return [];
+      return [{
+        id: item.id, title: v.title || item.title, repo: item.source?.repo,
+        at: d.decidedAt || v.createdAt,
+      }];
+    })
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, limit);
 }
 
 /**

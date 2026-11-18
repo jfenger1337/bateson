@@ -581,7 +581,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .calm { max-width: 720px; margin: 0 auto; padding-top: clamp(48px, 16vh, 180px); display: flex; flex-direction: column; }
 .calm-update { margin-top: var(--space-12); font-size: var(--text-meta); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 .calm.again .calm-update { animation: none; }
-.calm-head { font-family: var(--serif); font-size: var(--work-title); font-weight: 400; line-height: 1.15; letter-spacing: -0.012em; color: var(--ink); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+.calm-mark { display: block; color: var(--faint-3); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 
 @keyframes qr-fade { from { opacity: 0; } } /* base.css's .page-loading */
 
@@ -592,6 +592,18 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .agent-where { flex-shrink: 0; white-space: nowrap; }
 .agent-what { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agents .ink { color: var(--ink); }
+
+/* The AMAs behind you (Empty.tsx): newest on top, each row fainter than the one above, so the list fades out. */
+.amas { list-style: none; margin: var(--space-48) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-10); }
+.agents + .amas { margin-top: var(--space-32); }
+.amas li { --fade: calc(1 - var(--i, 0) * 0.12); display: flex; align-items: baseline; gap: var(--space-10); font-size: var(--text-body); color: var(--muted); opacity: max(0.12, var(--fade)); animation: ama-rise var(--dur-arrive) var(--ease-out) both; }
+.amas .ring { flex: none; align-self: center; color: var(--faint); }
+.ama-title { color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ama-meta { flex: none; white-space: nowrap; }
+.ama-when { flex: none; margin-left: auto; padding-left: var(--space-16); font-size: var(--text-meta); color: var(--faint); white-space: nowrap; }
+/* bt-rise, but to the row's own faded opacity rather than to full. */
+@keyframes ama-rise { from { opacity: 0; translate: 0 6px; } }
+.calm.again .amas li:not(.new) { animation: none; }
 
 /* ---- Settings (⌘,) */
 .set-head { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--space-24); }
@@ -639,7 +651,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 @keyframes qr-arrive-ring { from { opacity: 0; scale: 0.6; } }
 @media (prefers-reduced-motion: reduce) { .agents .ring-dashed { animation: none; } }
 /* Back on this page after the first time (Empty.tsx): nothing arrives again, it is simply there. The ring keeps turning. */
-.calm.again :is(.calm-head, .agents li) { animation: none; }
+.calm.again :is(.calm-mark, .agents li) { animation: none; }
 .calm.again .agents .ring-dashed { animation: check-spin 3.2s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .calm.again .agents .ring-dashed { animation: none; } }
 

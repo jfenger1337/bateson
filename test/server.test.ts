@@ -1,5 +1,7 @@
 // What the server tells `bateson send` about open pages, so a send opens a window only when none is open.
-import { reset } from './setup.ts';
+import { reset, TMP } from './setup.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../server/server.ts';
@@ -120,4 +122,18 @@ test('a form cannot post, even empty and from bateson\'s own page: only JSON cha
   }
   assert.equal((await app.request(`/api/items/${id}/later`, { method: 'POST', headers: own })).status, 415, 'no type at all');
   assert.equal((await app.request(`/api/items/${id}/later`, { method: 'POST', headers: { ...own, 'content-type': 'application/json' } })).status, 200);
+});
+
+// ---- The service worker that answers a load while the server is down (web/public/sw.js).
+
+test('the service worker is served as a script and never cached, so a new one is picked up at once', async () => {
+  const dist = fs.mkdtempSync(path.join(TMP, 'dist-'));
+  fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html>');
+  fs.writeFileSync(path.join(dist, 'sw.js'), '// sw');
+  const { app } = createApp({ dist });
+  const res = await app.request('/sw.js', HOST);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /javascript/);
+  assert.equal(res.headers.get('cache-control'), 'no-cache');
+  assert.equal(await res.text(), '// sw');
 });
