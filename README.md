@@ -17,6 +17,14 @@ it's built for one person on a mac using claude code. it runs on windows too (CI
 
 you need macOS or Windows 10/11, node 22.18+, and [claude code](https://claude.com/claude-code). it's early, and the installer adds hooks to every claude code session on your machine.
 
+node 22.18 is the first that runs typescript as it is, which is all bateson is. to check yours:
+
+```bash
+node -p '[process.versions.node, process.execPath, Boolean(process.features && process.features.typescript)].join(" ")'
+```
+
+it prints the version, where that node is, and `true` if it can run bateson. `false` on an older version means you need a newer node first. `false` on 22.18 or newer means its typescript support is turned off, usually by `--no-experimental-strip-types` in `NODE_OPTIONS`.
+
 the easy way is to paste this into a claude code session:
 
 ```
@@ -38,7 +46,7 @@ npm run build
 node scripts/install.mjs --login
 ```
 
-you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json` (backed up first), and the server started at login. keep the folder where it is. when there's a new version, bateson says so on its empty screen, and **update** in settings installs it and restarts. it won't touch a folder where you've changed files or made commits of your own: there, `git pull`, `npm run build` and the installer again do the same by hand.
+you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json` (backed up first), and the server started at login. keep the folder where it is. all of it runs on the node you installed with: if you remove that node or switch to another, run `node scripts/install.mjs --login` again with the new one. until you do, bateson says which node it needs and which one it found, in the terminal, the app and claude code, instead of failing on a `.ts` file. when there's a new version, bateson says so on its empty screen, and **update** in settings installs it and restarts (or, if it needs a newer node than yours, says so and leaves it). it won't touch a folder where you've changed files or made commits of your own: there, `git pull`, `npm run build` and the installer again do the same by hand.
 
 ## get started
 
