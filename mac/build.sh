@@ -15,8 +15,8 @@ cp Notify.wav "$APP/Contents/Resources/Notify.wav"
 # the font it uses and the font's licence. lib/update.ts rebuilds the app when they change (MAC_APP_FILES there).
 cp ../web/public/waiting.html ../web/public/fonts/schibstedgrotesk-normal.woff2 ../web/public/fonts/LICENSE-SchibstedGrotesk.txt "$APP/Contents/Resources/"
 
-# The icon: Bateson's mark in ink on the highlighter. AppIcon.png is AppIcon.svg rendered at 1024; render it
-# again after changing the SVG (its inked edge is an SVG filter), e.g. with headless Chrome:
+# The icon: Bateson's mark in pixels on the highlighter, the favicon's larger drawing. AppIcon.png is AppIcon.svg
+# rendered at 1024; render it again after changing the SVG (its shadow is an SVG filter), e.g. with headless Chrome:
 #   chrome --headless --default-background-color=00000000 --window-size=1024,1024 --screenshot=AppIcon.png AppIcon.svg
 ICONSET=build/AppIcon.iconset && mkdir -p "$ICONSET"
 for s in 16 32 128 256 512; do

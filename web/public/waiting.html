@@ -3,7 +3,8 @@
      and the Mac app's blank window: the same page in both. The service worker (sw.js) keeps a copy and serves it
      when a page load fails; mac/build.sh copies it into the Mac app, which loads it when its own load fails, puts
      the font in as data (the server that serves it is down) and, when the server cannot start, puts why in place
-     of the "why" comment below. Either way it waits for the server and goes back to bateson once it answers. -->
+     of the "why" comment below, as the login item does when it answers in the server's place (lib/node-check.mjs).
+     Either way it waits for the server and goes back to bateson once it answers. -->
 <html lang="en-GB">
 <head>
 <meta charset="UTF-8">
@@ -30,7 +31,7 @@
   .drag { position: fixed; top: 0; left: 0; right: 0; height: env(titlebar-area-height, 0px); -webkit-app-region: drag; app-region: drag; }
   /* Why the server cannot start (the Mac app reads it from server.error): it takes the place of the waiting line,
      and stays put while the app keeps trying, so the command in it can be selected and copied. */
-  .why { max-width: 560px; padding: 24px; text-align: left; white-space: pre-wrap; user-select: text; }
+  .why { max-width: 560px; padding: 24px; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
   .why b { color: var(--ink); font-weight: 600; }
   main:has(.why) .waiting { display: none; }
 </style>

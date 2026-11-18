@@ -24,6 +24,8 @@ interface Held { id: string; n: number; at: string; decision: Decision; label: s
 export function App() {
   const [state, setState] = useState<State | null>(null);
   const [failed, setFailed] = useState(false);
+  // Why the server cannot start, when what answers in its place says (lib/node-check.mjs: a Node too old for it).
+  const [why, setWhy] = useState<string | null>(null);
   const [held, setHeld] = useState<Held[]>([]);
   const [settings, setSettings] = useState(false);
   const undoMs = useRef(4000);
@@ -78,8 +80,12 @@ export function App() {
         const busy = document.activeElement?.tagName === 'TEXTAREA' || heldRef.current.length > 0;
         if (!busy) location.reload();
       });
-      es.onerror = () => { es?.close(); setFailed(true); retry = window.setTimeout(connect, 2000); };
-      es.onopen = () => setFailed(false);
+      es.onerror = () => {
+        es?.close(); setFailed(true); retry = window.setTimeout(connect, 2000);
+        fetch('/api/health', { cache: 'no-store' }).then((r) => r.json()).then(
+          (h: { error?: unknown }) => setWhy(typeof h.error === 'string' ? h.error : null), () => setWhy(null));
+      };
+      es.onopen = () => { setFailed(false); setWhy(null); };
     };
     connect();
     return () => { es?.close(); clearTimeout(retry); };
@@ -302,7 +308,10 @@ export function App() {
           )}
         </div>
         <div className="bar-right">
-          {failed && <span className="bar-sentence late"><Spinner variant="ellipsis" size={14} aria-hidden />Not connected. Is <span className="rec">bateson serve</span> running?</span>}
+          {failed && (why
+            // Reloading shows the page that says why in full, with what to do; it is a link, so nothing half written is lost unasked.
+            ? <span className="bar-sentence late" title={why}>The bateson server cannot start. <a className="bar-undo" href="/">See why</a></span>
+            : <span className="bar-sentence late"><Spinner variant="ellipsis" size={14} aria-hidden />Not connected. Is <span className="rec">bateson serve</span> running?</span>)}
         </div>
       </header>
 

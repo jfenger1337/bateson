@@ -113,6 +113,8 @@ If it takes more than that, it is two questions, or it needs `show`. Interview r
 
 **Language.** Their words, not the code's: "when an agent finishes" rather than "the Stop hook", "an agent your answer woke up" rather than "a rewake turn". If a technical term is unavoidable, say what it is the first time. Full sentences, no fragments ("Today: every turn that..."). Numbers with their unit. British English, no em dashes.
 
+**Unslop.** Before you send, read [unslop.md](unslop.md) and edit your own words against it: the title, the note, question bodies, option labels and descriptions, recommendations, findings and fixes. Leave what they are judging exactly as it stands: quoted copy, files, diffs and code. Where unslop and this section disagree, this section decides structure and length, and unslop decides word choice and voice.
+
 An example, before and after:
 
 > **Which turns get checked** · Today: every turn that edits files, except your own prompts touching 3 files or fewer. · Options: "Only turns you did not start" (Wake-ups and follow-ons.), "Keep as it is".

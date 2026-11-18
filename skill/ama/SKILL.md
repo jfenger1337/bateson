@@ -48,7 +48,7 @@ A round needs at least two questions: when the frontier is a single question, as
 
 ## Unslop before sending
 
-Before every round and the final summary goes out, in bateson or in chat, read [unslop.md](unslop.md) and edit what the user will read against it: titles, bodies, option labels and descriptions, recommendations, the summary. Plain words and a real opinion in each recommendation make a round faster to answer. Leave the formats in this skill as they are: the JSON fields, the ❓ and ➡️ of a chat round, a title ending in a question mark.
+Before every round and the final summary goes out, in bateson or in chat, read the `bateson` skill's [unslop.md](../bateson/unslop.md) and edit what the user will read against it: titles, bodies, option labels and descriptions, recommendations, the summary. Plain words and a real opinion in each recommendation make a round faster to answer. Leave the formats in this skill as they are: the JSON fields, the ❓ and ➡️ of a chat round, a title ending in a question mark.
 
 After sending, do what the command's last line says: end your turn where their answers can wake you, wait where it tells you to. In chat, say only that the round is in their queue; don't repeat the questions.
 
@@ -71,6 +71,8 @@ bateson send --item <id> --title "<what we decided>" --note "Approve to confirm,
 <the decisions>
 EOF_SUM
 ```
+
+Write the decisions as a plain list, one full sentence each, with no bold labels: they check it line by line.
 
 Sent back means corrections: apply them and send it again. Do not act on the interview until it is approved.
 
