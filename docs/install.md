@@ -9,7 +9,13 @@ The rules in the prompt you were given come first. If anything here disagrees wi
 Stop with a plain sentence if one of these fails. Do not install or upgrade anything to get past a check.
 
 - The machine runs macOS, or Windows 10 or 11. On Windows, Claude Code runs your commands in Git Bash, and the commands below are written for it.
-- `node --version` is 22.18 or newer.
+- Node can run bateson, which is TypeScript that Node runs as it is from 22.18 on. This prints the version, where that Node is, and whether it runs TypeScript:
+
+  ```bash
+  node -p '[process.versions.node, process.execPath, Boolean(process.features && process.features.typescript)].join(" ")'
+  ```
+
+  It should end in `true`. If it ends in `false` on a version older than 22.18, stop and say: bateson needs Node 22.18 or newer, and this is Node (the version), at (the path). If it ends in `false` on 22.18 or newer, its TypeScript support is turned off, usually by `--no-experimental-strip-types` in `NODE_OPTIONS`: stop and say that. The installer, the command, the hooks and the server check this too, and say the same.
 - `git` and `npm` are on the path.
 - [Claude Code](https://claude.com/claude-code) is installed (`~/.claude` exists).
 
@@ -76,7 +82,7 @@ On Windows there is no app to build: skip this step. bateson there is the page a
 
 ## 6. Check and hand over
 
-- `curl -s -o /dev/null -w '%{http_code}' http://localhost:4848` should print `200`. If it does not, show the last lines of `~/.bateson/server.log` and stop.
+- `curl -s -o /dev/null -w '%{http_code}' http://localhost:4848` should print `200`. If it prints `503`, the server could not start and is saying why in its place: `curl -s http://localhost:4848/api/health` has the reason (a Node too old for bateson). Pass that on and stop. If it prints anything else, show the last lines of `~/.bateson/server.log` and stop.
 - Open the window. On a Mac: `open -a bateson` if the app was built, otherwise `open http://localhost:4848`. On Windows: `start http://localhost:4848`, and tell them two things: when an agent asks them something, bateson opens this page in a window of its own if it is not open already; and Edge or Chrome can install it as an app (the Install icon in the address bar), which gives it a taskbar icon and its own place in Alt+Tab.
 
 Then tell the person, in a few lines:
@@ -89,4 +95,4 @@ Then tell the person, in a few lines:
 
 ## When a step fails
 
-Stop. Say which step failed, quote the error, and say what would fix it. Leave the machine as it is: no installing Node, no switching version managers, no editing shell files. The person fixes it and runs the prompt again, and every step here is safe to run twice.
+Stop. Say which step failed, quote the error, and say what would fix it. An error that starts with `bateson:` already says both: pass it on as it is. Leave the machine as it is: no installing Node, no switching version managers, no editing shell files. The person fixes it and runs the prompt again, and every step here is safe to run twice.
