@@ -213,7 +213,7 @@ if (WIN) {
   try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); } catch { /* not loaded */ }
   if (uninstall) {
     fs.rmSync(PLIST, { force: true });
-    try { execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' }); } catch { /* none saved */ }
+    for (const key of ['port', 'home']) try { execFileSync('defaults', ['delete', 'app.bateson', key], { stdio: 'ignore' }); } catch { /* none saved */ }
     log('removed the login item');
   }
   else {
@@ -235,11 +235,16 @@ if (WIN) {
   <key>EnvironmentVariables</key><dict>${Object.entries(SERVER_ENV).map(([k, v]) => `<key>${k}</key><string>${xml(v)}</string>`).join('')}</dict>` : ''}
 </dict></plist>
 `);
-    // The Mac app, opened from Finder, has no BATESON_PORT to go by: the server's port is saved in its defaults, where
-    // it looks (mac/Sources/App.swift). Only here, with the plist: the two always name the same port.
+    // The Mac app, opened from Finder, has no BATESON_PORT or BATESON_HOME to go by: the server's port and queue are
+    // saved in its defaults, where it looks (mac/Sources/App.swift). Only here, with the plist: they always agree.
+    // The queue is where the app reads server.error, why the server cannot start, when it has no server to ask.
     try {
       if (SERVER_ENV.BATESON_PORT) { execFileSync('defaults', ['write', 'app.bateson', 'port', '-int', PORT], { stdio: 'ignore' }); log(`the Mac app looks for the server on port ${PORT}`); }
       else execFileSync('defaults', ['delete', 'app.bateson', 'port'], { stdio: 'ignore' });
+    } catch { /* nothing saved to take out */ }
+    try {
+      if (SERVER_ENV.BATESON_HOME) execFileSync('defaults', ['write', 'app.bateson', 'home', '-string', ROOT], { stdio: 'ignore' });
+      else execFileSync('defaults', ['delete', 'app.bateson', 'home'], { stdio: 'ignore' });
     } catch { /* nothing saved to take out */ }
     try { execFileSync('launchctl', ['load', PLIST], { stdio: 'pipe' }); } catch (e) {
       throw new Error(`launchd did not take ${PLIST}, so the server is not running: ${String((e as { stderr?: unknown }).stderr || (e as Error).message).trim()}`);

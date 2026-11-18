@@ -1,6 +1,7 @@
 // bateson for Mac: a thin native shell around the web UI on localhost:4848 (or another port: see `port`).
 // A normal window (shown and hidden with ⌃⌥Space), a Dock icon with the count, a menubar ring with the count,
-// and a notification when a live session is waiting on you. The server itself runs as a login item.
+// and a notification when a live session is waiting on you. The server itself runs as a login item; while there is
+// none, the window says so, and why when the server could not start (a Node too old for it).
 import AppKit
 import Carbon
 import UserNotifications
@@ -13,6 +14,11 @@ let savedPort = UserDefaults.standard.integer(forKey: "port")
 let port = ProcessInfo.processInfo.environment["BATESON_PORT"].flatMap { Int($0) } ?? (savedPort > 0 ? savedPort : 4848)
 let serverURL = URL(string: "http://localhost:\(port)/")!
 let summaryURL = URL(string: "http://localhost:\(port)/api/summary")!
+// The queue's folder, found as the port is: BATESON_HOME from a shell, else the one saved at install, else ~/.bateson.
+// With no server to ask, the app reads server.error there: why the server cannot start (server/server.mjs).
+let home = URL(fileURLWithPath: ProcessInfo.processInfo.environment["BATESON_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+  ?? UserDefaults.standard.string(forKey: "home")
+  ?? (NSHomeDirectory() as NSString).appendingPathComponent(".bateson"))
 // The web app's --work, light and dark (web/src/app.css), so the window never flashes the other one.
 let paper = NSColor(name: nil) { look in
   look.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
@@ -50,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   var firstPoll = true
   var hotKey: EventHotKeyRef?
   var hotKeyName = ""
+  // The page loaded while there is no server, so it is loaded again only when what it says changes.
+  var downPage: String?
 
   func applicationDidFinishLaunching(_ note: Notification) {
     buildMenu()
@@ -116,16 +124,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
   @objc func reload() { web.load(URLRequest(url: serverURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)) }
 
-  // The server is a login item; if it is not up yet, say so and try again.
+  // The server is a login item; if it is not up yet, say so and try again. If it cannot start (a Node too old for
+  // it), say why instead. The page is loaded again only when that changes, so its text (the command that fixes it)
+  // can be selected and copied while the tries go on.
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
     // A load that was only cut short (⌘R while loading, a navigation cancelled below) is not the server being down.
     let e = error as NSError
     if (e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled) || (e.domain == "WebKitErrorDomain" && e.code == 102) { return }
-    webView.loadHTMLString("""
-      <html><style>body{background:#FCFCFB;color:#66696F}@media(prefers-color-scheme:dark){body{background:#141414;color:#99948C}}</style>
-      <body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font:14px -apple-system,system-ui">Waiting for the bateson server on localhost:\(port)</body></html>
-      """, baseURL: nil)
+    let page = serverDownPage()
+    if page != downPage {
+      downPage = page
+      webView.loadHTMLString(page, baseURL: nil)
+    }
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.reload() }
+  }
+
+  // The server's page is up: the next time it is down, the page saying so is loaded afresh.
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    if webView.url?.scheme == "http" { downPage = nil }
+  }
+
+  /// What the window says while there is no server. Why it cannot start, when server/server.mjs left that in
+  /// server.error lately (launchd tries again every ten seconds, and each try writes it again); else that it waits.
+  func serverDownPage() -> String {
+    let file = home.appendingPathComponent("server.error")
+    var why: String?
+    if let at = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date,
+       Date().timeIntervalSince(at) < 600,
+       let text = try? String(contentsOf: file, encoding: .utf8) {
+      let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty { why = trimmed }
+    }
+    let html = { (s: String) -> String in
+      s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+    }
+    let body = why.map { "<div style=\"max-width:560px;padding:24px;white-space:pre-wrap\"><b>The bateson server cannot start.</b>\n\n\(html($0))</div>" }
+      ?? "Waiting for the bateson server on localhost:\(port)"
+    return """
+      <html><style>body{background:#FCFCFB;color:#66696F}@media(prefers-color-scheme:dark){body{background:#141414;color:#99948C}}</style>
+      <body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font:14px -apple-system,system-ui">\(body)</body></html>
+      """
   }
 
   // The window shows bateson and nothing else: there is no address bar to tell you otherwise. A link out opens in the

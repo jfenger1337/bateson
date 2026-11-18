@@ -46,10 +46,10 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 | [`hooks/nudge.ts`](../hooks/nudge.ts) | When a turn ends: marks the session idle and records the working tree. |
 | [`hooks/remind.ts`](../hooks/remind.ts) | The first time a turn you did not start changes files, quietly reminds the agent that calls which are yours go to the queue. It never blocks. |
 | [`skill/`](../skill) | The skills. |
-| [`server/server.mjs`](../server/server.mjs) | What starts the server (`npm start`, `bateson serve`, the login item): checks the Node, as `cli/bateson.mjs` does, then runs `server/server.ts`. On a Node that cannot, it says so in `~/.bateson/server.log`. |
+| [`server/server.mjs`](../server/server.mjs) | What starts the server (`npm start`, `bateson serve`, the login item): checks the Node, as `cli/bateson.mjs` does, then runs `server/server.ts`. On a Node that cannot, it says so in `~/.bateson/server.log`, and in `server.error`, which the Mac app shows in place of its wait for the server. |
 | [`server/server.ts`](../server/server.ts) | Hono on `:4848`: the API, live updates, the built UI. Local requests only. |
 | [`web/`](../web) | Vite and React 19. |
-| [`mac/`](../mac) | The Mac shell, AppKit and WKWebView. `./mac/build.sh --install` puts it in `~/Applications`. |
+| [`mac/`](../mac) | The Mac shell, AppKit and WKWebView. `./mac/build.sh --install` puts it in `~/Applications`. While there is no server, it says why if the server left a reason (`server.error`: a Node too old for it), and waits. |
 | [`scripts/install.mjs`](../scripts/install.mjs) | What you run to install: checks the Node, as `cli/bateson.mjs` does, then runs `scripts/install.ts`. |
 | [`scripts/install.ts`](../scripts/install.ts) | Sets all of it up, and `--uninstall` takes it away. `--login` starts the server at login: a launchd item on a Mac, a value in the user's `Run` key on Windows. |
 | [`scripts/keepalive.mjs`](../scripts/keepalive.mjs) | What the Windows login item runs: checks the Node, then runs `scripts/keepalive.ts`. |
@@ -59,6 +59,6 @@ Open them with `⌘,` (`Ctrl+,` on Windows). They live in `~/.bateson/config.jso
 
 `npm start` runs the server. `npm run dev` runs Vite on `:5848` with the API proxied. `npm run typecheck` checks the app and the contract it shares with the server.
 
-`BATESON_HOME` and `BATESON_PORT` point everything at another queue, so you can try changes without touching your own. An install with `--login` made with them set keeps them: the server at login is given both, and the Mac app the port (saved in its defaults, as `defaults read app.bateson port` shows). `BATESON_CLAUDE_DIR` points at another list of running Claude Code sessions (normally `~/.claude/sessions`). On Windows and in WSL, `bateson send` opens the page when none is open, in a window of its own (Chrome's or Edge's `--app`), else in the default browser; `BATESON_NO_OPEN` turns that off, and `BATESON_OPEN_WITH` opens it with another program instead of `explorer.exe`.
+`BATESON_HOME` and `BATESON_PORT` point everything at another queue, so you can try changes without touching your own. An install with `--login` made with them set keeps them: the server at login is given both, and the Mac app the port and the queue (saved in its defaults, as `defaults read app.bateson` shows). `BATESON_CLAUDE_DIR` points at another list of running Claude Code sessions (normally `~/.claude/sessions`). On Windows and in WSL, `bateson send` opens the page when none is open, in a window of its own (Chrome's or Edge's `--app`), else in the default browser; `BATESON_NO_OPEN` turns that off, and `BATESON_OPEN_WITH` opens it with another program instead of `explorer.exe`.
 
 When a hook fails, it exits quietly so the session carries on, and writes a line to `~/.bateson/hooks.log`. Settings says when the last day has any.

@@ -24,6 +24,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      # The Mac app compiles: nothing else checks the Swift.
+      - if: runner.os == 'macOS'
+        run: ./mac/build.sh
 
   windows-install:
     runs-on: windows-latest

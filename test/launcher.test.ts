@@ -121,25 +121,31 @@ const freePort = () => new Promise<number>((resolve) => {
   const s = net.createServer().listen(0, '127.0.0.1', () => { const { port } = s.address() as net.AddressInfo; s.close(() => resolve(port)); });
 });
 
-test('on a Node that runs TypeScript, the server launcher starts the server', async () => {
+test('on a Node that runs TypeScript, the server launcher starts the server, and takes back why it could not', async () => {
   const port = await freePort();
-  const child = spawn(process.execPath, [SERVER], { env: childEnv({ BATESON_PORT: String(port) }), cwd: ROOT, stdio: 'ignore' });
+  const home = path.join(TMP, 'server-up');
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, 'server.error'), 'bateson: needs Node 22.18 or newer\n');
+  const child = spawn(process.execPath, [SERVER], { env: childEnv({ BATESON_HOME: home, BATESON_PORT: String(port) }), cwd: ROOT, stdio: 'ignore' });
   try {
     let ok = false;
     for (let i = 0; i < 100 && !ok; i++) {
       try { ok = (await fetch(`http://127.0.0.1:${port}/api/health`)).ok; } catch { await new Promise((r) => setTimeout(r, 100)); }
     }
     assert.ok(ok, 'the server answers');
+    assert.ok(!fs.existsSync(path.join(home, 'server.error')), 'the Mac app no longer says it cannot start');
   } finally { child.kill(); }
 });
 
-test('on a Node older than 22.18, the server says so instead of starting', () => {
-  const r = spawnSync(process.execPath, [...OLD_NODE, SERVER], { env: childEnv({ BATESON_PORT: '1' }), cwd: ROOT, encoding: 'utf8' });
+test('on a Node older than 22.18, the server says so instead of starting, and leaves it for the Mac app', () => {
+  const home = path.join(TMP, 'server-old-node');
+  const r = spawnSync(process.execPath, [...OLD_NODE, SERVER], { env: childEnv({ BATESON_HOME: home, BATESON_PORT: '1' }), cwd: ROOT, encoding: 'utf8' });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /needs Node 22\.18 or newer/);
   assert.match(r.stderr, /This is Node 20\.19\.5/);
   assert.match(r.stderr, /install\.mjs --login/);
   assert.doesNotMatch(r.stderr, /ERR_UNKNOWN_FILE_EXTENSION/);
+  assert.equal(fs.readFileSync(path.join(home, 'server.error'), 'utf8'), r.stderr, 'server.error says what stderr does');
 });
 
 test('on a Node older than 22.18, the Windows login item says so in server.log, having no window', () => {

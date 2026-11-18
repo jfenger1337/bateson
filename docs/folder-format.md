@@ -28,6 +28,7 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
                               the path the agent is given still holds once the item is filed under done.
   hooks.log                   one line per hook error (the hooks never stop a session to report one)
   server.log                  the server's output, when it runs at login
+  server.error                why the server cannot start (a Node too old for it), for the Mac app; gone once it starts
   server.pid                  on Windows, scripts/keepalive.ts while it keeps the server running
   update.json                 where updating bateson stands: the new version's changes, a step, or why it cannot (lib/update.ts)
 ```
