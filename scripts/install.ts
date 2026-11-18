@@ -226,7 +226,7 @@ if (WIN) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.bateson.server</string>
-  <key>ProgramArguments</key><array><string>${xml(NODE)}</string><string>${xml(path.join(REPO, 'server', 'server.mjs'))}</string></array>
+  <key>ProgramArguments</key><array><string>${xml(NODE)}</string><string>${xml(path.join(REPO, 'server', 'server.mjs'))}</string><string>--login</string></array>
   <key>WorkingDirectory</key><string>${xml(REPO)}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>

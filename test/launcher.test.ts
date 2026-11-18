@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import http from 'node:http';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
@@ -138,7 +139,7 @@ test('on a Node that runs TypeScript, the server launcher starts the server, and
   } finally { child.kill(); }
 });
 
-test('on a Node older than 22.18, the server says so instead of starting, and leaves it for the Mac app', () => {
+test('on a Node older than 22.18, the server started by hand says so and stops, and leaves it for the Mac app', () => {
   const home = path.join(TMP, 'server-old-node');
   const r = spawnSync(process.execPath, [...OLD_NODE, SERVER], { env: childEnv({ BATESON_HOME: home, BATESON_PORT: '1' }), cwd: ROOT, encoding: 'utf8' });
   assert.equal(r.status, 1);
@@ -149,10 +150,55 @@ test('on a Node older than 22.18, the server says so instead of starting, and le
   assert.equal(fs.readFileSync(path.join(home, 'server.error'), 'utf8'), r.stderr, 'server.error says what stderr does');
 });
 
-test('on a Node older than 22.18, the Windows login item says so in server.log, having no window', () => {
+/** Wait until `fn` holds, a tenth of a second at a time, for up to ten seconds. */
+async function until(fn: () => boolean | Promise<boolean>) {
+  for (let i = 0; i < 100; i++) { if (await fn()) return; await new Promise((r) => setTimeout(r, 100)); }
+  assert.fail('it never happened');
+}
+/** A GET as a browser on `host` would send it (fetch will not send a Host of its own choosing); null if nothing answers. */
+const get = (port: number, url: string, host = `localhost:${port}`) => new Promise<{ status: number; type: string; text: string } | null>((resolve) => {
+  http.get({ host: '127.0.0.1', port, path: url, headers: { host } }, (res) => {
+    let text = '';
+    res.setEncoding('utf8').on('data', (d) => { text += d; }).on('end', () => resolve({ status: res.statusCode!, type: res.headers['content-type'] || '', text }));
+  }).on('error', () => resolve(null));
+});
+
+test('at login on a Node older than 22.18, the server stands in on its port with why, then leaves for launchd to try again', async () => {
+  const port = await freePort();
+  const home = path.join(TMP, 'server-stand-in');
+  const child = spawn(process.execPath, [...OLD_NODE, SERVER, '--login'], { env: childEnv({ BATESON_HOME: home, BATESON_PORT: String(port), BATESON_STAND_IN_MS: '1500' }), cwd: ROOT, stdio: 'ignore' });
+  const exited = new Promise<number | null>((r) => child.on('exit', r));
+  try {
+    await until(async () => (await get(port, '/')) !== null);
+    const page = (await get(port, '/'))!;
+    assert.equal(page.status, 503);
+    assert.match(page.type, /text\/html/);
+    assert.match(page.text, /The bateson server cannot start\./);
+    assert.match(page.text, /needs Node 22\.18 or newer.*This is Node 20\.19\.5/);
+    assert.match(page.text, /location\.reload/, 'and goes to bateson once the real server answers');
+    const health = (await get(port, '/api/health'))!;
+    assert.equal(health.status, 503);
+    assert.equal(JSON.parse(health.text).ok, false);
+    assert.match(JSON.parse(health.text).error, /needs Node 22\.18 or newer/);
+    assert.equal((await get(port, '/', 'evil.example'))!.status, 403, 'only for this machine');
+    assert.match(fs.readFileSync(path.join(home, 'server.error'), 'utf8'), /needs Node 22\.18/, 'and the Mac app has it too');
+    assert.equal(await exited, 1);
+  } finally { child.kill(); }
+});
+
+test('on a Node older than 22.18, the Windows login item says why in server.log and on the port, until the installer stops it', async () => {
+  const port = await freePort();
   const home = path.join(TMP, 'keepalive-home');
-  const r = spawnSync(process.execPath, [...OLD_NODE, KEEPALIVE, '--home', home], { env: childEnv(), cwd: ROOT, encoding: 'utf8' });
-  assert.equal(r.status, 1);
-  assert.match(fs.readFileSync(path.join(home, 'server.log'), 'utf8'), /^\S+Z bateson: needs Node 22\.18 or newer.*\nInstall Node .*install\.mjs --login/m);
-  assert.ok(!fs.existsSync(path.join(home, 'server.pid')), 'keepalive.ts never ran');
+  const child = spawn(process.execPath, [...OLD_NODE, KEEPALIVE, '--home', home, '--port', String(port)], { env: childEnv(), cwd: ROOT, stdio: 'ignore' });
+  const exited = new Promise<number | null>((r) => child.on('exit', r));
+  try {
+    await until(async () => (await get(port, '/api/health'))?.status === 503);
+    assert.match(fs.readFileSync(path.join(home, 'server.log'), 'utf8'), /^\S+Z bateson: needs Node 22\.18 or newer.*\nInstall Node .*install\.mjs --login/m);
+    assert.equal(fs.readFileSync(path.join(home, 'server.pid'), 'utf8'), String(child.pid), 'the installer can find it');
+    assert.match((await get(port, '/'))!.text, /The bateson server cannot start/);
+    fs.writeFileSync(path.join(home, 'server.stop'), '');
+    assert.equal(await exited, 0);
+    assert.ok(!fs.existsSync(path.join(home, 'server.pid')));
+    assert.ok(!fs.existsSync(path.join(home, 'server.stop')));
+  } finally { child.kill(); }
 });
