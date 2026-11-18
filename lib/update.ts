@@ -67,6 +67,20 @@ export function supervised() {
   return false;
 }
 
+/**
+ * The oldest Node a version of bateson runs on, from its package.json's engines.node, as [major, minor, patch]: null
+ * when it names none, or in another form than ">=x.y.z" (a range this does not read is no reason to stop an update).
+ */
+export function needsNode(pkg: string): number[] | null {
+  let range: unknown;
+  try { range = (JSON.parse(pkg) as { engines?: { node?: unknown } })?.engines?.node; } catch { return null; }
+  const m = typeof range === 'string' ? /^\s*>=\s*v?(\d+)(?:\.(\d+))?(?:\.(\d+))?\s*$/.exec(range) : null;
+  return m ? [Number(m[1]), Number(m[2] || 0), Number(m[3] || 0)] : null;
+}
+const older = (a: number[], b: number[]) => (a[0] !== b[0] ? a[0] < b[0] : a[1] !== b[1] ? a[1] < b[1] : a[2] < b[2]);
+/** 24, 22.18 or 22.18.1, as people write a Node version. */
+const version = (v: number[]) => (v[2] ? v.join('.') : v[1] ? `${v[0]}.${v[1]}` : String(v[0]));
+
 /** The last lines a failed command printed, for the page. */
 function tail(e: unknown) {
   const out = String((e as { output?: string }).output || '').split('\n').map((l) => l.trim()).filter(Boolean);
@@ -76,8 +90,8 @@ function tail(e: unknown) {
 
 export function openUpdater({
   repo = REPO, file = path.join(store.ROOT, 'update.json'), run = runner(repo), restartable = supervised,
-  exit = () => process.exit(0), onChange = () => {}, macApp = MAC_APP,
-}: { repo?: string; file?: string; run?: Run; restartable?: () => boolean; exit?: () => void; onChange?: () => void; macApp?: string } = {}) {
+  exit = () => process.exit(0), onChange = () => {}, macApp = MAC_APP, node = process.versions.node,
+}: { repo?: string; file?: string; run?: Run; restartable?: () => boolean; exit?: () => void; onChange?: () => void; macApp?: string; node?: string } = {}) {
   let busy = false;
   const read = () => readUpdate(file);
   function save(v: UpdateView) {
@@ -122,10 +136,14 @@ export function openUpdater({
     // lockfile is not a change of yours; the update puts it back.
     const changed = (await run('git', ['status', '--porcelain', '--untracked-files=no'])).split('\n').filter(Boolean)
       .map((l) => l.slice(3)).filter((f) => f !== 'package-lock.json');
+    // A new version that needs a newer Node than the one bateson runs on would install, then fail to start (the
+    // server, the hooks and the command all run on it): say so now, and touch nothing.
+    const need = needsNode(await git('show', '@{u}:package.json').catch(() => ''));
     const blocked = ahead
       ? `${where} has ${ahead === 1 ? 'a commit' : `${ahead} commits`} of your own, so bateson leaves it alone. Merge the new version there with git pull.`
       : changed.length ? `You have changed ${changed.length === 1 ? 'a file' : `${changed.length} files`} in ${where} (${changed.slice(0, 3).join(', ')}${changed.length > 3 ? ', ...' : ''}), so bateson leaves it alone. Commit or undo ${changed.length === 1 ? 'it' : 'them'}, then check again.`
-        : '';
+        : need && older(node.split('.').map(Number), need) ? `The new version needs Node ${version(need)} or newer, and bateson runs on Node ${node} (${home(process.execPath)}). Install a newer Node, run node ${path.join(repo, 'scripts', 'install.mjs')} --login with it, then check again.`
+          : '';
     return { ...kept, checkedAt, changes, more, state: blocked ? 'blocked' : 'available', ...(blocked ? { reason: blocked } : {}) };
   }
 
