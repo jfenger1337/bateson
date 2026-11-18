@@ -579,7 +579,8 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* ---- The empty queue: the day so far, and who is at work. */
 /* Anchored from the top, not centred: agents coming and going below never move what is above. */
 .calm { max-width: 720px; margin: 0 auto; padding-top: clamp(48px, 16vh, 180px); display: flex; flex-direction: column; }
-.calm-update { margin-top: var(--space-12); font-size: var(--text-meta); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+.calm-update { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-12); font-size: var(--text-meta); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+.calm-update .px { color: var(--ink); }
 .calm.again .calm-update { animation: none; }
 .calm-mark { display: block; color: var(--faint-3); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 
@@ -638,6 +639,10 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* There only when Claude Code's settings have lost bateson's hooks, above everything else. */
 .set-warn { display: flex; align-items: center; justify-content: space-between; gap: var(--space-24); margin-bottom: var(--space-32); padding: var(--space-14) var(--space-16); border: 1px solid var(--border-soft); border-radius: var(--radius); background: var(--tint); }
 .set-warn:not(.fixed) .set-title { color: var(--late); }
+.set-warn .px { color: var(--late); }
+.set-warn.fixed .px { color: var(--ink); }
+.set-warn:has(> .px) { gap: var(--space-16); }
+.set-warn:has(> .px) .set-text { flex: 1; }
 /* Updates (Update.tsx): the state and its button on one line, the new version's changes listed under it. */
 .set-row.set-update { flex-direction: column; align-items: stretch; gap: var(--space-12); }
 .set-head-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-24); }
@@ -691,6 +696,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
   --ghost-hover: #262626;
   --tint: #222222;
   --highlight: #5C4B16;  /* the highlighter, dimmed so light ink reads on it */
+  --gold: #F3E4AE;       /* on dark grounds the highlighter's own yellow shows as it is */
   --late: #E08A5F;
   --initials: #C9C5BC;
   --bottle: #6FB899;
