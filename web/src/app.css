@@ -584,6 +584,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .calm-update .px { color: var(--ink); }
 .calm.again .calm-update { animation: none; }
 .calm-mark { display: block; color: var(--faint-3); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+.calm-mark .px { margin-left: -6px; } /* off-scale: the mark starts three grid pixels in; this lines its first ring up with the rings below */
 
 @keyframes qr-fade { from { opacity: 0; } } /* base.css's .page-loading */
 

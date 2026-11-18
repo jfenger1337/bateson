@@ -24,7 +24,8 @@ export function Empty({ agents, writing, amas, update, onUpdate }: Pick<State, '
 
   return (
     <div className={`calm${again ? ' again' : ''}`}>
-      <Settled />
+      {/* bateson's mark settling: both open rings fill in until all three are dots, nothing left pending. */}
+      <div className="calm-mark" role="img" aria-label="Nothing waiting on you"><Pixel name="settle" scale={2} still={again} /></div>
       {/* Only here, where nothing waits on you: a new version never comes between you and a question. */}
       {update?.state === 'available' && (
         <p className="calm-update"><Pixel name="gift" still={again} />A new version of bateson is ready. <button type="button" className="btn-link" onClick={onUpdate}>See what’s new</button></p>
@@ -81,19 +82,6 @@ function when(iso: string, now: number) {
   if (days === 1) return 'yesterday';
   if (days < 7) return d.toLocaleDateString(undefined, { weekday: 'long' });
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-}
-
-// One filled dot, quietly in grey: in bateson's notation a decided thing, so nothing is left pending.
-// The same inked edge as the logo (Logo.tsx), under its own filter so it does not depend on the bar being there.
-function Settled() {
-  return (
-    <svg className="calm-mark" width="28" height="28" viewBox="0 0 12 12" fill="currentColor" role="img" aria-label="Nothing waiting on you">
-      <defs>
-        <filter id="bt-rough-calm" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.25" numOctaves="2" seed="4" result="noise" /><feDisplacementMap in="SourceGraphic" in2="noise" scale="0.5" xChannelSelector="R" yChannelSelector="G" /></filter>
-      </defs>
-      <circle cx="6" cy="6" r="4.6" filter="url(#bt-rough-calm)" />
-    </svg>
-  );
 }
 
 function useNow(every: number) {
