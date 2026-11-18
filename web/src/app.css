@@ -583,7 +583,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .calm-update { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-12); font-size: var(--text-meta); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 .calm-update .px { color: var(--faint); }
 .calm.again .calm-update { animation: none; }
-.calm-mark { display: block; color: var(--faint-3); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
+.calm-mark { display: block; color: var(--faint-2); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 .calm-mark .px { margin-left: -6px; } /* off-scale: the mark starts three grid pixels in; this lines its first ring up with the rings below */
 
 @keyframes qr-fade { from { opacity: 0; } } /* base.css's .page-loading */
