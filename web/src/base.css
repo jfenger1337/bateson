@@ -93,9 +93,8 @@
   --text-heading-sm: 22px; /* a page heading on a phone, a card's heading */
   --text-heading: 24px;
   --text-display: 28px;   /* the one question on a sign-in or setup page */
-  /* The work, in Newsreader: title 36 and body 19 at the desk, one step down the scale on a phone. */
-  --work-title: 36px;
-  --work-xl: 27px;
+  /* The work, in Newsreader: title 28 at the desk, the size of an interview question, and 24 on a phone. */
+  --work-title: 28px;
   --work-lg: 22px;
   --work-md: 19px;
   --work-sm: 17px;

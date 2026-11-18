@@ -216,7 +216,9 @@ function openPage(): boolean {
 
 async function cmdSend(o: Args) {
   if (!o.title && !o.item) die('--title is required.');
-  if (!o.note && !o.questions) die('--note is required: what this is and where to look.');
+  // An interview shows only its questions, and its summary only the decisions: neither needs a note.
+  const interview = o.item ? findOrDie(o.item).versions.some((v) => v.bodyType === 'questions') : false;
+  if (!o.note && !o.questions && !interview) die('--note is required: what this is and where to look.');
   let bodyType: BodyType, body: Body;
   let shown: Attachment[] = [];
   const sources = ['questions', 'findings', 'file', 'diff', 'stdin'].filter((k) => o[k]);

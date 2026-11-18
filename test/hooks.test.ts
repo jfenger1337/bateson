@@ -118,6 +118,17 @@ test('bateson send ties the item to its session, from CLAUDE_CODE_SESSION_ID', (
   assert.match(out.at(-1)!, /bateson wait|End your turn/, 'what to do next is the last line');
 });
 
+test('an interview\'s summary goes without a note, anything else still needs one', () => {
+  const q = (id: string) => ({ id, title: `${id}?`, body: 'b', options: [{ label: 'yes' }, { label: 'no' }], recommended: 0, recommendation: 'r' });
+  const round = cli(['send', '--title', 'Plan', '--questions', '-'], {}, JSON.stringify({ questions: [q('Q1'), q('Q2')] }));
+  const id = /queued (q_[a-z0-9]+)/.exec(round[0])![1];
+  const summary = cli(['send', '--item', id, '--title', 'What we decided', '--stdin', '--type', 'markdown'], {}, '1. Yes.');
+  assert.match(summary[0], new RegExp(`queued ${id} `));
+  const plain = spawnSync(process.execPath, [path.join(ROOT, 'cli', 'bateson.ts'), 'send', '--title', 'Plan', '--stdin'], { env: childEnv({}), cwd: REPO, input: 'body', encoding: 'utf8' });
+  assert.notEqual(plain.status, 0);
+  assert.match(plain.stderr, /--note is required/);
+});
+
 test('bateson send finds its session from the Claude Code process above it', () => {
   sessionOpen(process.pid, 'P');
   const out = cli(['send', '--title', 'Plan', '--note', 'n', '--stdin'], {}, 'body');

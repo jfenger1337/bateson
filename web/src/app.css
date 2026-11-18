@@ -78,9 +78,10 @@
 .prose { font-family: var(--sans); font-size: 16px; line-height: 1.65; color: var(--ink-body); }
 .prose > * + * { margin-top: 0.75em; }
 .prose h1, .prose h2, .prose h3, .prose h4 { font-family: var(--serif); font-weight: 500; line-height: 1.25; color: var(--ink); margin-top: 1.4em; }
-.prose h1 { font-size: var(--work-xl); }
-.prose h2 { font-size: var(--work-lg); }
-.prose h3, .prose h4 { font-size: var(--work-md); }
+/* A step below the title, so a heading in the body never reads as a second title. */
+.prose h1 { font-size: var(--work-lg); }
+.prose h2 { font-size: var(--work-md); }
+.prose h3, .prose h4 { font-size: var(--work-sm); }
 .prose ul, .prose ol { padding-left: 1.3em; margin-bottom: 0; }
 .prose li + li { margin-top: 0.25em; }
 /* Schibsted's default figures are tabular, which leaves a gap between a narrow 1 and its full stop. */
@@ -566,7 +567,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 @media (max-width: 760px) {
   .work { padding: var(--space-24) var(--space-16) 200px; }
   .bar { padding: 0 var(--space-16); }
-  .work-title { font-size: var(--work-xl); }
+  .work-title { font-size: var(--text-heading); }
   .iv-title { font-size: var(--text-heading); }
   .q-body { margin-left: 32px; }
   .options { margin-left: 0; }

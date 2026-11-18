@@ -30,7 +30,7 @@ If `command -v bateson` fails, bateson is not installed: ask in chat as usual. D
 The CLI captures the body itself. You write only the title and the note.
 
 - `--title`: the item's name. They see it in the queue, above every question, and as your name in their list of working agents, so it has to make sense on its own (see *Writing for them*).
-- `--note`: one or two sentences: what this is and where their eyes should go first. Not for interview rounds: those show only the questions.
+- `--note`: one or two sentences: what this is and where their eyes should go first. Not for an interview, its rounds or its summary: those show only the questions or the decisions.
 
 ```bash
 # An interview round (decisions or context). JSON on stdin.

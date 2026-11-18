@@ -67,7 +67,7 @@ An answer to a question marked `opens` reaches you while they are still on the r
 When the frontier is empty, send the shared understanding as the interview's last version. Approving it is their confirmation:
 
 ```bash
-bateson send --item <id> --title "<what we decided>" --note "Approve to confirm, or send it back with what to correct." --stdin --type markdown <<'EOF_SUM'
+bateson send --item <id> --title "<what we decided>" --stdin --type markdown <<'EOF_SUM'
 <the decisions>
 EOF_SUM
 ```
