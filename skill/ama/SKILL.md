@@ -46,6 +46,10 @@ EOF_ROUND
 
 A round needs at least two questions: when the frontier is a single question, ask it in chat instead.
 
+## Unslop before sending
+
+Before every round and the final summary goes out, in bateson or in chat, read [unslop.md](unslop.md) and edit what the user will read against it: titles, bodies, option labels and descriptions, recommendations, the summary. Plain words and a real opinion in each recommendation make a round faster to answer. Leave the formats in this skill as they are: the JSON fields, the ❓ and ➡️ of a chat round, a title ending in a question mark.
+
 After sending, do what the command's last line says: end your turn where their answers can wake you, wait where it tells you to. In chat, say only that the round is in their queue; don't repeat the questions.
 
 ## Reading answers
