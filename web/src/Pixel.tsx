@@ -2,20 +2,20 @@ import { useEffect, useState } from 'react';
 import { PIXELS, type PixelName } from './pixels';
 
 // A pixel icon from pixels.ts, at a whole multiple of its 24-pixel grid (scale 1 is 24px, 2 is 48px), so every
-// pixel lands on whole screen pixels and stays sharp. Ink is currentColor, the grey is --faint and the yellow is
-// --gold, so it takes either theme. It plays its frames, once or in a loop, unless `still` is set or the system
+// pixel lands on whole screen pixels and stays sharp. It draws in currentColor, with the fainter pixels in --faint-3,
+// so it takes either theme. It plays its frames, once or in a loop, unless `still` is set or the system
 // asks for reduced motion: then it shows its resting frame.
 
 const N = 24;
 
 // A frame's grid as path data, one per tone: each run of a character along a row becomes a one-pixel-high rectangle.
-type Paths = { ink: string; soft: string; gold: string };
+type Paths = { ink: string; faint: string };
 const cache = new Map<string, Paths>();
 function paths(frame: string): Paths {
   const hit = cache.get(frame);
   if (hit) return hit;
-  const out: Paths = { ink: '', soft: '', gold: '' };
-  const key = { '#': 'ink', '+': 'soft', '*': 'gold' } as const;
+  const out: Paths = { ink: '', faint: '' };
+  const key = { '#': 'ink', '*': 'faint' } as const;
   frame.trim().split('\n').forEach((row, y) => {
     for (let x = 0; x < N;) {
       const c = row[x] as keyof typeof key;
@@ -53,8 +53,7 @@ export function Pixel({ name, scale = 1, still, className }: { name: PixelName; 
   const size = N * scale;
   return (
     <svg className={`px${className ? ` ${className}` : ''}`} width={size} height={size} viewBox={`0 0 ${N} ${N}`} shapeRendering="crispEdges" aria-hidden>
-      <path className="px-soft" d={p.soft} />
-      <path className="px-gold" d={p.gold} />
+      <path className="px-faint" d={p.faint} />
       <path d={p.ink} fill="currentColor" />
     </svg>
   );

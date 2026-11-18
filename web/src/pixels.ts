@@ -1,6 +1,6 @@
 // bateson's pixel icons on a 24x24 grid: its own mark, and Pixelarticons (pixelarticons.com) with frames drawn here
 // so they move.
-// Each frame is a text grid: # is ink, + is a fainter grey, * is bateson's yellow, . is nothing. To change a pixel,
+// Each frame is a text grid: # is the icon's colour, * a fainter grey (--faint-3), . is nothing. To change a pixel,
 // change its character. `seq` is the order frames play in (a frame repeated is a frame held), `ms` the time each
 // step shows, `loop` whether it starts again, and `rest` the frame shown when nothing moves (reduced motion, or a
 // screen you came back to). Pixel.tsx draws them.

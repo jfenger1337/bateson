@@ -39,7 +39,6 @@
   --ghost-hover: #EFEEEA;
   --tint: #F4F3EF;        /* a light pressed or chosen fill: a dragged-over drop, a chosen person, a quoted comment */
   --highlight: #F3E4AE;
-  --gold: #D2A92F;        /* the highlighter's yellow, deep enough to show as pixels on the light grounds (Pixel.tsx) */
   --late: #9A3412;   /* due today, stuck, flagged */
   --initials: #3D3D3A;
   --bottle: #1F5A46;
@@ -279,6 +278,5 @@ p, li { text-wrap: pretty; }
 
 /* A page still loading (Loading.tsx). It fades in late, so the local server's usual quick answer shows nothing. */
 .px { display: block; flex: none; }
-.px-soft { fill: var(--faint); }
-.px-gold { fill: var(--gold); }
+.px-faint { fill: var(--faint-3); }
 .page-loading { display: flex; justify-content: center; padding-top: 18vh; color: var(--faint); animation: qr-fade var(--dur-arrive) var(--ease-out) 400ms both; } /* qr-fade: app.css */
