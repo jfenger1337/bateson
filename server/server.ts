@@ -183,6 +183,10 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     app.get('/manifest.webmanifest', serveStatic({ root }));
     // The favicon, in the formats browsers ask for (web/public).
     for (const file of ['/favicon.svg', '/favicon.ico', '/apple-touch-icon.png']) app.get(file, serveStatic({ root }));
+    // The service worker that answers a load while this server is down (web/public/sw.js). Never cached, so a new
+    // one is picked up on the next load.
+    app.use('/sw.js', async (c, next) => { await next(); c.header('cache-control', 'no-cache'); });
+    app.get('/sw.js', serveStatic({ root }));
     app.get('*', (c) => {
       c.header('cache-control', 'no-store');
       return c.html(fs.readFileSync(path.join(dist, 'index.html'), 'utf8'));
