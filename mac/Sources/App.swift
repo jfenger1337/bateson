@@ -56,8 +56,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   var firstPoll = true
   var hotKey: EventHotKeyRef?
   var hotKeyName = ""
-  // The page loaded while there is no server, so it is loaded again only when what it says changes.
+  // The page loaded while there is no server, so it is loaded again only when what it says changes, and its load.
   var downPage: String?
+  var downLoad: WKNavigation?
 
   func applicationDidFinishLaunching(_ note: Notification) {
     buildMenu()
@@ -134,18 +135,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     let page = serverDownPage()
     if page != downPage {
       downPage = page
-      webView.loadHTMLString(page, baseURL: nil)
+      // At the server's address, so the page's own look for the server (and the theme it keeps) is bateson's.
+      downLoad = webView.loadHTMLString(page, baseURL: serverURL)
     }
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.reload() }
   }
 
   // The server's page is up: the next time it is down, the page saying so is loaded afresh.
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    if webView.url?.scheme == "http" { downPage = nil }
+    if navigation != downLoad { downPage = nil; downLoad = nil }
   }
 
-  /// What the window says while there is no server. Why it cannot start, when server/server.mjs left that in
-  /// server.error lately (launchd tries again every ten seconds, and each try writes it again); else that it waits.
+  /// What the window says while there is no server: web/public/waiting.html, the page a browser shows then too, which
+  /// mac/build.sh puts in the app. Why the server cannot start goes in its place for that, when server/server.mjs
+  /// left it in server.error lately (launchd tries again every ten seconds, and each try writes it again).
   func serverDownPage() -> String {
     let file = home.appendingPathComponent("server.error")
     var why: String?
@@ -158,13 +161,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     let html = { (s: String) -> String in
       s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
     }
-    let body = why.map { "<div style=\"max-width:560px;padding:24px;white-space:pre-wrap\"><b>The bateson server cannot start.</b>\n\n\(html($0))</div>" }
-      ?? "Waiting for the bateson server on localhost:\(port)"
-    return """
-      <html><style>body{background:#FCFCFB;color:#66696F}@media(prefers-color-scheme:dark){body{background:#141414;color:#99948C}}</style>
-      <body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font:14px -apple-system,system-ui">\(body)</body></html>
-      """
+    let reason = why.map { "<div class=\"why\"><b>The bateson server cannot start.</b>\n\n\(html($0))</div>" } ?? ""
+    guard var page = waitingPage else {
+      // An app built without the page (it always has it): the words alone.
+      return "<html><body style=\"font:14px -apple-system,system-ui\">\(reason.isEmpty ? "Waiting for the bateson server on localhost:\(port)" : reason)</body></html>"
+    }
+    page = page.replacingOccurrences(of: "<!--why-->", with: reason)
+    return page
   }
+
+  /// waiting.html as the app has it, with its font in it as data: the server it would come from is the one that is down.
+  lazy var waitingPage: String? = {
+    guard let url = Bundle.main.url(forResource: "waiting", withExtension: "html"),
+          var page = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+    if let font = Bundle.main.url(forResource: "schibstedgrotesk-normal", withExtension: "woff2"),
+       let data = try? Data(contentsOf: font) {
+      page = page.replacingOccurrences(of: "/fonts/schibstedgrotesk-normal.woff2", with: "data:font/woff2;base64,\(data.base64EncodedString())")
+    }
+    return page
+  }()
 
   // The window shows bateson and nothing else: there is no address bar to tell you otherwise. A link out opens in the
   // browser, only web and mail links: a link can come from an agent's markup (a component example, a live preview),

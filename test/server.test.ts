@@ -126,14 +126,17 @@ test('a form cannot post, even empty and from bateson\'s own page: only JSON cha
 
 // ---- The service worker that answers a load while the server is down (web/public/sw.js).
 
-test('the service worker is served as a script and never cached, so a new one is picked up at once', async () => {
+test('the service worker and its waiting page are served as themselves and never cached, so new ones are picked up at once', async () => {
   const dist = fs.mkdtempSync(path.join(TMP, 'dist-'));
-  fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html>');
+  fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html><p>app');
   fs.writeFileSync(path.join(dist, 'sw.js'), '// sw');
+  fs.writeFileSync(path.join(dist, 'waiting.html'), '<!doctype html><p>waiting');
   const { app } = createApp({ dist });
-  const res = await app.request('/sw.js', HOST);
-  assert.equal(res.status, 200);
-  assert.match(res.headers.get('content-type') || '', /javascript/);
-  assert.equal(res.headers.get('cache-control'), 'no-cache');
-  assert.equal(await res.text(), '// sw');
+  for (const [file, type, body] of [['/sw.js', /javascript/, '// sw'], ['/waiting.html', /html/, '<!doctype html><p>waiting']] as const) {
+    const res = await app.request(file, HOST);
+    assert.equal(res.status, 200, file);
+    assert.match(res.headers.get('content-type') || '', type, file);
+    assert.equal(res.headers.get('cache-control'), 'no-cache', file);
+    assert.equal(await res.text(), body, file);
+  }
 });

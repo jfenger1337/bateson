@@ -1,0 +1,54 @@
+<!doctype html>
+<!-- What bateson shows while its server does not answer, in place of the browser's "localhost refused to connect"
+     and the Mac app's blank window: the same page in both. The service worker (sw.js) keeps a copy and serves it
+     when a page load fails; mac/build.sh copies it into the Mac app, which loads it when its own load fails, puts
+     the font in as data (the server that serves it is down) and, when the server cannot start, puts why in place
+     of the "why" comment below. Either way it waits for the server and goes back to bateson once it answers. -->
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#FCFCFB">
+<title>bateson</title>
+<script>
+  (function () {
+    var t = 'system';
+    try { t = localStorage.getItem('bateson:theme') || t; } catch (e) {}
+    if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t;
+    if (t === 'dark') document.querySelector('meta[name="theme-color"]').content = '#141414';
+  })();
+</script>
+<style>
+  @font-face { font-family: 'Schibsted Grotesk'; font-weight: 400 900; font-display: swap; src: url('/fonts/schibstedgrotesk-normal.woff2') format('woff2'); }
+  :root { --work: #FCFCFB; --ink: #1E2126; --muted: #5F5B54; }
+  [data-theme='dark'] { color-scheme: dark; --work: #141414; --ink: #E8E3DA; --muted: #99948C; }
+  html, body { margin: 0; height: 100%; background: var(--work); color: var(--muted); }
+  body { display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 16px;
+    font: 14px/1.5 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  /* Installed as an app with no title bar of its own: this strip is where the window is dragged from. */
+  .drag { position: fixed; top: 0; left: 0; right: 0; height: env(titlebar-area-height, 0px); -webkit-app-region: drag; app-region: drag; }
+  /* Why the server cannot start (the Mac app reads it from server.error): it takes the place of the waiting line,
+     and stays put while the app keeps trying, so the command in it can be selected and copied. */
+  .why { max-width: 560px; padding: 24px; text-align: left; white-space: pre-wrap; user-select: text; }
+  .why b { color: var(--ink); font-weight: 600; }
+  main:has(.why) .waiting { display: none; }
+</style>
+</head>
+<body>
+<div class="drag"></div>
+<main>
+  <p class="waiting">Waiting for the bateson server on <span id="host">localhost</span></p>
+  <!--why-->
+</main>
+<script>
+  document.getElementById('host').textContent = location.host || 'localhost';
+  // Back to bateson, at the address that was asked for, once the server answers. A navigation and not a reload:
+  // in the Mac app this page was loaded as text, and a reload would only load the text again. (With a #, going to
+  // the same address would only scroll, so that one reloads; the Mac app's address has none.)
+  setInterval(function () {
+    fetch('/api/health', { cache: 'no-store' }).then(function (r) { if (r.ok) location.hash ? location.reload() : location.replace(location.href); }, function () {});
+  }, 2000);
+</script>
+</body>
+</html>

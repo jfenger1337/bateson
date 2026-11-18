@@ -11,6 +11,9 @@ swiftc -O -parse-as-library -target "$(uname -m)-apple-macos14.0" \
 cp Info.plist "$APP/Contents/Info.plist"
 # The notification sound: a short rising pop, made for bateson (sine, 320 to 580 Hz, 0.2 s).
 cp Notify.wav "$APP/Contents/Resources/Notify.wav"
+# What the window shows while the server is down: the page a browser shows then too (web/public/waiting.html), with
+# the font it uses and the font's licence. lib/update.ts rebuilds the app when they change (MAC_APP_FILES there).
+cp ../web/public/waiting.html ../web/public/fonts/schibstedgrotesk-normal.woff2 ../web/public/fonts/LICENSE-SchibstedGrotesk.txt "$APP/Contents/Resources/"
 
 # The icon: Bateson's mark in ink on the highlighter. AppIcon.png is AppIcon.svg rendered at 1024; render it
 # again after changing the SVG (its inked edge is an SVG filter), e.g. with headless Chrome:

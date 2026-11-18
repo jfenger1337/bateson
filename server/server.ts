@@ -187,6 +187,9 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     // one is picked up on the next load.
     app.use('/sw.js', async (c, next) => { await next(); c.header('cache-control', 'no-cache'); });
     app.get('/sw.js', serveStatic({ root }));
+    // The page it, and the Mac app, show while this server is down (web/public/waiting.html).
+    app.use('/waiting.html', async (c, next) => { await next(); c.header('cache-control', 'no-cache'); });
+    app.get('/waiting.html', serveStatic({ root }));
     app.get('*', (c) => {
       c.header('cache-control', 'no-store');
       return c.html(fs.readFileSync(path.join(dist, 'index.html'), 'utf8'));

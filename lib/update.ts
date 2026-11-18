@@ -16,6 +16,9 @@ const WIN = process.platform === 'win32';
 const DAY = 24 * 3600 * 1000;
 const MAX_CHANGES = 30;
 const MAC_APP = path.join(os.homedir(), 'Applications', 'bateson.app');
+// What goes into the Mac app (mac/build.sh): an update that changes any of it rebuilds the app.
+const MAC_APP_FILES = ['web/public/waiting.html', 'web/public/fonts/schibstedgrotesk-normal.woff2', 'web/public/fonts/LICENSE-SchibstedGrotesk.txt'];
+const inMacApp = (f: string) => f.startsWith('mac/') || MAC_APP_FILES.includes(f);
 
 /** Runs a command in the checkout; resolves with its output, or rejects with it on `output`. */
 export type Run = (cmd: string, args: string[], opts?: { timeout?: number }) => Promise<string>;
@@ -159,7 +162,7 @@ export function openUpdater({
       }
       let note: string | undefined;
       // The Mac window is its own small app, rebuilt only when it changed and only if it is installed.
-      if (process.platform === 'darwin' && files.some((f) => f.startsWith('mac/')) && fs.existsSync(macApp)) {
+      if (process.platform === 'darwin' && files.some(inMacApp) && fs.existsSync(macApp)) {
         step('Rebuilding the Mac app');
         try { await run('bash', [path.join(repo, 'mac', 'build.sh'), '--install']); await run('open', [macApp]); }
         catch { note = `The Mac app could not be rebuilt. Run mac/build.sh --install in ${where}.`; }
