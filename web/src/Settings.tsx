@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
 import { Loading } from './Loading';
+import { Pixel } from './Pixel';
 import { setTheme } from '@/lib/theme';
 import { MAC } from './lib/keys';
 import { UpdatePanel } from './Update';
@@ -106,6 +107,7 @@ export function Settings({ onClose, onChange, update, theme }: { onClose: () => 
 
       {hooks.state !== 'ok' && (
         <div className={`set-warn${hooks.state === 'fixed' ? ' fixed' : ''}`} role="status">
+          <Pixel name={hooks.state === 'fixed' ? 'link' : 'unlink'} scale={2} />
           <div className="set-text">
             <p className="set-title">{hooks.state === 'fixed' ? 'Answers reach agents again.' : 'Answers cannot reach agents.'}</p>
             <p className="set-hint">
