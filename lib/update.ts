@@ -1,7 +1,8 @@
 // Updating bateson from the app. bateson runs from its git checkout (the skills are links into it, the hooks and
 // the command run from it), so an update is: fetch, fast-forward, install what changed, build, run the installer,
 // and let the server quit so whatever keeps it running (launchd on a Mac, scripts/keepalive.ts on Windows) starts
-// the new one. A checkout with changes or commits of its own is never touched. A failed update goes back to the
+// the new one (or, under `bateson serve`, the command does). A server nothing restarts says so, and the page's
+// Restart starts its replacement. A checkout with changes or commits of its own is never touched. A failed update goes back to the
 // commit it started from. What happened is kept in ~/.bateson/update.json, so the page can say it after a restart.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -22,6 +23,9 @@ const inMacApp = (f: string) => f.startsWith('mac/') || MAC_APP_FILES.includes(f
 
 /** Runs a command in the checkout; resolves with its output, or rejects with it on `output`. */
 export type Run = (cmd: string, args: string[], opts?: { timeout?: number }) => Promise<string>;
+
+/** The exit code that asks for the server to be started again. `bateson serve` restarts only on this one. */
+export const RESTART = 75;
 
 const NONE: UpdateView = { state: 'current', changes: [], more: 0 };
 const home = (p: string) => p.replace(os.homedir(), '~');
@@ -58,10 +62,13 @@ export function runner(cwd: string): Run {
 }
 
 /**
- * Whether something starts the server again when it quits. On a Mac launchd is its parent (the login item has
- * KeepAlive); on Windows scripts/keepalive.ts is, and its pid is in server.pid. Started by hand, nothing is.
+ * Whether something starts the server again when it quits. `bateson serve` does; on a Mac launchd is its parent (the
+ * login item has KeepAlive); on Windows scripts/keepalive.ts is, and its pid is in server.pid. Started some other way
+ * (npm start), nothing is.
  */
 export function supervised() {
+  // `bateson serve` names itself, so a server it did not start (its child's child) does not count on it.
+  if (process.env.BATESON_SERVE_PID && process.env.BATESON_SERVE_PID === String(process.ppid)) return true;
   if (process.platform === 'darwin') return process.ppid === 1 || (process.env.XPC_SERVICE_NAME || '').includes('com.bateson.server');
   if (WIN) { try { return fs.readFileSync(path.join(store.ROOT, 'server.pid'), 'utf8').trim() === String(process.ppid); } catch { return false; } }
   return false;
@@ -81,6 +88,20 @@ const older = (a: number[], b: number[]) => (a[0] !== b[0] ? a[0] < b[0] : a[1] 
 /** 24, 22.18 or 22.18.1, as people write a Node version. */
 const version = (v: number[]) => (v[2] ? v.join('.') : v[1] ? `${v[0]}.${v[1]}` : String(v[0]));
 
+/**
+ * For a server nothing restarts: start the new one on its own, in the background with its output in server.log. It
+ * waits for this one to quit and free the port (server/server.ts reads BATESON_REPLACES).
+ */
+export function relaunch(repo = REPO) {
+  fs.mkdirSync(store.ROOT, { recursive: true });
+  const log = fs.openSync(path.join(store.ROOT, 'server.log'), 'a');
+  spawn(process.execPath, [path.join(repo, 'server', 'server.mjs')], {
+    cwd: repo, detached: true, windowsHide: true, stdio: ['ignore', log, log],
+    env: { ...process.env, BATESON_REPLACES: String(process.pid), BATESON_SERVE_PID: '' },
+  }).unref();
+  fs.closeSync(log);
+}
+
 /** The last lines a failed command printed, for the page. */
 function tail(e: unknown) {
   const out = String((e as { output?: string }).output || '').split('\n').map((l) => l.trim()).filter(Boolean);
@@ -90,8 +111,8 @@ function tail(e: unknown) {
 
 export function openUpdater({
   repo = REPO, file = path.join(store.ROOT, 'update.json'), run = runner(repo), restartable = supervised,
-  exit = () => process.exit(0), onChange = () => {}, macApp = MAC_APP, node = process.versions.node,
-}: { repo?: string; file?: string; run?: Run; restartable?: () => boolean; exit?: () => void; onChange?: () => void; macApp?: string; node?: string } = {}) {
+  exit = () => process.exit(RESTART), replace = () => relaunch(repo), onChange = () => {}, macApp = MAC_APP, node = process.versions.node,
+}: { repo?: string; file?: string; run?: Run; restartable?: () => boolean; exit?: () => void; replace?: () => void; onChange?: () => void; macApp?: string; node?: string } = {}) {
   let busy = false;
   const read = () => readUpdate(file);
   function save(v: UpdateView) {
@@ -186,13 +207,25 @@ export function openUpdater({
         catch { note = `The Mac app could not be rebuilt. Run mac/build.sh --install in ${where}.`; }
       }
       const updatedAt = new Date().toISOString();
-      if (!restartable()) return save({ ...NONE, checkedAt: v.checkedAt, updatedAt, note, state: 'restart', reason: 'Restart bateson serve to finish: the server running now is the old one.' });
+      if (!restartable()) return save({ ...NONE, checkedAt: v.checkedAt, updatedAt, note, state: 'restart', reason: 'The server running now is still the old one: restart it to finish.' });
       save({ ...NONE, checkedAt: v.checkedAt, updatedAt, note });
       setTimeout(exit, 300); // after the response, so the page hears it went through
       return read();
     } catch (e) {
       return save({ ...v, state: 'failed', step: undefined, reason: `The update did not start. ${tail(e)}` });
     } finally { busy = false; }
+  }
+
+  /**
+   * Quit, for the new version to start: whatever keeps the server running starts it again, and when nothing does,
+   * its replacement is started first. Not while an update is under way.
+   */
+  function restart() {
+    if (busy) return false;
+    busy = true;
+    if (!restartable()) replace();
+    setTimeout(exit, 300); // after the response
+    return true;
   }
 
   /** At start: an update the last server never finished (it was stopped partway) is said as failed. */
@@ -203,5 +236,5 @@ export function openUpdater({
     if (v.state === 'updating') save({ ...v, state: 'failed', step: undefined, reason: `The update stopped partway, when bateson was closed. Check ${where} with git status, then update again.` });
   }
 
-  return { read, check, apply, recover };
+  return { read, check, apply, restart, recover };
 }

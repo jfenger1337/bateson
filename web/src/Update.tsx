@@ -1,9 +1,30 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Spinner } from './components/ui/spinner';
 import type { UpdateView } from '@lib/types';
 
 // Settings › Updates: where a new version stands, what is in it, and the one button to install it
 // (lib/update.ts does the work). It follows the server's update.json, which the page reads with the rest of the state.
+
+/**
+ * Restart, for a server that was updated but nothing restarts: it quits for the new one, which the page then hears
+ * from as it reconnects (the update's state goes back to 'current'). Until then the button says it is restarting.
+ */
+export function RestartButton({ className = 'btn-pill', state }: { className?: string; state: UpdateView['state'] }) {
+  const [phase, setPhase] = useState<'idle' | 'asking' | 'lost'>('idle');
+  useEffect(() => { if (state !== 'restart') setPhase('idle'); }, [state]);
+  const restart = async () => {
+    setPhase('asking');
+    try {
+      const res = await fetch('/api/restart', { method: 'POST', headers: { 'content-type': 'application/json' } });
+      if (!res.ok) setPhase('lost');
+    } catch { setPhase('lost'); }
+  };
+  return (
+    <button type="button" className={className} disabled={phase === 'asking'} onClick={restart}>
+      {phase === 'asking' ? 'Restarting…' : phase === 'lost' ? 'Try again' : 'Restart'}
+    </button>
+  );
+}
 
 export function UpdatePanel({ update }: { update: UpdateView }) {
   const [asking, setAsking] = useState<'check' | 'install' | null>(null);
@@ -54,8 +75,9 @@ export function UpdatePanel({ update }: { update: UpdateView }) {
       action = <button type="button" className="btn-pill" disabled={!!asking} onClick={install}>Try again</button>;
       break;
     case 'restart':
-      title = 'Updated';
+      title = 'Updated: restart to finish';
       hint = u.reason || '';
+      action = <RestartButton state={u.state} />;
       break;
     default:
       title = 'bateson is up to date';

@@ -81,6 +81,8 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
   app.get('/api/update', (c) => c.json(updater.read()));
   app.post('/api/update/check', async (c) => c.json(await updater.check()));
   app.post('/api/update', (c) => { updater.apply().catch(() => {}); return c.json({ started: true }); });
+  // After an update a server nothing restarts is still the old one: this quits it for the new one.
+  app.post('/api/restart', (c) => (updater.restart() ? c.json({ restarting: true }) : c.json({ error: 'An update is under way.' }, 409)));
 
   app.get('/api/state', (c) => {
     pageSeen = Date.now();
@@ -204,8 +206,19 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
   };
 }
 
+/** Waits, up to 20 seconds, for the server this one replaces (lib/update.ts relaunch) to quit and free the port. */
+async function replaced(pid: number) {
+  for (let i = 0; i < 100; i++) {
+    try { process.kill(pid, 0); } catch { return; }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
 /** Run it: watch the queue and the build, and listen on localhost. */
-export function start() {
+export async function start() {
+  const old = Number(process.env.BATESON_REPLACES);
+  delete process.env.BATESON_REPLACES;
+  if (old) await replaced(old);
   const { app, changed, rebuilt, updater } = createApp();
   // Once a day, if Settings allows, ask GitHub whether there is a newer version. The first look waits a minute,
   // so a server that keeps restarting does not ask each time.

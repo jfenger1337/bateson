@@ -53,9 +53,9 @@ function fake(fail: string[] = []) {
 
 function updater(opts: { fail?: string[]; restartable?: boolean; node?: string } = {}) {
   const { run, calls } = fake(opts.fail);
-  let exited = 0;
-  const u = openUpdater({ repo: LOCAL, file: FILE, run, restartable: () => opts.restartable ?? true, exit: () => { exited++; }, macApp: path.join(TMP, 'no-app'), node: opts.node });
-  return { u, calls, exited: () => exited };
+  let exited = 0, replaced = 0;
+  const u = openUpdater({ repo: LOCAL, file: FILE, run, restartable: () => opts.restartable ?? true, exit: () => { exited++; }, replace: () => { replaced++; }, macApp: path.join(TMP, 'no-app'), node: opts.node });
+  return { u, calls, exited: () => exited, replaced: () => replaced };
 }
 
 test('up to date, then a new version with its changes listed newest first', async () => {
@@ -147,13 +147,35 @@ test('a server started by hand is not stopped: it says to restart it', async () 
   const { u, exited } = updater({ restartable: false });
   const v = await u.apply();
   assert.equal(v.state, 'restart');
-  assert.match(v.reason!, /Restart bateson serve/);
+  assert.match(v.reason!, /restart it to finish/);
   await sleep(400);
   assert.equal(exited(), 0);
   // The next check, by this same old server, still says to restart; the new server's start clears it.
   assert.equal((await u.check()).state, 'restart');
   u.recover();
   assert.equal(u.read().state, 'current');
+});
+
+test('Restart: a server nothing restarts starts its replacement, then quits', async () => {
+  const { u, exited, replaced } = updater({ restartable: false });
+  assert.equal(u.restart(), true);
+  assert.equal(replaced(), 1);
+  await sleep(400);
+  assert.equal(exited(), 1);
+});
+
+test('Restart: a supervised server only quits, and none happens during an update', async () => {
+  const { u, exited, replaced } = updater();
+  assert.equal(u.restart(), true);
+  assert.equal(u.restart(), false);
+  await sleep(400);
+  assert.equal(exited(), 1);
+  assert.equal(replaced(), 0);
+  commit(OTHER, 'README.md', 'two\n', 'Upstream');
+  const busy = updater();
+  const going = busy.u.apply();
+  assert.equal(busy.u.restart(), false);
+  await going;
 });
 
 test('an update left halfway by a closed server is said as failed at the next start', () => {

@@ -10,6 +10,7 @@ import { KINDS, toAnswer } from '../lib/kinds.ts';
 import { peek, awaitDecision, collect, own, claim, pendingFor } from '../lib/delivery.ts';
 import { agent, canWake, currentSession } from '../lib/agent.ts';
 import { recall, formatRecalled } from '../lib/recall.ts';
+import { RESTART } from '../lib/update.ts';
 import type { Attachment, Body, StoredItem } from '../lib/store.ts';
 import type { BodyType, Question, Reply, Source } from '../lib/types.ts';
 
@@ -441,9 +442,21 @@ function cmdConfig(o: Args) {
   console.log(JSON.stringify(store.writeConfig(patch), null, 2));
 }
 
+// The server, started again when it asks to (RESTART: after an update, or Restart in the app), so the new version
+// runs here in this terminal.
 function cmdServe() {
-  const child = spawn(process.execPath, [path.join(HERE, '..', 'server', 'server.mjs')], { stdio: 'inherit' });
-  child.on('exit', (code) => process.exit(code ?? 0));
+  let child: ReturnType<typeof spawn>;
+  // Stopping this stops the server too: a kill of this alone would leave it running, with nothing to restart it.
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(sig, () => { child.kill(); process.exit(0); });
+  const run = () => {
+    child = spawn(process.execPath, [path.join(HERE, '..', 'server', 'server.mjs')], { stdio: 'inherit', env: { ...process.env, BATESON_SERVE_PID: String(process.pid) } });
+    child.on('exit', (code) => {
+      if (code !== RESTART) process.exit(code ?? 0);
+      console.log('Restarting bateson...');
+      run();
+    });
+  };
+  run();
 }
 
 const o = parseArgs(process.argv.slice(2));

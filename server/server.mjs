@@ -26,5 +26,5 @@ if (why) {
 } else {
   fs.rmSync(error, { force: true });
   const { start } = await import('./server.ts');
-  start();
+  await start();
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { State } from '@lib/types';
 import { Ring } from './Ring';
 import { Pixel } from './Pixel';
+import { RestartButton } from './Update';
 
 // The empty queue: the agents at work on something they sent you.
 
@@ -29,6 +30,9 @@ export function Empty({ agents, writing, amas, update, onUpdate }: Pick<State, '
       {/* Only here, where nothing waits on you: a new version never comes between you and a question. */}
       {update?.state === 'available' && (
         <p className="calm-update"><Pixel name="gift" still={again} />A new version of bateson is ready. <button type="button" className="btn-link" onClick={onUpdate}>See what’s new</button></p>
+      )}
+      {update?.state === 'restart' && (
+        <p className="calm-update"><Pixel name="gift" still={again} />bateson is updated. Restart it to finish. <RestartButton className="btn-link" state={update.state} /></p>
       )}
 
       {(agents.length > 0 || writing.length > 0) && (
