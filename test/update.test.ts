@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { openUpdater, runner, due } from '../lib/update.ts';
+import { openUpdater, runner, due, needsNode } from '../lib/update.ts';
 import type { Run } from '../lib/update.ts';
 
 Object.assign(process.env, { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' });
@@ -51,10 +51,10 @@ function fake(fail: string[] = []) {
   return { run, calls };
 }
 
-function updater(opts: { fail?: string[]; restartable?: boolean } = {}) {
+function updater(opts: { fail?: string[]; restartable?: boolean; node?: string } = {}) {
   const { run, calls } = fake(opts.fail);
   let exited = 0;
-  const u = openUpdater({ repo: LOCAL, file: FILE, run, restartable: () => opts.restartable ?? true, exit: () => { exited++; }, macApp: path.join(TMP, 'no-app') });
+  const u = openUpdater({ repo: LOCAL, file: FILE, run, restartable: () => opts.restartable ?? true, exit: () => { exited++; }, macApp: path.join(TMP, 'no-app'), node: opts.node });
   return { u, calls, exited: () => exited };
 }
 
@@ -181,4 +181,32 @@ test('an installer that fails is undone by the old one, after going back', async
   const installs = calls.filter((c) => c.includes(`${path.join('scripts', 'install.ts')} --updating`));
   assert.equal(installs.length, 2, 'the new installer, then the old one on the way back');
   assert.ok(calls.lastIndexOf(installs[1]) > calls.findIndex((c) => c.startsWith('git reset --keep')));
+});
+
+test('a new version that needs a newer Node is not installed: it says which, and what to do', async () => {
+  const { u, calls, exited } = updater({ node: '22.18.0' });
+  commit(OTHER, 'package.json', JSON.stringify({ engines: { node: '>=24' } }), 'bateson runs on Node 24');
+  const before = git(LOCAL, 'rev-parse', 'HEAD');
+  const v = await u.check();
+  assert.equal(v.state, 'blocked');
+  assert.match(v.reason!, /^The new version needs Node 24 or newer, and bateson runs on Node 22\.18\.0 \(/);
+  assert.match(v.reason!, /install\.mjs --login with it, then check again\.$/);
+  assert.deepEqual(v.changes.map((c) => c.subject), ['bateson runs on Node 24'], 'and what is in it');
+  assert.equal((await u.apply()).state, 'blocked', 'Update does not go ahead');
+  assert.equal(git(LOCAL, 'rev-parse', 'HEAD'), before, 'nothing was touched');
+  assert.ok(!calls.some((c) => c.startsWith('npm') || c.includes('install')), calls.join('\n'));
+  assert.equal(exited(), 0);
+});
+
+test('a new version whose Node this one is goes ahead', async () => {
+  const { u } = updater({ node: '22.18.0' });
+  commit(OTHER, 'package.json', JSON.stringify({ engines: { node: '>=22.18' } }), 'Same Node');
+  assert.equal((await u.check()).state, 'available');
+  assert.equal((await u.apply()).state, 'current');
+});
+
+test('the Node a version needs is read from ">=x.y.z" only, and nothing else stops an update', () => {
+  assert.deepEqual(needsNode('{"engines":{"node":">=22.18"}}'), [22, 18, 0]);
+  assert.deepEqual(needsNode('{"engines":{"node":" >= v24.1.2 "}}'), [24, 1, 2]);
+  for (const pkg of ['{"engines":{"node":"^24"}}', '{"engines":{"node":">=22 <26"}}', '{}', 'not json', '']) assert.equal(needsNode(pkg), null, pkg);
 });
