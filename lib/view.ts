@@ -77,7 +77,6 @@ function amas(all: StoredItem[], writing: Set<string>, limit = 8): State['amas']
       if (!d) return [];
       return [{
         id: item.id, title: v.title || item.title, repo: item.source?.repo,
-        rounds: item.versions.filter((x) => x.bodyType === 'questions').length,
         at: d.decidedAt || v.createdAt,
       }];
     })

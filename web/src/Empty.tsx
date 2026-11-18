@@ -61,7 +61,7 @@ export function Empty({ agents, writing, amas, update, onUpdate }: Pick<State, '
               style={{ '--i': i, animationDelay: again ? undefined : `${450 + (agents.length + writing.length + i) * 70}ms` } as React.CSSProperties}>
               <Ring kind="dot" size={13} />
               <span className="ama-title">{a.title}</span>
-              <span className="ama-meta">{a.rounds === 1 ? '1 round' : `${a.rounds} rounds`}{a.repo && manyAmaRepos ? ` · ${a.repo}` : ''}</span>
+              {a.repo && manyAmaRepos && <span className="ama-meta">{a.repo}</span>}
               <span className="ama-when">{when(a.at, now)}</span>
             </li>
           ))}
