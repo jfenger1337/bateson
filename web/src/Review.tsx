@@ -6,6 +6,7 @@ import { Markdown, markdownHtml } from './Markdown';
 import { Diff } from './Diff';
 import { isTyping, Reach } from './App';
 import { MOD } from './lib/keys';
+import { reduced } from '@/lib/motion';
 
 // Comment on the work. Select any passage and comment on it; on code the comment also records the file and line.
 // On writing, pointing at a bullet or paragraph puts a mark beside it that comments on the whole of it. Each note
@@ -525,8 +526,7 @@ function reveal() {
   const from = Math.max(box.top - 120, box.bottom - (foot - top));
   const by = box.bottom > foot ? box.bottom - foot : from < top ? from - top : 0;
   if (Math.abs(by) < 2) return;
-  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  window.scrollBy({ top: by, behavior: still ? 'auto' : 'smooth' });
+  window.scrollBy({ top: by, behavior: reduced() ? 'auto' : 'smooth' });
 }
 
 /** A long quote, cut at a word near 90 characters. */

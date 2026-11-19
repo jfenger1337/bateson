@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24" shape-rendering="crispEdges">
+<!-- bateson's mark in pixels on the highlighter, for the README: mac/AppIcon.svg's 24-pixel grid without the
+     macOS padding and shadow. -->
+<path d="M3 0h18v1h-18zM1 1h22v2h-22zM0 3h24v18h-24zM1 21h22v2h-22zM3 23h18v1h-18z" fill="#F3E4AE"/>
+<path d="M4 8h3v1h-3zM10 8h3v1h-3zM3 9h1v3h-1zM7 9h1v3h-1zM9 9h1v3h-1zM13 9h1v3h-1zM16 11h4v1h-4zM4 12h3v1h-3zM10 12h3v1h-3zM15 12h6v4h-6zM16 16h4v1h-4z" fill="#1E2126"/>
+</svg>

@@ -1,3 +1,5 @@
+<img src="docs/logo.svg" width="72" height="72" alt="">
+
 # bateson
 
 a window where your coding agents ask you things, one at a time, and wait for the answer.
