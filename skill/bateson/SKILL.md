@@ -125,7 +125,7 @@ An example, before and after:
 
 - Ask the whole frontier at once: every question whose prerequisites are settled. Questions that depend on an open answer go in a later round.
 - A round has at least two questions. When the frontier is a single question, ask it in chat instead.
-- Find facts yourself (code, docs, the filesystem) before asking. Ask only for what they alone can give: decisions, preferences, context.
+- Find facts yourself (code, docs, the filesystem) before asking. Ask only for what they alone can give: decisions, preferences, context. Right before you send, reread each question and ask whether you could find out any of it yourself; if so, look it up now and drop the question, or put what you found in its body. An answer like "is it a bug?" or "what was it?" means this was skipped.
 - Check what they already decided before each round, and before a question you ask in chat: `bateson recall <two or three words for the topic>` prints their earlier answers, one line each. Leave out what is settled. If your work would undo an earlier answer, ask about that, naming the answer and its date. A past answer is evidence, not the default: recommend on the merits, and say in the recommendation when it differs from what they chose before.
 
 ## When a response arrives
