@@ -37,7 +37,7 @@ One key each, no notes:
 
 | Key | Work | Interview |
 |---|---|---|
-| `A` / `⌘⏎` | Approve: the agent carries on | Send answers |
+| `A` / `⌘⏎` | Approve: the agent carries on. With comments written it reads Send back and sends them | Send answers |
 | `S` | Send back: your comments are the message | |
 | `⇧D` | Drop: the agent stops, changes stay | End the interview |
 | `L` | Later: to the back of the queue | Later |
