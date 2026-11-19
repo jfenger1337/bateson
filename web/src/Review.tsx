@@ -141,7 +141,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   // reopened and not changed holds nothing back, so it gives way.
   const unsaved = !!draft?.text.trim() && (!draft.id || comments.find((x) => x.id === draft.id)?.text !== draft.text.trim());
   const openDraft = useCallback((next: NonNullable<typeof draft>) => {
-    if (unsaved) { document.querySelector<HTMLTextAreaElement>('.note-field')?.focus(); return false; }
+    if (unsaved) { reveal(); return false; }
     setDraft(next);
     return true;
   }, [unsaved, setDraft]);
@@ -157,7 +157,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     const onComment = (e: Event) => {
       const anchor = anchorOf((e as CustomEvent<Range>).detail);
       // An open box keeps its element, so autoFocus does not run again.
-      if (anchor && startComment(anchor)) window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('.note-field')?.focus());
+      if (anchor && startComment(anchor)) window.setTimeout(focusNote);
     };
     window.addEventListener('qr-comment', onComment);
     return () => window.removeEventListener('qr-comment', onComment);
@@ -271,6 +271,16 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   }, [placeOf, release]);
 
   useLayoutEffect(layout);
+  // A note that opens is focused only once it is in its place, and the view glides to it. Focused as it mounted
+  // (autoFocus), it was still at the top of the notes, so the browser threw the page up there and the note landed
+  // out of sight below. Keyed by where the note is, so opening it on another passage moves the view there too.
+  const shown = useRef<string | null>(null);
+  const draftAt = draft ? `${draft.id ?? ''}:${draft.anchor.kind}:${draft.anchor.start ?? ''}:${draft.anchor.end ?? ''}` : null;
+  useLayoutEffect(() => {
+    if (draftAt === shown.current) return;
+    shown.current = draftAt;
+    if (draftAt) reveal();
+  });
   useEffect(() => {
     let raf = 0;
     const again = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(layout); };
@@ -411,7 +421,6 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
             <div key={draft.id ?? 'new'} data-slot="draft" className="note-card composing drop-in">
               <Where anchor={draft.anchor} />
               <textarea
-                autoFocus
                 className="note-field"
                 rows={3}
                 placeholder="What should change?"
@@ -497,6 +506,27 @@ function Where({ anchor }: { anchor: Anchor }) {
       <q>{anchor.quote ? clip(anchor.quote) : ''}</q>
     </p>
   );
+}
+
+const focusNote = () => document.querySelector<HTMLTextAreaElement>('.note-field')?.focus({ preventScroll: true });
+
+/** Focus the open note and bring it into view, with the passage it is about above it when both fit: between the
+ *  bar at the top and the decision bar at the foot, which both sit over the page. */
+function reveal() {
+  focusNote();
+  const card = document.querySelector<HTMLElement>('.note-card.composing');
+  if (!card) return;
+  // Where it lands, not where its drop-in starts (8px higher): offsets from the notes, which are not animated.
+  const notes = card.offsetParent?.getBoundingClientRect().top ?? 0;
+  const box = { top: notes + card.offsetTop, bottom: notes + card.offsetTop + card.offsetHeight };
+  const top = (document.querySelector('.bar')?.getBoundingClientRect().bottom ?? 0) + 16;
+  const foot = (document.querySelector('.decide')?.getBoundingClientRect().top ?? window.innerHeight) - 16;
+  // The passage is the block just above the note; 120px of it is enough to see what the note is on.
+  const from = Math.max(box.top - 120, box.bottom - (foot - top));
+  const by = box.bottom > foot ? box.bottom - foot : from < top ? from - top : 0;
+  if (Math.abs(by) < 2) return;
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollBy({ top: by, behavior: still ? 'auto' : 'smooth' });
 }
 
 /** A long quote, cut at a word near 90 characters. */
