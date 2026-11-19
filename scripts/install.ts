@@ -326,6 +326,13 @@ function stopWindowsServer() {
   const root = ROOT;
   const pid = path.join(root, 'server.pid');
   if (!fs.existsSync(pid)) return;
+  // On Linux (WSL), a pid whose process is gone is left from an earlier run: nothing would read server.stop, and a
+  // keepalive started meanwhile would take the stop meant for the old one. It is cleared at once instead.
+  if (process.platform === 'linux') {
+    let alive = false;
+    try { alive = fs.readFileSync(`/proc/${fs.readFileSync(pid, 'utf8').trim()}/cmdline`, 'utf8').includes('keepalive'); } catch { /* gone */ }
+    if (!alive) { fs.rmSync(pid, { force: true }); return; }
+  }
   fs.writeFileSync(path.join(root, 'server.stop'), '');
   const until = Date.now() + 5000;
   while (fs.existsSync(pid) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);

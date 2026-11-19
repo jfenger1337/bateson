@@ -21,6 +21,16 @@ const ROOT = process.env.BATESON_HOME || path.join(os.homedir(), '.bateson');
 const PID = path.join(ROOT, 'server.pid');
 const STOP = path.join(ROOT, 'server.stop');
 fs.mkdirSync(ROOT, { recursive: true });
+// One keepalive per queue. In WSL a send starts one when the server is down, so it can race the installer or
+// another send: a second one would only fight the first for the port. On Linux /proc tells whether the pid in
+// server.pid is a keepalive still running (a pid alone may since belong to something else); elsewhere this
+// check is skipped.
+if (process.platform === 'linux') {
+  try {
+    const other = Number(fs.readFileSync(PID, 'utf8').trim());
+    if (other > 0 && other !== process.pid && fs.readFileSync(`/proc/${other}/cmdline`, 'utf8').includes('keepalive')) process.exit(0);
+  } catch { /* no pid file, or that process is gone */ }
+}
 fs.rmSync(STOP, { force: true });
 fs.writeFileSync(PID, String(process.pid));
 const log = fs.openSync(path.join(ROOT, 'server.log'), 'a');
