@@ -10,7 +10,7 @@ import { KINDS, toAnswer } from '../lib/kinds.ts';
 import { peek, awaitDecision, collect, own, claim, pendingFor } from '../lib/delivery.ts';
 import { agent, canWake, currentSession } from '../lib/agent.ts';
 import { recall, formatRecalled } from '../lib/recall.ts';
-import { RESTART } from '../lib/update.ts';
+import { RESTART, WSL } from '../lib/update.ts';
 import type { Attachment, Body, StoredItem } from '../lib/store.ts';
 import type { BodyType, Question, Reply, Source } from '../lib/types.ts';
 
@@ -189,7 +189,7 @@ function pageOpener(url: string): { exe: string; args: string[] } | null {
   if (process.platform === 'win32') {
     roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA].filter((r): r is string => !!r);
     windir = process.env.SystemRoot || 'C:\\Windows';
-  } else if (process.platform === 'linux' && (process.env.WSL_DISTRO_NAME || /microsoft/i.test(os.release()))) {
+  } else if (WSL) {
     roots = ['/mnt/c/Program Files', '/mnt/c/Program Files (x86)'];
     windir = '/mnt/c/Windows';
   } else return null;
@@ -213,6 +213,30 @@ function openPage(): boolean {
     child.unref();
     return true;
   } catch { return false; }
+}
+
+/**
+ * In WSL, a send starts the server when it is down: scripts/keepalive.mjs, on its own, as the Windows startup entry
+ * does at login, so it outlives this command and the session that ran it. Not while a keepalive is already running
+ * (its server is starting again, or cannot): a second would only fight it for the port. Whether the server answers
+ * within five seconds.
+ */
+async function startServer(): Promise<boolean> {
+  let pid = 0;
+  try { pid = Number(fs.readFileSync(path.join(store.ROOT, 'server.pid'), 'utf8').trim()); } catch { /* none was started */ }
+  if (pid > 0) {
+    try { process.kill(pid, 0); return false; } catch (e) { if ((e as NodeJS.ErrnoException).code === 'EPERM') return false; }
+  }
+  try {
+    const child = spawn(process.execPath, [path.join(HERE, '..', 'scripts', 'keepalive.mjs')], { detached: true, stdio: 'ignore' });
+    child.on('error', () => {});
+    child.unref();
+  } catch { return false; }
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    if ((await appStatus()).running) return true;
+  }
+  return false;
 }
 
 async function cmdSend(o: Args) {
@@ -271,9 +295,12 @@ async function cmdSend(o: Args) {
   const sessionId = currentSession();
   const sent = store.getItem(res.id);
   if (sessionId && sent) own(sent, { sessionId, cwd: process.cwd() });
-  const { running, pages } = await appStatus();
+  let { running, pages } = await appStatus();
+  const started = !running && WSL && await startServer();
+  if (started) ({ running, pages } = await appStatus());
   // The rewake hook reads the first line, so keep its shape.
   console.log(`queued ${res.id} v${res.n}${res.replaced ? ' (replaced the unread version)' : ''}`);
+  if (started) console.log(`(The bateson app was not running, so it was started.)`);
   if (running && pages === 0 && openPage()) console.log(`(Opened the bateson window for ${reviewer()}.)`);
   if (running && pages === null && pageOpener('')) console.log(`(The bateson server is older than this command. Tell ${reviewer()} to run the installer again, which restarts it.)`);
   if (!running) console.log(`(The bateson app is not running. It is waiting in ~/.bateson; ${reviewer()} can start the app with \`bateson serve\`.)`);

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Wire bateson into every Claude Code session on this machine (macOS or Windows): the CLI on PATH, the global
+// Wire bateson into every Claude Code session on this machine (macOS, Windows or WSL): the CLI on PATH, the global
 // skill, the hooks in ~/.claude/settings.json, and (with --login) the server at login. Idempotent. What it set up
 // is noted in ~/.bateson/install.json, and --uninstall undoes exactly that. --only <agent> limits it to one agent.
 // --launchd is the old name of --login and still works.
@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { SETTINGS, writeHooks, stableNode, commandPath } from '../lib/claude-settings.ts';
 import { AGENTS } from '../lib/agent.ts';
+import { WSL } from '../lib/update.ts';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOME = os.homedir();
@@ -28,6 +29,11 @@ const PLIST = path.join(HOME, 'Library', 'LaunchAgents', 'com.bateson.server.pli
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const RUN_VALUE = 'bateson';
 const WIN_LOGIN = `${RUN_KEY}\\${RUN_VALUE}`;
+// In WSL the same Run key starts keepalive.mjs inside this distribution through wsl.exe, which keeps the
+// distribution running while the server does. Its own value, so it never clashes with a native Windows install.
+const WSL_VALUE = 'bateson-wsl';
+const WSL_LOGIN = `${RUN_KEY}\\${WSL_VALUE}`;
+const REG = fs.existsSync('/mnt/c/Windows/System32/reg.exe') ? '/mnt/c/Windows/System32/reg.exe' : 'reg.exe';
 // The queue and the port this install is for. A server started at login has none of your shell's variables, so
 // BATESON_HOME and BATESON_PORT, when set, are handed to it (launchd's plist, keepalive.ts's arguments).
 const ROOT = path.resolve(process.env.BATESON_HOME || path.join(HOME, '.bateson'));
@@ -209,6 +215,32 @@ if (WIN) {
       log(`the server starts at login (${WIN_LOGIN}): http://localhost:${PORT}`);
     }
   }
+} else if (WSL) {
+  // As on Windows, an update restarts a server an earlier --login set up, and one started by the app's update is
+  // left to quit by itself (keepalive.ts starts it again on the new code).
+  const running = fs.existsSync(path.join(ROOT, 'server.pid'));
+  const updating = args.has('--updating');
+  if (login || uninstall || installed?.loginItem || running) {
+    if (!updating) stopWindowsServer();
+    if (uninstall) {
+      try { execFileSync(REG, ['delete', RUN_KEY, '/v', WSL_VALUE, '/f'], { stdio: 'ignore' }); log('removed the login item'); } catch { /* there was none */ }
+    } else {
+      const keepalive = path.join(REPO, 'scripts', 'keepalive.mjs');
+      const extra = [...(SERVER_ENV.BATESON_HOME ? ['--home', ROOT] : []), ...(SERVER_ENV.BATESON_PORT ? ['--port', PORT] : [])];
+      const quoted = extra.map((a) => (a.startsWith('--') ? a : `"${a}"`)).join(' ');
+      const distro = process.env.WSL_DISTRO_NAME ? `-d "${process.env.WSL_DISTRO_NAME}" ` : '';
+      try {
+        execFileSync(REG, ['add', RUN_KEY, '/v', WSL_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless wsl.exe ${distro}--exec "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
+        log(`the server starts at Windows login (${WSL_LOGIN}): http://localhost:${PORT}`);
+      } catch {
+        log('could not reach reg.exe from WSL, so the server does not start at login; bateson send starts it when it is down');
+      }
+      if (!updating) spawn(NODE, [keepalive, ...extra], { cwd: REPO, detached: true, stdio: 'ignore' }).unref();
+    }
+  }
+} else if (process.platform !== 'darwin') {
+  // Plain Linux has no login item yet: launchd is a Mac's, and the Run key Windows'.
+  if (login) log('there is no login item on Linux yet: start the server with `bateson serve`');
 } else if (login || (uninstall && fs.existsSync(PLIST))) {
   try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); } catch { /* not loaded */ }
   if (uninstall) {
@@ -266,7 +298,7 @@ else {
   const manifest: Manifest = {
     at: new Date().toISOString(), repo: REPO, node: NODE, agents: Object.keys(AGENTS),
     settings: [SETTINGS], madeSettings, links: links.map(([link]) => link), shims: SHIMS.map(([file]) => file),
-    loginItem: login || installed?.loginItem ? (WIN ? WIN_LOGIN : PLIST) : null,
+    loginItem: login || installed?.loginItem ? (WIN ? WIN_LOGIN : WSL ? WSL_LOGIN : process.platform === 'darwin' ? PLIST : null) : null,
   };
   fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
 }
@@ -287,7 +319,7 @@ function linkTarget(link: string) {
 }
 
 /**
- * Stop the server an earlier --login started on Windows: ask keepalive.ts to stop, with the server under it, and
+ * Stop the server an earlier --login started on Windows or in WSL: ask keepalive.ts to stop, with the server under it, and
  * wait for it to go (scripts/keepalive.ts says why it is a file).
  */
 function stopWindowsServer() {

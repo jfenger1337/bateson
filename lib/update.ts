@@ -14,6 +14,8 @@ import type { UpdateView } from './types.ts';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WIN = process.platform === 'win32';
+/** Linux inside WSL, where Windows starts the server at login as on native Windows (scripts/install.ts). */
+export const WSL = process.platform === 'linux' && (!!process.env.WSL_DISTRO_NAME || /microsoft/i.test(os.release()));
 const DAY = 24 * 3600 * 1000;
 const MAX_CHANGES = 30;
 const MAC_APP = path.join(os.homedir(), 'Applications', 'bateson.app');
@@ -63,14 +65,14 @@ export function runner(cwd: string): Run {
 
 /**
  * Whether something starts the server again when it quits. `bateson serve` does; on a Mac launchd is its parent (the
- * login item has KeepAlive); on Windows scripts/keepalive.ts is, and its pid is in server.pid. Started some other way
+ * login item has KeepAlive); on Windows and in WSL scripts/keepalive.ts is, and its pid is in server.pid. Started some other way
  * (npm start), nothing is.
  */
 export function supervised() {
   // `bateson serve` names itself, so a server it did not start (its child's child) does not count on it.
   if (process.env.BATESON_SERVE_PID && process.env.BATESON_SERVE_PID === String(process.ppid)) return true;
   if (process.platform === 'darwin') return process.ppid === 1 || (process.env.XPC_SERVICE_NAME || '').includes('com.bateson.server');
-  if (WIN) { try { return fs.readFileSync(path.join(store.ROOT, 'server.pid'), 'utf8').trim() === String(process.ppid); } catch { return false; } }
+  if (WIN || WSL) { try { return fs.readFileSync(path.join(store.ROOT, 'server.pid'), 'utf8').trim() === String(process.ppid); } catch { return false; } }
   return false;
 }
 
