@@ -72,7 +72,7 @@ bateson send --item <id> --title "<what we decided>" --stdin --type markdown <<'
 EOF_SUM
 ```
 
-Write the decisions as a plain list, one full sentence each, with no bold labels: they check it line by line.
+Write only what they decided, as a plain list, one full sentence each, with no bold labels. Then a short list of what you will do once they approve. Leave out the reasoning, the background and what nobody decided: they check it line by line, and each line should be one they can say yes or no to. Most fit in ten lines.
 
 Sent back means corrections: apply them and send it again. Do not act on the interview until it is approved.
 
