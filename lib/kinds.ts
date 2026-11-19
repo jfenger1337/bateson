@@ -52,19 +52,31 @@ function describeAnchor(a: Anchor | undefined) {
 const numbered = (asks: Ask[]) => asks.map((a) => `${a.key}. ${describeAnchor(a.anchor)}\n   ${a.text.replace(/\n/g, '\n   ')}`);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+/**
+ * Your own answer that starts with an option's letter ("A but the reply goes on the ticket", "b - and ..."): most
+ * likely that option, with what follows as a note on it. Only the letters of the options there are, and not "i",
+ * which starts too many sentences; "a new idea" still matches, so the agent is told to check.
+ */
+function letterOption(q: Partial<Question>, text: string) {
+  const m = /^\s*([a-h])(?=$|[\s,.:;)-])/i.exec(text);
+  const oi = m ? 'abcdefgh'.indexOf(m[1].toLowerCase()) : -1;
+  const o = oi >= 0 ? q.options?.[oi] : undefined;
+  return o ? `\n  It starts with "${m![1]}", which most likely means option ${m![1].toUpperCase()}, "${o.label}", with the rest as their note on it. Check that the letter means the option and not a word before you act on it.` : '';
+}
+
 /** Your own answer: what you wrote, and where each screenshot you pasted into it is, for the agent to look at. */
-function describeOwn(item: StoredItem, n: number, a: Answer) {
+function describeOwn(item: StoredItem, n: number, a: Answer, q: Partial<Question> = {}) {
   const files = (a.images || []).map((name) => store.pastedPath(item, n, name)).filter((f) => f != null);
   const pics = files.length
     ? `${a.other ? '\n  ' : ''}${files.length === 1 ? 'With a screenshot' : `With ${files.length} screenshots`}, part of the answer: open ${files.length === 1 ? 'it' : 'each'} with your Read tool before you act on it.\n${files.map((f) => `  ${f}`).join('\n')}`
     : '';
-  return a.other ? `wrote their own answer: ${a.other}${pics}` : `answered with a screenshot only. ${pics}`;
+  return a.other ? `wrote their own answer: ${a.other}${letterOption(q, a.other)}${pics}` : `answered with a screenshot only. ${pics}`;
 }
 
 const isOwn = (a: Answer) => !!a.other || !!a.images?.length;
 
 function describeAnswer(item: StoredItem, n: number, q: Partial<Question>, a: Answer) {
-  if (isOwn(a)) return describeOwn(item, n, a);
+  if (isOwn(a)) return describeOwn(item, n, a, q);
   if (a.choice != null && q?.options?.[a.choice]) {
     const label = `${q.options[a.choice].label}${a.accepted ? ' (your recommendation, accepted)' : ''}`;
     // Your written recommendation came with that option, conditions and all, so it is part of the answer.
