@@ -245,15 +245,14 @@ p, li { text-wrap: pretty; }
 
 /* Reduced motion, once for the whole app: everything lands in its final state at once. 1ms, not none,
    so animation and transition end events still fire. A file adds a rule only for an end state that
-   differs from the animation's last frame. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important; transition-delay: 0s !important; scroll-behavior: auto !important;
-  }
-  /* The press is movement only; the button's colour already answers. */
-  .btn-primary:active:not(:disabled), .btn-pill:active:not(:disabled) { scale: none; }
+   differs from the animation's last frame. data-motion, not the media query: the Motion setting can
+   overrule the system (src/lib/motion.ts). */
+:root[data-motion="reduced"], :root[data-motion="reduced"] *, :root[data-motion="reduced"] *::before, :root[data-motion="reduced"] *::after {
+  animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important; transition-delay: 0s !important; scroll-behavior: auto !important;
 }
+/* The press is movement only; the button's colour already answers. */
+:root[data-motion="reduced"] :is(.btn-primary, .btn-pill):active:not(:disabled) { scale: none; }
 
 .rec { font-family: var(--mono); font-size: 0.93em; font-weight: 400; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 

@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#FCFCFB" />
+    <!-- Full or reduced motion before the first paint, so the splash knows (src/lib/motion.ts). -->
+    <script>
+      (function () {
+        var m = 'system';
+        try { m = localStorage.getItem('bateson:motion') || m; } catch (e) {}
+        if (m !== 'full' && m !== 'reduced') m = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'reduced' : 'full';
+        document.documentElement.dataset.motion = m;
+      })();
+    </script>
     <!-- Light or dark before the first paint: the setting's copy in localStorage, else the system (src/lib/theme.ts). -->
     <script>
       (function () {

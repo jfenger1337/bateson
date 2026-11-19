@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getStroke } from 'perfect-freehand';
+import { reduced } from '@/lib/motion';
 
 // Bateson's mark, drawn on launch with a drying felt-tip: the two rings, left to right, then the dot, lower and a
 // little bigger, scribbled in. Each ring is a slightly lopsided loop that runs a little past where it began. A narrow
@@ -15,7 +16,7 @@ const LONGEST_MS = 4000; // never in the way for longer, whatever happens
 
 // Once per launch: the Mac app's web view keeps sessionStorage across reloads, so a new build does not replay it.
 function shouldPlay() {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  if (reduced()) return false;
   try { return !sessionStorage.getItem(SEEN); } catch { return true; }
 }
 

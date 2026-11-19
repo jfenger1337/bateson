@@ -92,6 +92,8 @@ export interface Config {
   undoSeconds: number;
   stopCheck: boolean;
   theme: 'system' | 'light' | 'dark';
+  /** Full or reduced motion, or the system's. Full plays the animations even when the system asks for reduced motion. */
+  motion: 'system' | 'full' | 'reduced';
   /** The panel beside a question, for what it shows. Off, every question is centred and asked in words only. */
   preview: boolean;
   bring: { decisions: boolean; plans: boolean; findings: boolean; code: boolean };

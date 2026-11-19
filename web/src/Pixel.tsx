@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { PIXELS, type PixelName } from './pixels';
+import { reduced } from '@/lib/motion';
 
 // A pixel icon from pixels.ts, at a whole multiple of its 24-pixel grid (scale 1 is 24px, 2 is 48px), so every
 // pixel lands on whole screen pixels and stays sharp. It draws in currentColor, with the fainter pixels in --faint-3,
-// so it takes either theme. It plays its frames, once or in a loop, unless `still` is set or the system
-// asks for reduced motion: then it shows its resting frame.
+// so it takes either theme. It plays its frames, once or in a loop, unless `still` is set or motion is
+// reduced (the Motion setting, or the system's under System): then it shows its resting frame.
 
 const N = 24;
 
@@ -29,8 +30,6 @@ function paths(frame: string): Paths {
   cache.set(frame, out);
   return out;
 }
-
-const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function Pixel({ name, scale = 1, still, className }: { name: PixelName; scale?: 1 | 2 | 3 | 4; still?: boolean; className?: string }) {
   const art = PIXELS[name];

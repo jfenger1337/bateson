@@ -114,6 +114,7 @@ Settings, written by the app's settings page (⌘, or Ctrl+,) and read by the ap
   "stopCheck": true,              // remind agents, on turns you did not start, that your calls go to the queue (hooks/remind.ts)
   "bring": { "decisions": true, "plans": false, "findings": false, "code": false }, // what agents send you (Settings or /setup-bateson)
   "theme": "system",              // "system" | "light" | "dark"
+  "motion": "system",             // "system" | "full" | "reduced"; full plays the animations even when the system asks for reduced motion
   "preview": false,               // the panel beside a question for its `show`; off, questions are centred and `bateson send` refuses pictures on them
   "updates": true                 // once a day, ask GitHub whether there is a newer version; nothing is installed until you press Update
 }

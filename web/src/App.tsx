@@ -12,6 +12,7 @@ import { Toaster, toast } from 'sonner';
 import { Settings as Gear } from 'lucide-react';
 import { MOD, MOD_KEY, modHeld } from './lib/keys';
 import { setTheme } from '@/lib/theme';
+import { setMotion } from '@/lib/motion';
 import { forgetKept } from '@/lib/kept';
 import { Logo } from './Logo';
 import { AppMenu } from './Menu';
@@ -64,7 +65,7 @@ export function App() {
       lastText.current = text;
       shownRef.current = lastShown.current = s.current?.id;
       setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
-      if (s.config) { undoMs.current = s.config.undoSeconds * 1000; setTheme(s.config.theme); }
+      if (s.config) { undoMs.current = s.config.undoSeconds * 1000; setTheme(s.config.theme); setMotion(s.config.motion); }
     } catch { if (mine === asked.current) setFailed(true); }
   }, []);
 

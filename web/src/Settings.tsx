@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Loading } from './Loading';
 import { Pixel } from './Pixel';
 import { setTheme } from '@/lib/theme';
+import { setMotion } from '@/lib/motion';
 import { MAC } from './lib/keys';
 import { UpdatePanel } from './Update';
 import type { Config, UpdateView } from '@lib/types';
@@ -64,6 +65,7 @@ export function Settings({ onClose, onChange, update, theme }: { onClose: () => 
     const mine = ++saving.current;
     setC({ ...c, ...patch });
     if (patch.theme) setTheme(patch.theme);
+    if (patch.motion) setMotion(patch.motion);
     try {
       const res = await fetch('/api/config', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) });
       if (!res.ok) throw new Error(String(res.status));
@@ -75,6 +77,7 @@ export function Settings({ onClose, onChange, update, theme }: { onClose: () => 
       if (mine !== saving.current) return;
       setC(was);
       if (patch.theme) setTheme(was.theme);
+      if (patch.motion) setMotion(was.motion);
       toast('That setting was not saved: bateson’s server did not take it. Try again in a moment.');
     }
   };
@@ -139,6 +142,9 @@ export function Settings({ onClose, onChange, update, theme }: { onClose: () => 
       </Row>
       <Row title="Appearance">
         <Seg value={c.theme} onChange={(v) => save({ theme: v })} options={[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]} />
+      </Row>
+      <Row title="Motion" hint="System follows your computer’s reduce motion setting. Full animates bateson even when that is on.">
+        <Seg value={c.motion} onChange={(v) => save({ motion: v })} options={[['system', 'System'], ['full', 'Full'], ['reduced', 'Reduced']]} />
       </Row>
       <Row title="Preview beside questions" hint="Not available for now. Every question is centred, and agents ask in words only.">
         {/* Shown but not offered yet: the side-by-side layout is parked, and `preview` in config.json still turns it on. */}

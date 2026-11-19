@@ -655,11 +655,11 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* An agent at work: Bateson's dashed ring for something automatic, turning slowly (as a running check does). */
 .agents .ring-dashed { color: var(--ink); animation: check-spin 3.2s linear infinite, qr-arrive-ring var(--dur-arrive) var(--ease-out); }
 @keyframes qr-arrive-ring { from { opacity: 0; scale: 0.6; } }
-@media (prefers-reduced-motion: reduce) { .agents .ring-dashed { animation: none; } }
+:root[data-motion="reduced"] .agents .ring-dashed { animation: none; }
 /* Back on this page after the first time (Empty.tsx): nothing arrives again, it is simply there. The ring keeps turning. */
 .calm.again :is(.calm-mark, .agents li) { animation: none; }
 .calm.again .agents .ring-dashed { animation: check-spin 3.2s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .calm.again .agents .ring-dashed { animation: none; } }
+:root[data-motion="reduced"] .calm.again .agents .ring-dashed { animation: none; }
 
 /* The launch splash (Splash.tsx): Bateson's mark drawn with a drying felt-tip, alone, then the app. */
 .splash {
