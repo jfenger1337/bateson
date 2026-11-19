@@ -123,9 +123,13 @@ const INTERVIEW = {
     const drafted = draft?.questions?.length
       ? `\n\nYou drafted ${plural(draft.questions.length, 'follow-up')} while ${who} answered (${draft.questions.map((q) => `${q.id} ${q.title}`).join('; ')}). Print them with \`bateson draft ${item.id} --show\`, check them against all the answers above, add what else the frontier needs, and send the next round now with \`${resend} --questions -\`.`
       : '';
+    // One round, every answer an option: the answers already say what was decided, so no summary follows it.
+    const plain = item.versions.filter((x) => x.bodyType === 'questions').length === 1 && answers.every((a) => !isOwn(a));
     const after = open.length
       ? `Send the next round with \`${resend} --questions -\`.`
-      : `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, send the shared understanding for review as the interview's last version (see the ama skill).`;
+      : plain
+        ? `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, act on the answers now: one round where ${who} picked an option every time needs no summary to approve. Say in one line what you will do.`
+        : `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, send the shared understanding for review as the interview's last version (see the ama skill).`;
     return `Answers for round ${v.n}:\n${lines.join('\n')}${sentEarly}${drafted}\n\n${after}`;
   },
   validate: validateQuestions,

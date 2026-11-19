@@ -64,7 +64,7 @@ An answer to a question marked `opens` reaches you while they are still on the r
 
 ## Confirming
 
-When the frontier is empty, send the shared understanding as the interview's last version. Approving it is their confirmation:
+When the frontier is empty after a single round in which they picked an option for every question, the answers are the confirmation: act on them, and say in one line what you will do. Otherwise send the shared understanding as the interview's last version. Approving it is their confirmation:
 
 ```bash
 bateson send --item <id> --title "<what we decided>" --stdin --type markdown <<'EOF_SUM'
