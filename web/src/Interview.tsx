@@ -349,7 +349,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
                 </span>
               </span>
             )}
-            <span className="iv-round">
+            <span className="iv-round iv-glide" style={{ '--at': at } as React.CSSProperties}>
             {qs.map((x, i) => {
               const answer = shownAnswer(x, drafts[x.id]);
               return (

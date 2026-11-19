@@ -91,7 +91,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
   return (
     <article className={`page interview findings arrive hue-${item.hue}`}>
         {/* The dots sit just above the finding, where you are reading: how far through the list you are, at a glance. */}
-        <nav className="iv-steps iv-round" aria-label="Findings">
+        <nav className="iv-steps iv-round iv-glide" style={{ '--at': at } as React.CSSProperties} aria-label="Findings">
           {list.map((x, i) => (
             <button
               key={x.id}

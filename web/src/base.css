@@ -116,6 +116,8 @@
   --dur-settle: 200ms;   /* a decision landing */
   --dur-arrive: 450ms;   /* an item rising in */
   --ease-out: cubic-bezier(.2, .8, .2, 1);   /* entering and moving */
+  --ease-in: cubic-bezier(.5, 0, .9, .4);   /* leaving */
+  --dur-spring: 260ms;   /* a ring gaining its dot, with a little give */
 }
 
 /* An item's colour as properties, for anything drawn in it. --hue-ink is the hue dark enough for text (5.4:1 or
@@ -238,9 +240,11 @@ p, li { text-wrap: pretty; }
 @keyframes bt-tint { from { background: rgba(var(--hue-rgb), 0.22); } to { background: transparent; } }
 /* The drop: a decided thing sits one step lower and stays there. No bounce.
    bt-settle is the ring gaining its dot; bt-drop is a note landing. */
-@keyframes bt-settle { from { opacity: 0; transform: translateY(-4px) scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes bt-settle { from { opacity: 0; transform: translateY(-4px) scale(0.6); } 60% { opacity: 1; transform: scale(1.08); } to { opacity: 1; transform: none; } }
 @keyframes bt-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-.arrive { animation: bt-rise var(--dur-arrive) var(--ease-out); }
+/* On a page the rise is on what is in it, not on the page: a transform on the page would hold the fixed decision bar
+   inside it until the rise ends, so the bar would jump up the window with every new item. The bar stays put. */
+.arrive:not(.page), .page.arrive > :not(.decide) { animation: bt-rise var(--dur-arrive) var(--ease-out); }
 .drop-in { animation: bt-drop var(--dur-settle) var(--ease-out); }
 
 /* Reduced motion, once for the whole app: everything lands in its final state at once. 1ms, not none,

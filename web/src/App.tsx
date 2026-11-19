@@ -12,7 +12,7 @@ import { Toaster, toast } from 'sonner';
 import { Settings as Gear } from 'lucide-react';
 import { MOD, MOD_KEY, modHeld } from './lib/keys';
 import { setTheme } from '@/lib/theme';
-import { setMotion } from '@/lib/motion';
+import { leave, setMotion } from '@/lib/motion';
 import { forgetKept } from '@/lib/kept';
 import { Logo } from './Logo';
 import { AppMenu } from './Menu';
@@ -35,6 +35,8 @@ export function App() {
   // The item on screen stays in front while it is still waiting, so a revision or a waiting session arriving
   // elsewhere does not pull it away mid-comment. Later clears it, to let the queue move on.
   const shownRef = useRef<string | undefined>(undefined);
+  // The item you just decided, until the next one takes its place: that change is the one that moves (motion.ts, leave).
+  const leavingRef = useRef<string | undefined>(undefined);
 
   // The server says "change" for any file in the queue, agents' comings and goings included, and every 15 seconds
   // regardless. Most of those change nothing on screen, so an answer like the last one is let go, and the item in
@@ -63,8 +65,12 @@ export function App() {
       // What you had started on an item its agent cancelled is not needed any more.
       for (const c of s.cancelled || []) forgetKept(c.id);
       lastText.current = text;
+      const left = !!leavingRef.current && leavingRef.current === lastShown.current && s.current?.id !== leavingRef.current;
+      if (left) leavingRef.current = undefined;
       shownRef.current = lastShown.current = s.current?.id;
-      setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
+      const show = () => setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
+      // A newer answer that came in while the page was leaving wins: this one is not shown over it.
+      if (left) leave(() => { if (mine === asked.current) show(); }); else show();
       if (s.config) { undoMs.current = s.config.undoSeconds * 1000; setTheme(s.config.theme); setMotion(s.config.motion); }
     } catch { if (mine === asked.current) setFailed(true); }
   }, []);
@@ -138,6 +144,7 @@ export function App() {
     const h: Held = { id: item.id, n: item.version.n, at: item.version.createdAt, decision, label: item.decisions[decision.decision] ?? decision.decision, timer: 0 };
     const ms = undoMs.current;
     heldRef.current = [...heldRef.current, h]; // at once, not at the next render
+    leavingRef.current = item.id;
     if (ms <= 0) { setHeld((hs) => [...hs, h]); commit(h); return; }
     h.timer = window.setTimeout(() => commit(h), ms);
     const undo = () => {
@@ -146,6 +153,7 @@ export function App() {
       h.undone = true;
       clearTimeout(h.timer);
       shownRef.current = h.id; // back in front, where it was decided
+      if (leavingRef.current === h.id) leavingRef.current = undefined;
       setHeld((hs) => hs.filter((x) => x.id !== h.id));
     };
     h.undo = undo;

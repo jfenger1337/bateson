@@ -123,7 +123,7 @@
 .ring-letter { fill: var(--muted); font-family: var(--sans); font-size: 10.5px; font-weight: 600; }
 .opt:hover .opt-ring, .own-open:hover .opt-ring, .opt:focus-visible .opt-ring, .own-open:focus-visible .opt-ring { color: var(--ink); }
 .opt:hover .ring-letter, .own-open:hover .ring-letter, .opt.chosen .ring-letter { fill: var(--ink); }
-.opt.chosen .opt-ring .ring-dot { animation: bt-settle var(--dur-settle) var(--ease-out); }
+.opt.chosen .opt-ring .ring-dot { animation: bt-settle var(--dur-spring) var(--ease-out); }
 .opt-text { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .opt-label { display: flex; align-items: baseline; font-size: var(--text-title); font-weight: 500; line-height: 1.4; }
 /* The label stays in one piece: the pill sits beside it when there is room and takes the next line when there is not. */
@@ -191,6 +191,15 @@
 .iv-round + .iv-round { margin-left: var(--space-6); }
 .iv-round .iv-step { color: inherit; }
 .iv-round .iv-step.here { color: var(--hue-ink); }
+/* Moving through the round: a soft disc in the item's colour glides to the dot you are on (--at, its place), and a
+   question's dot fills with the same give as an option's when you move on from it answered. */
+.iv-glide { position: relative; }
+.iv-glide::before {
+  content: ''; position: absolute; top: 50%; left: 0; width: 22px; height: 22px; margin-top: -11px; border-radius: var(--radius-full);
+  background: rgba(var(--hue-rgb), 0.16); pointer-events: none;
+  transform: translateX(calc(var(--at, 0) * (22px + var(--space-2)))); transition: transform var(--dur-settle) var(--ease-out);
+}
+.iv-step .ring-dot { animation: bt-settle var(--dur-spring) var(--ease-out); }
 /* The page wears its item's colour in its accents: the Recommended tag. The words and the buttons stay ink. */
 .interview .opt-rec { background: rgba(var(--hue-rgb), 0.22); color: var(--hue-ink); }
 .iv-step.past { cursor: default; }
@@ -723,3 +732,8 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* A light picture on the dark ground glares: it rests a step dimmer and comes to its true colours under the pointer. */
 [data-theme='dark'] .iv-preview-stage img { filter: brightness(0.86); transition: filter var(--dur-base) var(--ease-out); }
 [data-theme='dark'] .iv-preview-stage:hover img { filter: none; }
+
+/* ---- Leaving: the item you decided lifts away, then the next one rises in (motion.ts, leave). The decision bar
+   stays where it is and its buttons change with the item. */
+.page.leaving > :not(.decide) { animation: bt-leave var(--dur-base) var(--ease-in) both; }
+@keyframes bt-leave { to { opacity: 0; transform: translateY(-12px); } }
