@@ -109,13 +109,22 @@
   --shadow-menu: 0 8px 28px rgba(30, 33, 38, 0.10);
   --shadow-card: 0 4px 16px rgba(30, 33, 38, 0.06);
 
-  /* Motion: what you did is fast, what arrives is noticeable. */
+  /* Motion: what you did is fast, what arrives is noticeable, what leaves is faster than what arrives. Things move
+     a few pixels, never across the screen, and only opacity and transform animate. */
   --dur-instant: 100ms;  /* a button giving under a press */
   --dur-fast: 120ms;     /* anything you opened */
+  --dur-leave: 140ms;    /* an item you decided going (motion.ts, LEAVE_MS) */
   --dur-base: 160ms;     /* toasts, the page settling */
+  --dur-step: 220ms;     /* the next question sliding in */
   --dur-settle: 200ms;   /* a decision landing */
-  --dur-arrive: 450ms;   /* an item rising in */
-  --ease-out: cubic-bezier(.2, .8, .2, 1);   /* entering and moving */
+  --dur-spring: 260ms;   /* a ring gaining its dot, with a little give */
+  --dur-enter: 320ms;    /* an item's parts rising in, one after the other */
+  --dur-arrive: 450ms;   /* the calm page and the splash, slower on purpose */
+  --stagger: 45ms;       /* between the parts of an item as it rises in */
+  /* A strong ease out: most of the move happens at once, so it answers fast, and the long tail lands it softly. */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  /* Leaving speeds up gently. Paired with a fade that starts at once, so a click never seems to wait. */
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
 }
 
 /* An item's colour as properties, for anything drawn in it. --hue-ink is the hue dark enough for text (5.4:1 or
@@ -234,13 +243,21 @@ p, li { text-wrap: pretty; }
 }
 
 @keyframes bt-rise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+/* An item's parts: the same rise, a step further, so it meets the lift of the item before it (app.css, Leaving). */
+@keyframes bt-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 /* In the item's colour (.hue-*). */
 @keyframes bt-tint { from { background: rgba(var(--hue-rgb), 0.22); } to { background: transparent; } }
 /* The drop: a decided thing sits one step lower and stays there. No bounce.
    bt-settle is the ring gaining its dot; bt-drop is a note landing. */
-@keyframes bt-settle { from { opacity: 0; transform: translateY(-4px) scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes bt-settle { from { opacity: 0; transform: translateY(-4px) scale(0.6); } 60% { opacity: 1; transform: scale(1.08); } to { opacity: 1; transform: none; } }
 @keyframes bt-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-.arrive { animation: bt-rise var(--dur-arrive) var(--ease-out); }
+/* On a page the rise is on what is in it, not on the page: a transform on the page would hold the fixed decision bar
+   inside it until the rise ends, so the bar would jump up the window with every new item. The bar stays put.
+   The parts come one after the other (--i, their order), top first, so the eye is led down the page. */
+.arrive:not(.page) { animation: bt-rise var(--dur-arrive) var(--ease-out); }
+.page.arrive > :not(.decide) { animation: bt-enter var(--dur-enter) var(--ease-out) calc(var(--i, 0) * var(--stagger)) both; }
+.page.arrive > :nth-child(2):not(.decide) { --i: 1; }
+.page.arrive > :nth-child(3):not(.decide) { --i: 2; }
 .drop-in { animation: bt-drop var(--dur-settle) var(--ease-out); }
 
 /* Reduced motion, once for the whole app: everything lands in its final state at once. 1ms, not none,

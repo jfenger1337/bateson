@@ -30,7 +30,7 @@
   display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-8); height: calc(1.5em + 4px); line-height: 1.5; overflow: hidden;
   min-width: 0; margin: 0 calc(-1 * var(--space-6)); padding: 2px var(--space-6);
   border-radius: var(--radius-sm); font-size: var(--text-meta); color: var(--text-2);
-  animation: bt-rise var(--dur-arrive) var(--ease-out), bt-tint 1.4s var(--ease-out);
+  animation: bt-enter var(--dur-enter) var(--ease-out), bt-tint 1.4s var(--ease-out);
 }
 /* One line high and wrapping: what does not fit beside the name drops out of sight whole, never cut in half. */
 .bar-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -123,7 +123,7 @@
 .ring-letter { fill: var(--muted); font-family: var(--sans); font-size: 10.5px; font-weight: 600; }
 .opt:hover .opt-ring, .own-open:hover .opt-ring, .opt:focus-visible .opt-ring, .own-open:focus-visible .opt-ring { color: var(--ink); }
 .opt:hover .ring-letter, .own-open:hover .ring-letter, .opt.chosen .ring-letter { fill: var(--ink); }
-.opt.chosen .opt-ring .ring-dot { animation: bt-settle var(--dur-settle) var(--ease-out); }
+.opt.chosen .opt-ring .ring-dot { animation: bt-settle var(--dur-spring) var(--ease-out); }
 .opt-text { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .opt-label { display: flex; align-items: baseline; font-size: var(--text-title); font-weight: 500; line-height: 1.4; }
 /* The label stays in one piece: the pill sits beside it when there is room and takes the next line when there is not. */
@@ -191,14 +191,37 @@
 .iv-round + .iv-round { margin-left: var(--space-6); }
 .iv-round .iv-step { color: inherit; }
 .iv-round .iv-step.here { color: var(--hue-ink); }
+/* Moving through the round: a soft disc in the item's colour glides to the dot you are on (--at, its place), and a
+   question's dot fills with the same give as an option's when you move on from it answered. */
+.iv-glide { position: relative; }
+.iv-glide::before {
+  content: ''; position: absolute; top: 50%; left: 0; width: 22px; height: 22px; margin-top: -11px; border-radius: var(--radius-full);
+  background: rgba(var(--hue-rgb), 0.16); pointer-events: none;
+  transform: translateX(calc(var(--at, 0) * (22px + var(--space-2)))); transition: transform var(--dur-settle) var(--ease-out);
+}
+.iv-step .ring-dot { animation: bt-settle var(--dur-spring) var(--ease-out); }
 /* The page wears its item's colour in its accents: the Recommended tag. The words and the buttons stay ink. */
 .interview .opt-rec { background: rgba(var(--hue-rgb), 0.22); color: var(--hue-ink); }
 .iv-step.past { cursor: default; }
 .interview .note { margin-bottom: var(--space-24); }
-.iv-q { animation: qr-in-fwd var(--dur-base) var(--ease-out); }
-.iv-q.iv-back { animation-name: qr-in-back; }
-@keyframes qr-in-fwd { from { opacity: 0; transform: translateX(8px); } }
-@keyframes qr-in-back { from { opacity: 0; transform: translateX(-8px); } }
+/* Moving between questions: the next one slides in from the side you are going to. Not on arrival, where the page
+   rises in instead; a slide sideways on top of a rise reads as two moves at once. */
+.iv-q.iv-fwd { animation: qr-in-fwd var(--dur-step) var(--ease-out); }
+.iv-q.iv-back { animation: qr-in-back var(--dur-step) var(--ease-out); }
+@keyframes qr-in-fwd { from { opacity: 0; transform: translateX(12px); } }
+@keyframes qr-in-back { from { opacity: 0; transform: translateX(-12px); } }
+/* Arriving, a question's parts rise one after the other: the dots, the question, then each option, so the eye reads
+   down the page. Up to five options are staggered; any after that come with the fifth. */
+.page.asks.arrive > .iv-main { animation: none; }
+.page.asks.arrive :is(.iv-steps, .iv-first .iv-text, .iv-first .options > *) {
+  animation: bt-enter var(--dur-enter) var(--ease-out) calc(var(--i, 0) * var(--stagger)) both;
+}
+.page.asks.arrive .iv-first .iv-text { --i: 1; }
+.page.asks.arrive .iv-first .options > * { --i: 6; }
+.page.asks.arrive .iv-first .options > :nth-child(1) { --i: 2; }
+.page.asks.arrive .iv-first .options > :nth-child(2) { --i: 3; }
+.page.asks.arrive .iv-first .options > :nth-child(3) { --i: 4; }
+.page.asks.arrive .iv-first .options > :nth-child(4) { --i: 5; }
 .iv-title { font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.25; letter-spacing: -0.012em; color: var(--ink); }
 .interview .q-body { margin: var(--space-12) 0 0; }
 /* A long question keeps every word, so the page does the work: paragraphs and bullets get room so the detail
@@ -723,3 +746,13 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* A light picture on the dark ground glares: it rests a step dimmer and comes to its true colours under the pointer. */
 [data-theme='dark'] .iv-preview-stage img { filter: brightness(0.86); transition: filter var(--dur-base) var(--ease-out); }
 [data-theme='dark'] .iv-preview-stage:hover img { filter: none; }
+
+/* ---- Leaving: the item you decided lifts away, then the next one rises in (motion.ts, leave). The decision bar
+   stays where it is and its buttons change with the item. Two animations with their own curves: the fade starts
+   at once, so the click is answered on the next frame, and the lift speeds up as it goes. It lifts as far as the
+   next item rises, so the two read as one move up the page. */
+.page.leaving > :not(.decide) {
+  animation: bt-leave-fade var(--dur-leave) var(--ease-out) both, bt-leave-lift var(--dur-leave) var(--ease-in) both;
+}
+@keyframes bt-leave-fade { to { opacity: 0; } }
+@keyframes bt-leave-lift { to { transform: translateY(-8px); } }

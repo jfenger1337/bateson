@@ -35,7 +35,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   const [passed, setPassed] = useKept<string[]>(`${kk}:passed`, () => []);
   // Kept from before the answers screen went, a place past the last question means the last one.
   const at = Math.min(kept, Math.max(0, qs.length - 1));
-  const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
+  // 'first' until you move: the page's own rise brings the first question in, the slide is for moving between them.
+  const [dir, setDir] = useState<'first' | 'fwd' | 'back'>('first');
   // The option under the pointer or the focus: the preview shows what it would look like.
   const [peek, setPeek] = useState<string | null>(null);
   const [replay, setReplay] = useState(0);
@@ -349,7 +350,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
                 </span>
               </span>
             )}
-            <span className="iv-round">
+            <span className="iv-round iv-glide" style={{ '--at': at } as React.CSSProperties}>
             {qs.map((x, i) => {
               const answer = shownAnswer(x, drafts[x.id]);
               return (

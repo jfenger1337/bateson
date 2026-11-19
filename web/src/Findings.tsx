@@ -20,7 +20,8 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
     Object.fromEntries(list.map((f) => [f.id, { mark: 'keep', reason: '', comment: '', touched: false, field: null }])),
   );
   const [at, setAt] = useKept(`${kk}:at`, () => 0);
-  const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
+  // 'first' until you move: the page's own rise brings the first question in, the slide is for moving between them.
+  const [dir, setDir] = useState<'first' | 'fwd' | 'back'>('first');
   const fieldRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
@@ -91,7 +92,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
   return (
     <article className={`page interview findings arrive hue-${item.hue}`}>
         {/* The dots sit just above the finding, where you are reading: how far through the list you are, at a glance. */}
-        <nav className="iv-steps iv-round" aria-label="Findings">
+        <nav className="iv-steps iv-round iv-glide" style={{ '--at': at } as React.CSSProperties} aria-label="Findings">
           {list.map((x, i) => (
             <button
               key={x.id}

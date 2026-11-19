@@ -22,3 +22,13 @@ export function setMotion(next: Motion | undefined) {
 }
 
 system.addEventListener('change', paint);
+
+// The item you just decided lifts away before the next one rises in (app.css, "Leaving"): the page you are on gets
+// .leaving, and the change runs once it is out of sight. With reduced motion the next item is simply there.
+export const LEAVE_MS = 140; // --dur-leave
+export function leave(update: () => void) {
+  const page = document.querySelector('.page');
+  if (reduced() || !page) { update(); return; }
+  page.classList.add('leaving');
+  setTimeout(update, LEAVE_MS);
+}
