@@ -88,17 +88,36 @@ export function everything(which?: (item: StoredItem) => boolean): Recalled[] {
 
 // Words in nearly every question ("Which ... should ...?"), which would match everything.
 const COMMON = new Set('the and for with what which who how why when where should would could does this that these those are you your from into than then'.split(' '));
-/** Words worth matching: three letters or more, and not one of the words nearly every question has. */
-export const terms = (query: string) => [...new Set(norm(query).split(' ').filter((w) => w.length >= 3 && !COMMON.has(w)))];
+/** A ticket or issue key (DEV-77996, ABC-12): one word to search for, never "dev" and "77996" apart. */
+const KEY = /\b[A-Za-z][A-Za-z0-9]*-\d+\b/g;
 
-/** How well a decision matches: 2 for each word in what it was about or what was said, 1 for each elsewhere. */
+/** Words worth matching: ticket keys whole, then words of three letters or more that not nearly every question has. */
+export const terms = (query: string) => {
+  const keys = (query.match(KEY) || []).map(norm);
+  const words = norm(query.replace(KEY, ' ')).split(' ').filter((w) => w.length >= 3 && !COMMON.has(w));
+  return [...new Set([...keys, ...words])];
+};
+
+/** Whether `text` (normalised) has the word: at the start of a word, so "club" finds "clubs"; a key also ends there. */
+function has(text: string, w: string) {
+  if (!text.includes(w)) return false;
+  const re = new RegExp(`(?:^| )${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${/\d$/.test(w) ? '(?= |$)' : ''}`);
+  return re.test(text);
+}
+
+/** How well a decision matches: how many of the words it has anywhere, and a score that counts a word twice where it is
+ * in what the decision was about or what was said. */
 function score(r: Recalled, words: string[]) {
   const head = norm(`${r.about} ${r.said}`);
   const rest = norm(r.rest);
-  return words.reduce((s, w) => s + (head.includes(w) ? 2 : rest.includes(w) ? 1 : 0), 0);
+  let hits = 0, s = 0;
+  for (const w of words) {
+    if (has(head, w)) { hits++; s += 2; } else if (has(rest, w)) { hits++; s += 1; }
+  }
+  return { hits, s };
 }
 
-export interface Found extends Recalled { score: number; earlier: string }
+export interface Found extends Recalled { score: number; hits: number; earlier: string }
 
 /** A question asked again (same repo, same words), its answers newest first, under one key. */
 function grouped(all: Recalled[]) {
@@ -143,17 +162,24 @@ export function recall(query: string, { top, repo, limit = 12 }: { top?: string;
   for (const r of all) {
     const group = r.key ? groups.get(r.key)! : [r];
     if (group[0] !== r) continue; // an older answer to a question asked again
-    const s = words.length ? score(r, words) : 1;
+    const { hits, s } = words.length ? score(r, words) : { hits: 0, s: 1 };
     if (!s) continue;
     const before = group.slice(1);
     const differs = before.find((x) => x.answer !== r.answer);
     const earlier = !before.length ? '' : differs
       ? ` [changed: earlier "${clip(differs.said, 60)}" on ${differs.at.slice(0, 10)}]`
       : ` [same answer ${before.length + 1} times]`;
-    found.push({ ...r, score: s, earlier });
+    found.push({ ...r, score: s, hits, earlier });
   }
-  found.sort((a, b) => b.score - a.score || here(b) - here(a) || b.at.localeCompare(a.at));
-  return { words, total: found.length, shown: found.slice(0, limit) };
+  // Every word must match. One word alone matched nearly everything ("home club" found 133 decisions, every ticket
+  // key found every ticket), so a decision with only some of them is shown only when none has all, and then only
+  // those with more than half the words.
+  const every = found.filter((f) => f.hits === words.length);
+  const most = Math.floor(words.length / 2) + 1;
+  const partial = words.length > 1 && !every.length;
+  const kept = !words.length ? found : partial ? found.filter((f) => f.hits >= most && most < words.length) : every;
+  kept.sort((a, b) => b.hits - a.hits || b.score - a.score || here(b) - here(a) || b.at.localeCompare(a.at));
+  return { words, total: kept.length, shown: kept.slice(0, limit), partial };
 }
 
 export function formatRecalled(r: Found) {

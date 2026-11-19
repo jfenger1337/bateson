@@ -424,11 +424,11 @@ function cmdRecall(o: Args) {
   const limit = o.limit == null ? 12 : Number(o.limit);
   if (!(Number.isInteger(limit) && limit > 0)) die(`--limit is a whole number, not ${JSON.stringify(o.limit)}.`);
   const here = source();
-  const { words, total, shown } = recall(query, { top: here.top, repo: here.repo, limit });
+  const { words, total, shown, partial } = recall(query, { top: here.top, repo: here.repo, limit });
   if (query.trim() && !words.length) die('give words of three letters or more to search for, or none for the latest decisions.');
   const who = reviewer();
   if (!shown.length) { console.log(query.trim() ? `bateson: nothing ${who} decided matches "${query.trim()}".` : `bateson: ${who} has not decided anything yet.`); return; }
-  console.log(`${query.trim() ? `${total} decision${total === 1 ? '' : 's'} by ${who} matching "${query.trim()}", best match first` : `${Reviewer()}'s latest decisions`}${total > shown.length ? ` (the first ${shown.length}; --limit for more)` : ''}:`);
+  console.log(`${query.trim() ? `${partial ? `No decision by ${who} has all of "${query.trim()}". ` : ''}${total} decision${total === 1 ? '' : 's'} by ${who} matching ${partial ? 'most of the words' : `"${query.trim()}"`}, best match first` : `${Reviewer()}'s latest decisions`}${total > shown.length ? ` (the first ${shown.length}; --limit for more)` : ''}:`);
   for (const r of shown) console.log(formatRecalled(r));
   // What to do with it, last, where agents look.
   console.log(`\nA question answered here is settled: do not ask it again unless something has changed, and then say what changed and name the earlier answer and its date. A past answer is evidence, not the default: recommend on the merits, and say so when you lean away from it. A whole item is in ${path.join(store.ROOT, 'done', '<id>')}.`);
