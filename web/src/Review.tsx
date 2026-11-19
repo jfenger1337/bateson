@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { keptKey, useKept } from './lib/kept';
 import type { Anchor, Comment, Decision, Item } from '@lib/types';
 import { locate, newLines, proseChanges } from './changes';
@@ -313,24 +312,17 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     if (all.length) { setComments(all); setDraft(null); onDecide(item, { decision: 'send-back', comments: all }); }
     else if (!draft) startComment(whole, true);
   };
-  // An approval carries no comments, so one with a note still being written would drop it without a word:
-  // you are taken back to the note instead, to add it (and send back) or clear it.
-  const approve = () => {
-    if (draft?.text.trim()) {
-      document.querySelector<HTMLTextAreaElement>('.note-field')?.focus();
-      toast('Your comment is not added yet. Send it back with the comment, or clear it to approve.');
-      return;
-    }
-    onDecide(item, { decision: 'approve' });
-  };
+  // An approval carries no comments, so once you have written one (added, or still in the box) Approve becomes
+  // Send back: the button, A and ⌘⏎ all send the comments. Remove them to approve.
+  const noted = withDraft().length > 0;
+  const approve = () => { if (noted) sendBack(); else onDecide(item, { decision: 'approve' }); };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // ⌘⏎ is the main action everywhere: here, Approve. With comments written it sends them back instead, so
-      // a note is never thrown away by the shortcut.
+      // ⌘⏎ is the main action everywhere: here, Approve, or Send back once there are comments.
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !isTyping(e)) {
         e.preventDefault();
-        if (withDraft().length) sendBack(); else approve();
+        approve();
         return;
       }
       if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -478,10 +470,18 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
           <div className="decide-actions">
             <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="The agent stops and leaves its changes (shift D)">Drop</button>
             <button className="btn-ghost" onClick={() => onLater(item)}>Later <span className="key">L</span></button>
-            <button className="btn-pill lg" onClick={sendBack}>Send back <span className="key">S</span></button>
-            <button className="btn-primary" onClick={approve}>
-              Approve <span className="key on-ink">A</span>
-            </button>
+            {noted ? (
+              <button className="btn-primary" onClick={sendBack}>
+                Send back <span className="key on-ink">S</span>
+              </button>
+            ) : (
+              <>
+                <button className="btn-pill lg" onClick={sendBack}>Send back <span className="key">S</span></button>
+                <button className="btn-primary" onClick={approve}>
+                  Approve <span className="key on-ink">A</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </footer>
