@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import store from '../lib/store.ts';
-import { formatDecision } from '../lib/kinds.ts';
+import { formatDecision, formatEarly } from '../lib/kinds.ts';
 
 beforeEach(reset);
 
@@ -69,4 +69,33 @@ test('only a picture can be pasted, and only for the version on screen', () => {
   assert.throws(() => store.savePasted(id, n, 'text/html', Buffer.from('<script>')), /Only a picture/);
   assert.throws(() => store.savePasted(id, n + 1, 'image/png', Buffer.from('x')), /newer version/);
   assert.equal(store.pastedPath(store.getItem(id)!, n, '../item.json'), null);
+});
+
+test('a round sent again after an early answer replaces the open one and starts clean', () => {
+  const opt = (label: string) => ({ label });
+  const source = { agent: 'claude-code', cwd: REPO, repo: path.basename(REPO) };
+  const { id, n } = store.send({
+    kind: 'decision', bodyType: 'questions', title: 'Team accounts', source,
+    body: { questions: [
+      { id: 'Q1', title: 'Is this what you are after?', options: [opt('One queue for a team'), opt('A queue each')], recommended: 0, opens: true },
+      { id: 'Q2', title: 'Who can invite?', options: [opt('The owner'), opt('Anyone')], recommended: 0 },
+    ] },
+  });
+  assert.equal(store.saveEarly(id, n, { id: 'Q1', choice: 1 }), true);
+  const msg = formatEarly(store.getItem(id)!, n, store.unreportedEarly(store.getItem(id)!, n));
+  assert.match(msg, /Q1 Is this what you are after\?: A queue each/);
+  assert.match(msg, new RegExp(`send the corrected round now with \`bateson send --item ${id} --questions -\``));
+
+  const again = store.send({
+    itemId: id, kind: 'decision', bodyType: 'questions', source,
+    body: { questions: [
+      { id: 'Q2', title: 'Who can invite?', options: [opt('The owner'), opt('Anyone')], recommended: 0 },
+      { id: 'Q3', title: 'Can a person be in two teams?', options: [opt('No')], recommended: 0 },
+    ] },
+  });
+  assert.deepEqual({ n: again.n, replaced: again.replaced }, { n, replaced: true });
+  const item = store.getItem(id)!;
+  assert.deepEqual(store.readQuestions(item, store.currentVersion(item)).map((q) => q.id), ['Q2', 'Q3']);
+  assert.deepEqual(store.unreportedEarly(item, n), [], 'the early answer went with the round it was given on');
+  assert.equal(store.readDraft(item, n), null);
 });

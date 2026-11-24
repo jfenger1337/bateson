@@ -102,7 +102,7 @@ Write every fact the question needs into its body. A round has no shared backgro
 
 **Recommendation** (`recommendation`): one sentence on why you lean to the option `recommended` points at, and on what conditions. It shows under that option, so never repeat the option's name, and keep it out of the body.
 
-If it takes more than that, it is two questions, or it needs `show`. Interview rounds from the `ama` skill follow that skill instead of this section.
+If it takes more than that, it is two questions, or it needs `show`. Interview rounds from the `ama` skill follow that skill for how the body and the recommendation are written, and may leave out an option's description. The rest of this section holds for them too.
 
 **Options.** 2 to 4, mutually exclusive, alike in form.
 - Order them naturally (smallest change first, cheapest first, the order things happen), never by preference. The recommended one lands wherever it falls, and ⏎ still accepts it.
