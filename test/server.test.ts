@@ -6,10 +6,13 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp, watchQueue } from '../server/server.ts';
 import store, { openStore } from '../lib/store.ts';
+import { accessKey } from '../lib/key.ts';
 
 beforeEach(reset);
 
-const HOST = { headers: { host: 'localhost:4848' } };
+// As the command and the Mac app ask: with the key (lib/key.ts).
+const KEY = { authorization: `Bearer ${accessKey()}` };
+const HOST = { headers: { host: 'localhost:4848', ...KEY } };
 const pages = async (app: ReturnType<typeof createApp>['app']) =>
   ((await (await app.request('/api/health', HOST)).json()) as { pages: number }).pages;
 
@@ -23,7 +26,7 @@ test('a page that just loaded the queue counts as open, even without live update
 // ---- What a decision may be: decision.json is written once, so one the agent cannot be told would be stuck for good.
 
 const decide = (app: ReturnType<typeof createApp>['app'], id: string, body: unknown) =>
-  app.request(`/api/items/${id}/decide`, { method: 'POST', headers: { host: 'localhost:4848', 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  app.request(`/api/items/${id}/decide`, { method: 'POST', headers: { host: 'localhost:4848', ...KEY, 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 function sent() {
   return store.send({ kind: 'review', bodyType: 'markdown', title: 'Copy', note: 'n', body: 'Hello', source: {} });
@@ -63,7 +66,7 @@ test('comments, answers and marks of the wrong shape are refused before anything
 test('a pasted screenshot is saved, served back, and named in the answer; a name that is not one is refused', async () => {
   const { app } = createApp({ dist: null });
   const { id } = store.send({ kind: 'decision', bodyType: 'questions', title: 'Q', body: { questions: [{ id: 'Q1', title: 'Which?', options: [{ label: 'A' }] }] }, source: {} });
-  const post = (body: unknown) => app.request(`/api/items/${id}/pasted`, { method: 'POST', headers: { host: 'localhost:4848', 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const post = (body: unknown) => app.request(`/api/items/${id}/pasted`, { method: 'POST', headers: { host: 'localhost:4848', ...KEY, 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const res = await post({ n: 1, type: 'image/png', data: Buffer.from('png bytes').toString('base64') });
   assert.equal(res.status, 200);
   const { name } = (await res.json()) as { name: string };
@@ -126,7 +129,7 @@ test('a folder given as an attachment is refused before the unread version it wo
 test('a form cannot post, even empty and from bateson\'s own page: only JSON changes anything', async () => {
   const { app } = createApp({ dist: null });
   const { id } = sent();
-  const own = { host: 'localhost:4848', origin: 'http://localhost:4848', 'sec-fetch-site': 'same-origin' };
+  const own = { host: 'localhost:4848', ...KEY, origin: 'http://localhost:4848', 'sec-fetch-site': 'same-origin' };
   for (const type of ['application/x-www-form-urlencoded', 'multipart/form-data; boundary=x', 'text/plain']) {
     const res = await app.request(`/api/items/${id}/later`, { method: 'POST', headers: { ...own, 'content-type': type, 'content-length': '0' } });
     assert.equal(res.status, 415, type);
@@ -210,7 +213,7 @@ test('a done item the server kept is read again once it is told the item changed
 
 test('a settings change naming something every object has ("constructor") is ignored, like any unknown key', async () => {
   const { app } = createApp({ dist: null });
-  const res = await app.request('/api/config', { method: 'PUT', headers: { host: 'localhost:4848', 'content-type': 'application/json' }, body: '{"constructor":{"a":1},"__proto__":{"b":2},"toString":"x","sound":false}' });
+  const res = await app.request('/api/config', { method: 'PUT', headers: { host: 'localhost:4848', ...KEY, 'content-type': 'application/json' }, body: '{"constructor":{"a":1},"__proto__":{"b":2},"toString":"x","sound":false}' });
   assert.equal(res.status, 200);
   assert.equal(((await res.json()) as { sound: boolean }).sound, false);
 });
@@ -233,4 +236,37 @@ test('answers that do not fit the round are refused: another question, the same 
   }
   assert.equal(store.readDecision(store.getItem(id)!, n), null, 'nothing was written');
   assert.equal((await decide(app, id, { n, decision: 'answer', answers: [{ id: 'Q1', choice: 1 }, { id: 'Q2', choice: null, other: 'Neither' }] })).status, 200);
+});
+
+test('the queue is answered only to who has the key: the command, the Mac app, a page opened with a ticket', async () => {
+  const dist = fs.mkdtempSync(path.join(TMP, 'dist-'));
+  fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html><title>bateson</title>');
+  const { app } = createApp({ dist });
+  const bare = { headers: { host: 'localhost:4848' } };
+  const json = { 'content-type': 'application/json' };
+  // Another account on this machine: the page and whether the server is up, nothing of the queue.
+  assert.equal((await app.request('/', bare)).status, 200);
+  assert.equal((await app.request('/api/health', bare)).status, 200);
+  for (const url of ['/api/state', '/api/summary', '/api/config', '/api/events', '/api/update', '/api/items/q_x/files/1/a.png']) assert.equal((await app.request(url, bare)).status, 401, url);
+  for (const url of ['/api/update', '/api/restart', '/api/ticket', '/api/hooks']) assert.equal((await app.request(url, { method: 'POST', headers: { ...bare.headers, ...json } })).status, 401, url);
+  assert.equal((await app.request('/api/config', { method: 'PUT', headers: { ...bare.headers, ...json }, body: '{"name":"x"}' })).status, 401);
+  assert.equal((await app.request('/api/state', { headers: { ...bare.headers, authorization: 'Bearer nope' } })).status, 401);
+  assert.equal((await app.request('/api/state', { headers: { ...bare.headers, cookie: 'bateson-4848=nope' } })).status, 401);
+  // A ticket, from who has the key, signs a page in: once.
+  const { ticket } = await (await app.request('/api/ticket', { method: 'POST', headers: { ...HOST.headers, ...json } })).json() as { ticket: string };
+  const opened = await app.request(`/?ticket=${ticket}`, bare);
+  assert.equal(opened.status, 302);
+  assert.equal(opened.headers.get('location'), '/');
+  const cookie = (opened.headers.get('set-cookie') || '').split(';')[0];
+  assert.match(opened.headers.get('set-cookie') || '', /^bateson-4848=\w+;.*HttpOnly/);
+  assert.equal((await app.request('/api/state', { headers: { ...bare.headers, cookie } })).status, 200);
+  const again = await app.request(`/?ticket=${ticket}`, bare);
+  assert.equal(again.status, 302);
+  assert.equal(again.headers.get('set-cookie'), null, 'a ticket works once');
+  assert.equal((await app.request('/?ticket=made-up', bare)).headers.get('set-cookie'), null);
+  // The Mac app's window asks with the key, and its page keeps the cookie.
+  assert.match((await app.request('/', HOST)).headers.get('set-cookie') || '', /^bateson-4848=/);
+  // The key is the user's alone to read.
+  if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(HOME, 'key')).mode & 0o077, 0);
+  fs.rmSync(dist, { recursive: true, force: true });
 });

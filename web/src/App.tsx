@@ -25,6 +25,7 @@ interface Held { id: string; n: number; at: string; decision: Decision; label: s
 export function App() {
   const [state, setState] = useState<State | null>(null);
   const [failed, setFailed] = useState(false);
+  const [locked, setLocked] = useState(false);
   // Why the server cannot start, when what answers in its place says (lib/node-check.mjs: a Node too old for it).
   const [why, setWhy] = useState<string | null>(null);
   const [held, setHeld] = useState<Held[]>([]);
@@ -54,6 +55,9 @@ export function App() {
       const text = await res.text();
       if (mine !== asked.current) return;
       // Not the queue: what stands in for a server that cannot start answers 503 with why (lib/node-check.mjs).
+      // Not this browser's to see yet: the server answers only a page it was opened for (lib/key.ts).
+      setLocked(res.status === 401);
+      if (res.status === 401) return;
       if (!res.ok) { setFailed(true); return; }
       setFailed(false);
       if (text === lastText.current) { shownRef.current = lastShown.current; return; }
@@ -319,7 +323,7 @@ export function App() {
           )}
         </div>
         <div className="bar-right">
-          {failed && (why
+          {failed && !locked && (why
             // Reloading shows the page that says why in full, with what to do; it is a link, so nothing half written is lost unasked.
             ? <span className="bar-sentence late" title={why}>The bateson server cannot start. <a className="bar-undo" href="/">See why</a></span>
             : <span className="bar-sentence late"><Spinner variant="ellipsis" size={14} aria-hidden />Not connected. Is <span className="rec">bateson serve</span> running?</span>)}
@@ -327,7 +331,7 @@ export function App() {
       </header>
 
       <main className="work">
-        {settings ? (
+        {locked ? <Locked /> : settings ? (
           <Settings update={state?.update} theme={state?.config.theme} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
         ) : !state ? <Loading /> : item ? (
           item.kind === 'interview'
@@ -391,4 +395,20 @@ export function isTyping(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   // In a menu, keys move and pick in the menu: none is a shortcut for the item behind it.
   return !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable || !!t.closest?.('[role="menu"]'));
+}
+
+/**
+ * What a page shows that the server will not answer: one opened by address alone, in a browser bateson has not
+ * been opened in before. The command opens it signed in, and this page goes on by itself once it is (it keeps asking).
+ */
+function Locked() {
+  return (
+    <div className="calm again">
+      <div className="locked">
+        <h1>This browser is not signed in to your bateson</h1>
+        <p>Run <span className="rec">bateson open</span> in a terminal, or ask your agent to. It opens bateson here, and this browser stays signed in.</p>
+        <p className="locked-why">bateson answers only you: other accounts on this machine can reach its address too, and an answer here is an instruction to your agent.</p>
+      </div>
+    </div>
+  );
 }
