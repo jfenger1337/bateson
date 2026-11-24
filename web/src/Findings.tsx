@@ -158,6 +158,13 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
             </div>
           )}
           {f.body && <Markdown className="prose q-body" text={f.body} />}
+          {/* The fix before the choice: you decide having read what the agent would do. */}
+          {f.fix && (
+            <div className="fd-fix">
+              <p className="fd-fix-head">Suggested fix</p>
+              <Markdown className="prose" text={f.fix} />
+            </div>
+          )}
           <div className="options fd-marks" role="radiogroup" aria-label={`What to do with ${f.id}`}>
             <button role="radio" aria-checked={plainKeep} className={`opt${plainKeep ? ' chosen' : ''}${plainKeep && !d.touched ? ' assumed' : ''}`} onClick={keep}>
               <span className="opt-ring"><Ring kind={plainKeep ? (d.touched ? 'dot' : 'dashed') : 'open'} size={18} /></span>
@@ -216,12 +223,6 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
               )}
             </div>
           </div>
-          {f.fix && (
-            <div className="fd-fix">
-              <p className="fd-fix-head">Suggested fix</p>
-              <Markdown className="prose" text={f.fix} />
-            </div>
-          )}
         </section>
       )}
 

@@ -76,8 +76,13 @@
 /* ---- The work's prose */
 /* Reading text in the plain sans: the serif stays for headings, where it reads well large. */
 .prose { font-family: var(--sans); font-size: 16px; line-height: 1.65; color: var(--ink-body); }
-.prose > * + * { margin-top: 0.75em; }
-.prose h1, .prose h2, .prose h3, .prose h4 { font-family: var(--serif); font-weight: 500; line-height: 1.25; color: var(--ink); margin-top: 1.4em; }
+.prose > * + * { margin-top: 1em; }
+/* A paragraph break is a full line of air, well apart from the 10px between lines inside a paragraph: at 0.75em,
+   one sentence per paragraph read as a column of equal lines. A heading has more room above than below, so it
+   belongs to the section it opens. */
+.prose h1, .prose h2, .prose h3, .prose h4 { font-family: var(--serif); font-weight: 500; line-height: 1.25; color: var(--ink); margin-top: 1.75em; }
+.prose :is(h1, h2, h3, h4) + * { margin-top: 0.5em; }
+.prose > :first-child { margin-top: 0; }
 /* A step below the title, so a heading in the body never reads as a second title. */
 .prose h1 { font-size: var(--work-lg); }
 .prose h2 { font-size: var(--work-md); }
@@ -87,15 +92,22 @@
 /* Schibsted's default figures are tabular, which leaves a gap between a narrow 1 and its full stop. */
 .prose ol > li::marker { font-variant-numeric: proportional-nums; }
 .prose a { text-underline-offset: 3px; }
-.prose code { font-family: var(--mono); font-size: 0.8em; padding: 0.1em 0.35em; border-radius: var(--radius-sm); background: var(--tint); }
+/* Code at one size across the app: 0.875em inline (14px in 16px text), 13px in blocks, diffs and excerpts. */
+/* Weight 400: Plex Mono ships 400 and 500 only, so the prose's 450 would pick the bold one. */
+.prose code { font-family: var(--mono); font-size: 0.875em; font-weight: 400; padding: 0.1em 0.35em; border-radius: var(--radius-sm); background: var(--tint); }
 .prose pre { padding: var(--space-14) var(--space-16); border-radius: var(--radius); background: var(--linen); overflow-x: auto; }
-.prose pre code { padding: 0; background: none; font-size: 0.74em; line-height: 1.6; }
+.prose pre code { padding: 0; background: none; font-size: 0.8125em; line-height: 1.6; }
 .prose blockquote { margin-left: 0; padding-left: var(--space-16); border-left: 2px solid var(--border-strong); color: var(--text-2); }
 .prose table { border-collapse: collapse; font-family: var(--sans); font-size: var(--text-body); }
 .prose th, .prose td { padding: var(--space-6) var(--space-10); border-bottom: 1px solid var(--border-soft); text-align: left; vertical-align: top; }
 .prose th { font-weight: 500; color: var(--text-2); }
 .prose hr { border: 0; height: 1px; background: var(--border); }
 .prose.plain { white-space: pre-wrap; }
+/* A review's words keep a reading measure, as a question's do (68ch, about 70 characters a line): across the full
+   800px column a line ran past 100. Tables, code and pictures keep the full width. Read at the interview's weight,
+   450, for the same reason it gives there. */
+.page.review .prose { font-weight: 450; }
+.page.review .prose > :is(p, ul, ol, blockquote, dl, h1, h2, h3, h4, h5, h6), .page.review .prose.plain { max-width: 68ch; }
 
 /* ---- An interview round */
 .questions { list-style: none; margin: var(--space-40) 0 0; padding: 0; display: flex; flex-direction: column; }
@@ -469,12 +481,14 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .fd-sev.fd-high { color: #8A4A32; }
 .findings .iv-title { font-size: var(--text-heading); line-height: 1.25; }
 .fd-code { margin-top: var(--space-20); padding: var(--space-8) 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow-x: auto; }
-.fd-line { display: grid; grid-template-columns: 48px 1fr; font-family: var(--mono); font-size: 12.5px; line-height: 20px; }
+.fd-line { display: grid; grid-template-columns: 48px 1fr; font-family: var(--mono); font-size: 13px; line-height: 20px; }
 .fd-line::before { content: attr(data-n); padding-right: var(--space-12); text-align: right; font-size: var(--text-micro); color: var(--faint-3); user-select: none; -webkit-user-select: none; }
-.fd-line code { padding-right: var(--space-16); white-space: pre; color: var(--ink-body); }
+/* font: inherit, or the browser's own code { font-family: monospace } puts the line in the system's mono, not Plex. */
+.fd-line code { font: inherit; padding-right: var(--space-16); white-space: pre; color: var(--ink-body); }
 .fd-line.here { background: var(--highlight); }
 .fd-line.here::before { color: var(--ink); }
 .findings .fd-code + .q-body { margin-top: var(--space-20); }
+.fd-fix + .fd-marks { margin-top: var(--space-20); }
 .fd-fix { margin-top: var(--space-20); padding: var(--space-12) var(--space-16); border-radius: var(--radius-lg); background: var(--linen); }
 .fd-fix-head { margin-bottom: var(--space-6); font-size: var(--text-label); color: var(--muted); }
 .fd-fix .prose { font-size: var(--work-sm); }
@@ -507,12 +521,14 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .diff-path { padding: var(--space-10) var(--space-14); border-bottom: 1px solid var(--border-soft); background: var(--linen); font-size: var(--text-label); color: var(--ink); }
 .diff-status { margin-left: var(--space-8); color: var(--muted); }
 .diff-gap { height: 12px; background: var(--linen); border-block: 1px solid var(--border-soft); }
-.dl { display: grid; grid-template-columns: 44px 44px 1fr; grid-template-areas: 'o n c'; font-family: var(--mono); font-size: 12.5px; line-height: 20px; }
+.dl { display: grid; grid-template-columns: 44px 44px 1fr; grid-template-areas: 'o n c'; font-family: var(--mono); font-size: 13px; line-height: 20px; }
 .dl::before, .dl::after { color: var(--faint-3); text-align: right; padding-right: var(--space-10); user-select: none; -webkit-user-select: none; font-size: var(--text-micro); }
 .dl::before { content: attr(data-o); grid-area: o; }
 .dl::after { content: attr(data-n); grid-area: n; }
-.dl code { grid-area: c; padding: 0 var(--space-16) 0 var(--space-4); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-body); }
-.dl code::before { display: inline-block; width: 14px; color: var(--faint); user-select: none; -webkit-user-select: none; content: ' '; }
+/* font: inherit keeps Plex (see .fd-line code). A line too long for the column wraps under its own text, past the
+   + or −, so it does not read as the next line. */
+.dl code { font: inherit; grid-area: c; padding: 0 var(--space-16) 0 calc(var(--space-4) + 14px); text-indent: -14px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-body); }
+.dl code::before { display: inline-block; width: 14px; text-indent: 0; color: var(--faint); user-select: none; -webkit-user-select: none; content: ' '; }
 .dl-add { background: rgba(141, 165, 131, 0.16); }
 .dl-add code::before { content: '+'; color: var(--hue-ink); }
 .dl-del { background: rgba(201, 137, 107, 0.13); }
@@ -653,7 +669,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .set-row:has(.switch:disabled) .set-title { color: var(--muted); }
 .switch.on span { transform: translateX(14px); }
 /* Quiet headings over each group of rows: a label, not a title. */
-.set-group { margin: var(--space-40) 0 var(--space-8); font-size: var(--text-label); font-weight: 500; color: var(--muted); }
+.set-group { margin: var(--space-40) 0 var(--space-8); font-size: var(--text-meta); font-weight: 500; letter-spacing: 0.02em; color: var(--text-2); }
 .set-head + .set-group, .set-warn + .set-group { margin-top: 0; }
 /* One row, two controls: the title and hint above, then each control on its own line with its label. */
 .set-row.set-send { flex-direction: column; align-items: stretch; gap: var(--space-12); }
