@@ -45,9 +45,9 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
 
   const keep = () => { if (!f) return; set(f.id, { mark: 'keep', field: null, comment: '' }); later(); };
   // Dismissing is done at once; the reason field opens in case you want to say why. ⏎ goes on either way.
-  const dismiss = () => { if (!f) return; set(f.id, { mark: 'dismiss', field: 'reason' }); focusField(); };
+  const dismiss = () => { if (!f) return; clearTimeout(timer.current); set(f.id, { mark: 'dismiss', field: 'reason' }); focusField(); };
   // A comment keeps the finding and tells the agent how to fix it.
-  const comment = () => { if (!f) return; set(f.id, { mark: 'keep', field: 'comment' }); focusField(); };
+  const comment = () => { if (!f) return; clearTimeout(timer.current); set(f.id, { mark: 'keep', field: 'comment' }); focusField(); };
 
   const send = () => {
     const marks: Mark[] = list.map((x) => {
@@ -72,6 +72,9 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // ⏎ on a button reached with Tab presses that button. After a click the button keeps the focus without showing
+      // it, and ⏎ goes on as everywhere else.
+      if (e.key === 'Enter' && (e.target as HTMLElement | null)?.closest?.('button, a[href]')?.matches(':focus-visible')) return;
       if (e.key === 'Enter') { e.preventDefault(); next(); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); go(at + 1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); go(at - 1); }
