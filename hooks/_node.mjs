@@ -2,8 +2,8 @@
 //
 // `npm run build` bundles each hook into plain JavaScript (scripts/build-hooks.ts), which starts several times
 // faster than the TypeScript it comes from: Claude Code waits for a hook after every Edit, Write and Bash call.
-// The bundle runs while it is newer than every file that went into it; otherwise (sources changed since the
-// build, or no build) the hook runs from source.
+// The bundle runs while it is newer than every file that went into it (lib/bundle.mjs); otherwise (sources changed
+// since the build, or no build) the hook runs from source.
 //
 // Either way it first checks that this Node runs TypeScript (lib/node-check.mjs says why that needs a .mjs file):
 // a bundle would run without, but the bateson command and the server would not, and the hook is where the
@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { currentBundle } from '../lib/bundle.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -28,22 +29,10 @@ export function readInput() {
   return globalThis[INPUT];
 }
 
-/** hooks/dist/<name>.js, if it was built from the files as they are now; else null. */
-function bundle(name) {
-  const file = path.join(HERE, 'dist', `${name}.js`);
-  try {
-    const { built, hooks } = JSON.parse(fs.readFileSync(path.join(HERE, 'dist', 'inputs.json'), 'utf8'));
-    const inputs = hooks && hooks[name];
-    if (typeof built !== 'number' || !Array.isArray(inputs) || !inputs.length || !fs.existsSync(file)) return null;
-    for (const rel of inputs) if (fs.statSync(path.join(REPO, rel)).mtimeMs > built) return null;
-    return file;
-  } catch (e) { return null; }
-}
-
 /** Run hook `name` (catchup, nudge, remind or rewake): its bundle if it is current, else its source. */
 export async function runHook(name) {
   await hookNeedsTypeScript(name);
-  const built = bundle(name);
+  const built = currentBundle(path.join(HERE, 'dist'), name);
   await import(built ? pathToFileURL(built).href : `./${name}.ts`);
 }
 
