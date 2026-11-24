@@ -1,6 +1,7 @@
 node_modules
 web/dist
 hooks/dist
+cli/dist
 .DS_Store
 mac/build
 windows/bin

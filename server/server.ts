@@ -100,7 +100,7 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     const item = store.getItem(c.req.param('id'));
     if (!item) return c.json({ error: 'No such item' }, 404);
     let decision;
-    try { decision = checkDecision(kindOf(item, store.currentVersion(item)), body); }
+    try { decision = checkDecision(kindOf(item, store.currentVersion(item)), body, store.readQuestions(item, store.currentVersion(item))); }
     catch (e) { return c.json({ error: (e as Error).message }, 400); }
     try { store.decide(item.id, typeof n === 'number' ? n : NaN, decision, { at: typeof at === 'string' ? at : undefined }); }
     catch (e) { const { message, code } = e as NodeJS.ErrnoException; return c.json({ error: message, code }, 409); }
@@ -175,6 +175,9 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     while (alive) await stream.sleep(25000).then(() => { if (alive) return stream.writeSSE({ event: 'ping', data: '' }); });
   }));
 
+  // Nothing else is the API's: said as JSON, not answered with the page below as if it were there.
+  app.all('/api/*', (c) => c.json({ error: 'Not found' }, 404));
+
   // The built UI. Hashed assets cache forever; the page itself never does.
   if (dist && fs.existsSync(dist)) {
     app.use('/assets/*', async (c, next) => { await next(); c.header('cache-control', 'public, max-age=31536000, immutable'); });
@@ -209,9 +212,9 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
   };
 }
 
-// Files in the queue's folder that no page shows: the logs and the server's own marks, a session's working-tree
+// Files in the queue's folder that no page shows: the logs and the server's own marks, the last colour given, a session's working-tree
 // record (lib/worktree.ts), and a file still being written (it is renamed into place, and that is seen).
-const UNSHOWN = /^(server\.(log|pid|stop|error)|hooks\.log(\.old)?)$/;
+const UNSHOWN = /^(server\.(log|pid|stop|error)|hooks\.log(\.old)?|hue\.json)$/;
 const UNSHOWN_ANYWHERE = /\.(tmp|tree)$/;
 
 /**
@@ -273,13 +276,14 @@ export async function start() {
   watchQueue(store.ROOT, changed);
   // Some changes leave no file event: a waiting hook that dies, a Claude Code session that ends, an answer older
   // than a window the page counts in. So every 15 seconds, while a page is open, the state is worked out here, and
-  // the pages hear of it only if it reads differently, with each waiting item's reach (lib/delivery.ts) too. Every
-  // 5 minutes what was kept of done items is read again, for a change the watcher missed.
+  // the pages hear of it only if it reads differently, with each waiting item's reach (lib/delivery.ts) too. Each
+  // time, a twentieth of what was kept of done items is read again, for a change the watcher missed: all of it
+  // within 5 minutes, and never all at once, which stopped the server for as long as the reading took. With no page
+  // open nothing is dropped, so the window a question opens is not kept waiting for the whole history to be read.
   let pulse = '';
-  let beats = 0;
   setInterval(() => {
-    if (++beats % 20 === 0) store.forget(null);
     if (!pages()) return;
+    store.forgetOldest(1 / 20);
     const live = store.liveSessions();
     const now = JSON.stringify([stateView(), store.pending().map((r) => [r.item.id, reachOf(r.item, live)])]);
     if (now !== pulse) { pulse = now; changed(); }

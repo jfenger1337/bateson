@@ -14,6 +14,9 @@ const FADE_MS = 450; // --dur-arrive
 const REST_MS = 750; // the mark stays a moment before the app comes up
 const LONGEST_MS = 4000; // never in the way for longer, whatever happens
 
+// Not when something is waiting for you: on Windows a question opens the window, every time, and the drawing stood
+// in front of it for three seconds. Then the page is simply there. With nothing waiting, it plays as before.
+//
 // Once per launch: the Mac app's web view keeps sessionStorage across reloads, so a new build does not replay it.
 function shouldPlay() {
   if (reduced()) return false;
@@ -93,11 +96,22 @@ function outline(pts: number[][]) {
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-export function Splash() {
+/**
+ * `waiting`: whether something is in front of you (an item, or the server not answering), once the page knows.
+ * Until it does the splash is its bare ground, as its first frames are; then it draws, or with something waiting
+ * gets out of the way at once. Something arriving while it draws ends it early.
+ */
+export function Splash({ waiting }: { waiting?: boolean }) {
   const [phase, setPhase] = useState<'on' | 'leaving' | 'gone'>(() => (shouldPlay() ? 'on' : 'gone'));
+  const [drawing, setDrawing] = useState(false);
   const paths = useRef<(SVGPathElement | null)[]>([]);
   const leave = useCallback(() => setPhase((p) => (p === 'on' ? 'leaving' : p)), []);
   const showing = phase !== 'gone';
+
+  useEffect(() => {
+    if (waiting === false) setDrawing(true);
+    else if (waiting) setPhase((p) => (p !== 'on' ? p : drawing ? 'leaving' : 'gone'));
+  }, [waiting, drawing]);
 
   useEffect(() => {
     try { sessionStorage.setItem(SEEN, '1'); } catch { /* private window: it just plays again */ }
@@ -105,7 +119,7 @@ export function Splash() {
 
   // The drawing: the pen a little further along each frame, quick through each mark, slow at either end of it.
   useEffect(() => {
-    if (!showing) return;
+    if (!showing || !drawing) return;
     let raf = 0, rest = 0;
     const t0 = performance.now();
     const frame = (now: number) => {
@@ -124,7 +138,7 @@ export function Splash() {
     };
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); clearTimeout(rest); };
-  }, [showing, leave]);
+  }, [showing, drawing, leave]);
 
   useEffect(() => {
     if (phase === 'on') {

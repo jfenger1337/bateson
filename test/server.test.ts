@@ -196,3 +196,30 @@ test('a done item the server kept is read again once it is told the item changed
   assert.equal(s.readDecision(again, 2)?.decision, 'approve');
   assert.deepEqual(s.allDone().map((it) => it.versions.length), [2]);
 });
+
+test('a settings change naming something every object has ("constructor") is ignored, like any unknown key', async () => {
+  const { app } = createApp({ dist: null });
+  const res = await app.request('/api/config', { method: 'PUT', headers: { host: 'localhost:4848', 'content-type': 'application/json' }, body: '{"constructor":{"a":1},"__proto__":{"b":2},"toString":"x","sound":false}' });
+  assert.equal(res.status, 200);
+  assert.equal(((await res.json()) as { sound: boolean }).sound, false);
+});
+
+test('an address under /api that is not one is said so as JSON, not answered with the page', async () => {
+  const { app } = createApp();
+  const res = await app.request('/api/nope', HOST);
+  assert.equal(res.status, 404);
+  assert.deepEqual(await res.json(), { error: 'Not found' });
+});
+
+test('answers that do not fit the round are refused: another question, the same one twice, an option it has not', async () => {
+  const { app } = createApp({ dist: null });
+  const opt = (label: string) => ({ label });
+  const { id, n } = store.send({ kind: 'decision', bodyType: 'questions', title: 'Round', source: {}, body: { questions: [
+    { id: 'Q1', title: 'One?', options: [opt('A'), opt('B')] }, { id: 'Q2', title: 'Two?', options: [opt('A'), opt('B')] },
+  ] } });
+  for (const answers of [[{ id: 'Q9', choice: 0 }], [{ id: 'Q1', choice: 0 }, { id: 'Q1', choice: 1 }], [{ id: 'Q1', choice: 2 }], [{ id: 'Q1', choice: -1 }]]) {
+    assert.equal((await decide(app, id, { n, decision: 'answer', answers })).status, 400, JSON.stringify(answers));
+  }
+  assert.equal(store.readDecision(store.getItem(id)!, n), null, 'nothing was written');
+  assert.equal((await decide(app, id, { n, decision: 'answer', answers: [{ id: 'Q1', choice: 1 }, { id: 'Q2', choice: null, other: 'Neither' }] })).status, 200);
+});

@@ -167,9 +167,10 @@ export const KINDS = { review: REVIEW, interview: INTERVIEW, findings: FINDINGS 
  * Check a decision as the app posts it, before it is written: decision.json is written once, so one of the wrong
  * shape would leave its item stuck, never told to its agent. Only the kind's own decisions count (not a name
  * every object has, such as "constructor"), and each list holds what formatDecision reads, with the right types.
+ * With `questions`, the round the answers are to: each answer is to one of them, once, and picks an option it has.
  * Throws an Error saying what is wrong.
  */
-export function checkDecision(kind: Kind, body: unknown): Decision {
+export function checkDecision(kind: Kind, body: unknown, questions?: Question[]): Decision {
   const b = (body && typeof body === 'object' ? body : {}) as Loose;
   const { decision } = b;
   if (typeof decision !== 'string' || !Object.hasOwn(kind.decisions, decision)) throw new Error(`A ${kind.name} item cannot be decided with ${String(decision)}`);
@@ -190,6 +191,14 @@ export function checkDecision(kind: Kind, body: unknown): Decision {
     && (a.images == null || (Array.isArray(a.images) && a.images.length <= 20 && a.images.every((x) => typeof x === 'string' && PASTED_NAME.test(x)))));
   const marks = list('marks', (m) => typeof m.id === 'string' && ['keep', 'dismiss'].includes(m.mark as string) && str(m.reason) && str(m.comment));
   if (decision === 'send-back' && !comments?.length) throw new Error('Send back needs a comment');
+  if (questions && answers) {
+    const seen = new Set<unknown>();
+    for (const a of answers as Answer[]) {
+      const q = questions.find((x) => x.id === a.id);
+      if (!q || seen.has(a.id) || (a.choice != null && !q.options?.[a.choice])) throw new Error('answers do not fit the questions');
+      seen.add(a.id);
+    }
+  }
   return {
     decision: decision as DecisionName,
     ...(comments ? { comments: comments as Decision['comments'] } : {}),
@@ -288,14 +297,28 @@ export function validateQuestions(body: unknown, cwd?: string): Round & { readon
     if (list.some((s) => !(typeof s === 'string' ? s.trim() : inlineShow(s)))) throw new Error(`${what}: show is a file path, a localhost URL, or { "text" | "markdown" | "html": "..." } written out here; one or a list.`);
     if (cwd) owner.show = list.map((s) => (typeof s === 'string' ? resolveShow(s.trim(), cwd, files, what) : inlineShow(s)));
   };
-  (body.questions as Loose[]).forEach((q, i) => {
+  const ids = new Set<string>();
+  (body.questions as unknown[]).forEach((raw, i) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`question ${i + 1} is not an object: { "title": ..., "options": [ ... ] }.`);
+    const q = raw as Loose;
+    // Answers are matched to their question by id, as text: a number is taken as its digits, and two questions
+    // never share one. A round that got past this with 1 for an id, or the same id twice, could not be answered.
+    if (typeof q.id === 'number') q.id = String(q.id);
     q.id = q.id || `Q${i + 1}`;
-    if (!q.title) throw new Error(`question ${q.id} needs a title.`);
-    if (!/\?\s*$/.test(String(q.title))) throw new Error(`question ${q.id}: the title is the question itself and ends in a question mark ("Which turns should get the reminder?", not "Which turns get checked").`);
+    if (typeof q.id !== 'string' || !/^[\w-]+$/.test(q.id)) throw new Error(`question ${i + 1}: id is a short name of letters, digits, "-" or "_" ("Q${i + 1}"), not ${JSON.stringify(q.id)}.`);
+    if (ids.has(q.id)) throw new Error(`two questions have the id ${q.id}: give each its own.`);
+    ids.add(q.id);
+    if (typeof q.title !== 'string' || !q.title.trim()) throw new Error(`question ${q.id} needs a title.`);
+    if (!/\?\s*$/.test(q.title)) throw new Error(`question ${q.id}: the title is the question itself and ends in a question mark ("Which turns should get the reminder?", not "Which turns get checked").`);
+    if (q.body != null && typeof q.body !== 'string') throw new Error(`question ${q.id}: body is markdown, written as a string.`);
     if (!Array.isArray(q.options) || !q.options.length) throw new Error(`question ${q.id} needs options: two to four, or for a yes or no question one, your answer.`);
     const options = q.options as Loose[];
+    options.forEach((o, k) => {
+      if (!o || typeof o !== 'object' || Array.isArray(o) || typeof o.label !== 'string' || !o.label.trim()) throw new Error(`question ${q.id}, option ${k + 1}: an option is { "label": "...", "description": "..." }, and needs its label.`);
+      if (o.description != null && typeof o.description !== 'string') throw new Error(`question ${q.id}, option ${k + 1}: description is a string.`);
+    });
     if (options.length === 1 && q.recommended !== 0) throw new Error(`question ${q.id}: a single option is your answer to a yes or no question, so set "recommended": 0.`);
-    if (q.recommended != null && !options[q.recommended as number]) throw new Error(`question ${q.id}: recommended must be an option index.`);
+    if (q.recommended != null && !(Number.isInteger(q.recommended) && options[q.recommended as number])) throw new Error(`question ${q.id}: recommended must be an option index.`);
     if (q.recommendation != null && (typeof q.recommendation !== 'string' || !q.recommendation.trim())) throw new Error(`question ${q.id}: recommendation is your answer written out, as markdown.`);
     if (q.recommendation && q.recommended == null) throw new Error(`question ${q.id}: a recommendation needs "recommended", the option it leans to.`);
     shown(q, `question ${q.id}`);

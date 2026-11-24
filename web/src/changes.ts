@@ -1,5 +1,6 @@
 // What is new in a revision. Myers' diff over words (prose) or lines (diffs). Removed text is not shown in the
 // work: a revision reads as the new version, with each changed sentence tinted as a whole.
+import { changedLines } from './Diff';
 
 /** For each token of `b`, the index of the token of `a` it is matched with in the longest common subsequence,
  *  or -1 where `b` has something new. Null when the two are too different to say. */
@@ -121,11 +122,10 @@ export function locate(text: string, quote: string | undefined, start?: number, 
   return k < 0 ? null : [k, k + quote.trim().length];
 }
 
-/** For a diff: which lines (by their text with the +/- marker) are new against the previous diff. */
-export function newLines(prev: string, next: string): Set<string> {
-  const lines = (t: string) => t.split('\n').filter((l) => /^[+-](?![+-]{2} )/.test(l));
-  const a = lines(prev), b = lines(next);
+/** For a diff: which of its +/- lines are new against the previous diff, by their place among them (changedLines). */
+export function newLines(prev: string, next: string): Set<number> {
+  const a = changedLines(prev), b = changedLines(next);
   const mb = matches(a, b);
   if (!mb || !mb.some((x) => x >= 0)) return new Set();
-  return new Set(b.filter((_, j) => mb[j] < 0));
+  return new Set(b.map((_, j) => j).filter((j) => mb[j] < 0));
 }

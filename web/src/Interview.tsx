@@ -164,6 +164,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
     const id = q.id;
     const images = files.filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type));
     if (!images.length) { if (files.length) toast('Only a picture (png, jpg, gif, webp) can go in your answer.'); return; }
+    const was = drafts[id];
     write();
     for (const f of images) {
       setAdding((k) => k + 1);
@@ -178,7 +179,11 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
           const name = out.name;
           setDrafts((ds) => ({ ...ds, [id]: { ...ds[id], writing: true, choice: null, touched: true, images: [...pics(ds[id]), name] } }));
         })
-        .catch((e: Error) => toast(e.message || 'The screenshot did not reach bateson.'))
+        .catch((e: Error) => {
+          toast(e.message || 'The screenshot did not reach bateson.');
+          // Nothing came of it: with no words and no picture in your own answer, the option you had picked stands again.
+          setDrafts((ds) => (ds[id].writing && !ds[id].other.trim() && !pics(ds[id]).length ? { ...ds, [id]: { ...ds[id], writing: was.writing, choice: was.choice } } : ds));
+        })
         .finally(() => setAdding((k) => k - 1));
     }
   };
@@ -197,6 +202,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
       if (!files.some((f) => f.type.startsWith('image/'))) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || (t.tagName === 'TEXTAREA' && !t.classList.contains('own-field')))) return;
+      // Text copied from Word or a spreadsheet comes with a picture of itself: in your answer's field it is the text you meant.
+      if (t?.tagName === 'TEXTAREA' && e.clipboardData?.getData('text/plain')) return;
       e.preventDefault();
       attachRef.current(files);
     };
@@ -286,12 +293,17 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (zoom) { e.preventDefault(); setZoom(null); return; }
+      // ⏎ held down goes on once: its repeats would walk every question, send the round and start on the next one.
+      if (e.repeat && e.key === 'Enter') { if (!isTyping(e) || e.metaKey || e.ctrlKey) e.preventDefault(); return; }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); if (isTyping(e)) { (e.target as HTMLElement).blur(); next(); } else next(); return; }
       if (isTyping(e)) {
         if (e.key === 'Escape') (e.target as HTMLElement).blur();
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // ⏎ on a button reached with Tab presses that button. After a click the button keeps the focus without showing
+      // it, and ⏎ goes on as everywhere else.
+      if (e.key === 'Enter' && (e.target as HTMLElement | null)?.closest?.('button, a[href]')?.matches(':focus-visible')) return;
       if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); if (early) sendNow(); }
       else if (e.key === 'Enter') { e.preventDefault(); next(); }
       else if (e.key === 'ArrowRight' || e.key === 'j') { e.preventDefault(); go(at + 1); }

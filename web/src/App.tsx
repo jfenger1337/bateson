@@ -53,6 +53,8 @@ export function App() {
       const res = await fetch(`/api/state${q.toString() ? `?${q}` : ''}`);
       const text = await res.text();
       if (mine !== asked.current) return;
+      // Not the queue: what stands in for a server that cannot start answers 503 with why (lib/node-check.mjs).
+      if (!res.ok) { setFailed(true); return; }
       setFailed(false);
       if (text === lastText.current) { shownRef.current = lastShown.current; return; }
       const s: State = JSON.parse(text);
@@ -73,13 +75,18 @@ export function App() {
     load();
     let es: EventSource | null = null;
     let retry: number | undefined;
+    let reloading: number | undefined;
     const connect = () => {
       es = new EventSource('/api/events');
       es.onmessage = () => load();
       // A new build: reload, unless you are mid-comment or mid-answer.
       es.addEventListener('reload', () => {
-        const busy = document.activeElement?.tagName === 'TEXTAREA' || heldRef.current.length > 0;
-        if (!busy) location.reload();
+        const reload = () => {
+          const busy = document.activeElement?.tagName === 'TEXTAREA' || heldRef.current.length > 0;
+          // Not now, then as soon as you are done: the page would otherwise stay on the old build.
+          if (busy) { clearTimeout(reloading); reloading = window.setTimeout(reload, 2000); } else location.reload();
+        };
+        reload();
       });
       es.onerror = () => {
         es?.close(); setFailed(true); retry = window.setTimeout(connect, 2000);
@@ -89,10 +96,13 @@ export function App() {
       es.onopen = () => { setFailed(false); setWhy(null); };
     };
     connect();
-    return () => { es?.close(); clearTimeout(retry); };
+    return () => { es?.close(); clearTimeout(retry); clearTimeout(reloading); };
   }, [load]);
 
-  useEffect(() => { load(); }, [held, load]);
+  // Again whenever a decision is held or let go: the queue is asked without the held items. Not when the page
+  // opens, which has asked already.
+  const opened = useRef(false);
+  useEffect(() => { if (opened.current) load(); else opened.current = true; }, [held, load]);
 
   const count = (state?.queue.length ?? 0);
   useEffect(() => { document.title = count ? `(${count}) bateson` : 'bateson'; }, [count]);
@@ -346,7 +356,7 @@ export function App() {
         <Gear size={20} strokeWidth={1.75} aria-hidden />
       </button>
 
-      <Splash />
+      <Splash waiting={failed || (state ? !!state.current : undefined)} />
     </div>
     </AppMenu>
   );

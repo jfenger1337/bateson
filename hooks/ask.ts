@@ -15,7 +15,7 @@ import store, { Reviewer } from '../lib/store.ts';
 import { canWake } from '../lib/agent.ts';
 import { input, guard } from './_io.ts';
 
-const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'cli', 'bateson.ts');
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'cli', 'bateson.mjs'); // the launcher: it runs the command from its bundle when that is built
 type Loose = { [key: string]: unknown };
 const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
