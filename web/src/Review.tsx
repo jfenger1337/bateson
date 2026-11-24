@@ -224,15 +224,30 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   // page for a moment, which pulled a page scrolled to its foot back up, and the scroll started the next pass.
   // `was` is the block's own inline margin and transition, put back when it holds no note; `base` its margin
   // before any room.
-  const made = useRef(new Map<HTMLElement, { was: string; transition: string; base: number }>());
+  // `held` is which notes the room was last made for. When that changes (a note opens, is saved, is taken away)
+  // the room eases to its new size, and the text under it glides instead of jumping; the notes further down follow,
+  // as layout() runs again on each step of the body's height. A note growing as you type is not eased here: it
+  // eases its own height (easeNote), and the room follows that step by step. `still` holds all of it off where
+  // nothing was opened or closed: the first pass on a page that already has notes, and a pass after a new width.
+  const made = useRef(new Map<HTMLElement, { was: string; transition: string; base: number; held: string }>());
+  const easing = useRef(new WeakMap<HTMLElement, Animation>());
+  const still = useRef(true);
+  useEffect(() => { still.current = false; }, []);
+  const easeRoom = useCallback((el: HTMLElement, from: number, to: number) => {
+    easing.current.get(el)?.cancel();
+    if (still.current || reduced() || !el.animate || Math.abs(from - to) < 2) return;
+    easing.current.set(el, el.animate([{ marginBottom: `${from}px` }, { marginBottom: `${to}px` }], { duration: 200, easing: 'cubic-bezier(.2, .8, .2, 1)' })); // --dur-settle, --ease-out
+  }, []);
   const release = useCallback((keep?: Map<HTMLElement, unknown>) => {
     for (const [el, m] of made.current) {
       if (keep?.has(el)) continue;
+      const from = parseFloat(el.style.marginBottom);
       el.style.marginBottom = m.was;
       el.style.transition = m.transition;
       made.current.delete(el);
+      if (Number.isFinite(from)) easeRoom(el, from, m.base);
     }
-  }, []);
+  }, [easeRoom]);
   const layout = useCallback(() => {
     const notes = notesRef.current;
     if (!notes) { release(); return; }
@@ -252,7 +267,9 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     for (const [b, els] of groups) {
       let m = made.current.get(b);
       if (!m) {
-        m = { was: b.style.marginBottom, transition: b.style.transition, base: 0 };
+        m = { was: b.style.marginBottom, transition: b.style.transition, base: 0, held: '' };
+        // Room just released and still easing shut: ended too, for the same read.
+        easing.current.get(b)?.cancel();
         // No transition on the block while it holds room: with reduced motion everything eases for 1ms, so a margin
         // read while one runs (a block given room again just after it was released) is still the old, pushed one.
         // Turning it off ends any that runs, so the read below is the block's own margin.
@@ -262,7 +279,13 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       }
       const room = els.reduce((h, el) => h + el.offsetHeight + GAP, GAP);
       const want = `${m.base + room}px`;
-      if (b.style.marginBottom !== want) b.style.marginBottom = want;
+      const held = els.map((el) => el.dataset.slot).join(' ');
+      if (b.style.marginBottom !== want) {
+        const from = m.held ? parseFloat(b.style.marginBottom) : m.base;
+        b.style.marginBottom = want;
+        if (held !== m.held && Number.isFinite(from)) easeRoom(b, from, m.base + room);
+      }
+      m.held = held;
     }
     const t = notes.getBoundingClientRect().top;
     for (const [b, els] of groups) {
@@ -286,7 +309,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     let raf = 0;
     const again = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(layout); };
     // A new width can change a block's own margin (a narrow window sets smaller type), so it is measured afresh.
-    const resized = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { release(); layout(); }); };
+    const resized = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { still.current = true; release(); layout(); still.current = false; }); };
     const ro = new ResizeObserver(again);
     if (bodyRef.current) ro.observe(bodyRef.current);
     notesRef.current?.querySelectorAll('[data-slot]').forEach((el) => ro.observe(el));
@@ -294,7 +317,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     document.fonts?.ready.then(again);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener('resize', resized); };
   });
-  useEffect(() => () => release(), [release]);
+  useEffect(() => () => { still.current = true; release(); }, [release]);
 
   // Pointing at a changed passage lights the reply it answers.
   const onBodyMove = (e: React.MouseEvent) => {
