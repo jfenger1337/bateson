@@ -6,7 +6,7 @@ import { Markdown, markdownHtml } from './Markdown';
 import { Diff } from './Diff';
 import { isTyping, Reach } from './App';
 import { MOD } from './lib/keys';
-import { reduced } from '@/lib/motion';
+import { easeNote, reduced } from '@/lib/motion';
 
 // Comment on the work. Select any passage and comment on it; on code the comment also records the file and line.
 // On writing, pointing at a bullet or paragraph puts a mark beside it that comments on the whole of it. Each note
@@ -420,8 +420,10 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
               <button className="btn-quiet sm note-remove" onClick={() => { setComments((cs) => cs.filter((x) => x.id !== c.id)); setActive(null); }}>Remove</button>
             </div>
           ))}
+          {/* The note eases to its height as what you write takes another line (easeNote). The room under its block
+              and the notes below it follow by themselves: layout() runs on each step of the card's height. */}
           {draft && (
-            <div key={draft.id ?? 'new'} data-slot="draft" className="note-card composing drop-in">
+            <div key={draft.id ?? 'new'} ref={easeNote} data-slot="draft" className="note-card composing drop-in">
               <Where anchor={draft.anchor} />
               <textarea
                 className="note-field"

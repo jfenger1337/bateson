@@ -57,8 +57,10 @@ export function press(el: Element | null | undefined) {
  * another line, or gives one back, the box eases to the new height instead of jumping, and what sits under it
  * moves with it. Nothing is clipped while it does: the letter that started the new line is on the page at once,
  * and the box comes to it. A change of width (the window resized) is not eased: that is the text reflowing.
+ * `foot` names what sits under the text inside the box (a note's buttons): it rides the box's lower edge, so it
+ * is never left hanging outside the box while the box catches up.
  */
-export function easeHeight(el: HTMLElement | null) {
+export function easeHeight(el: HTMLElement | null, foot?: string) {
   if (!el || typeof ResizeObserver === 'undefined' || !el.animate) return;
   let h = el.offsetHeight, w = el.offsetWidth;
   let run: Animation | null = null;
@@ -68,10 +70,14 @@ export function easeHeight(el: HTMLElement | null) {
     const from = h;
     h = nh;
     if (nw !== w || Math.abs(nh - from) < 2 || reduced()) { w = nw; return; }
-    run = el.animate([{ height: `${from}px` }, { height: `${nh}px` }], { duration: 160, easing: 'cubic-bezier(.2, .8, .2, 1)' }); // --dur-base, --ease-out
+    const how = { duration: 160, easing: 'cubic-bezier(.2, .8, .2, 1)' }; // --dur-base, --ease-out
+    run = el.animate([{ height: `${from}px` }, { height: `${nh}px` }], how);
+    if (foot) el.querySelector(foot)?.animate([{ translate: `0 ${from - nh}px` }, { translate: '0 0' }], how);
     const end = () => { run = null; };
     run.finished.then(end, end);
   });
   ro.observe(el);
   return () => { ro.disconnect(); run?.cancel(); };
 }
+/** easeHeight for a note being written in a review: its buttons ride its lower edge. */
+export const easeNote = (el: HTMLElement | null) => easeHeight(el, '.note-actions');
