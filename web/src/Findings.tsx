@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { keptKey, useKept } from './lib/kept';
+import { usePageHeight } from './lib/fit';
 import type { Decision, Finding, Item, Mark } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
@@ -61,6 +62,8 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
   const next = () => { if (reviewing) send(); else go(at + 1); };
 
   useEffect(() => () => clearTimeout(timer.current), []);
+  // The finding's height, for the drop above it (app.css).
+  const pageRef = usePageHeight<HTMLElement>();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -94,7 +97,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
   };
 
   return (
-    <article className={`page interview findings arrive hue-${item.hue}`}>
+    <article ref={pageRef} className={`page interview findings arrive hue-${item.hue}`}>
         {/* The dots sit just above the finding, where you are reading: how far through the list you are, at a glance. */}
         <nav className="iv-steps iv-round" aria-label="Findings">
           {list.map((x, i) => (

@@ -6,6 +6,7 @@ import { isTyping, onTabbedButton, Reach } from './App';
 import { ArrowRight, Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { keptKey, useKept, useKeptRef } from './lib/kept';
+import { usePageHeight } from './lib/fit';
 
 // One question at a time. Choosing moves you on; the recommendation is preselected (dashed) until you touch it.
 
@@ -251,17 +252,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   step.current = (by: number) => go(at + by);
   const qRef = useRef<HTMLElement | null>(null);
 
-  // The question's height, for the drop above it (app.css): the drop gives way so a question that would fit
-  // under the bar does, instead of starting a fifth of the way down and spilling under the decision bar.
-  const pageRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const page = pageRef.current;
-    if (!page) return;
-    const root = document.documentElement;
-    const ro = new ResizeObserver(() => root.style.setProperty('--iv-h', `${Math.ceil(page.offsetHeight)}px`));
-    ro.observe(page);
-    return () => { ro.disconnect(); root.style.removeProperty('--iv-h'); };
-  }, []);
+  // The question's height, for the drop above it (app.css).
+  const pageRef = usePageHeight<HTMLElement>();
 
   useEffect(() => {
     let acc = 0;

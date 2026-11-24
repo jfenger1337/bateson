@@ -211,13 +211,12 @@
 /* It also starts a fifth of the way down the window, not just under the bar, so a question that fits does not
    leave the lower half empty. A fixed drop and not a centred one: every title starts on the same line, so after
    Next your eye is already where the question is. Findings start on the same line. A phone keeps the small top.
-   The drop gives way to a question that would fit without it: it is never more than the room the question leaves
-   between the bar and the decision bar (--iv-h is the question's height, measured in Interview.tsx), so the
-   choices are in view without a scroll. Only a question taller than the window starts under the bar and scrolls. */
+   The drop gives way to a page that would fit without it: it is never more than the room the question or finding
+   leaves between the bar and the decision bar (--page-h is its height, measured by usePageHeight in lib/fit.ts),
+   so the choices are in view without a scroll. Only a page taller than the window starts under the bar and scrolls. */
 @media (min-width: 761px) {
-  .work:has(> .page.interview.asks:not(.with-preview), > .page.findings) { padding-top: clamp(var(--space-40), 20vh, 280px); }
-  .work:has(> .page.interview.asks:not(.with-preview)) {
-    padding-top: clamp(var(--space-40), calc(100dvh - var(--bar-h) - var(--decide-h, 60px) - var(--space-24) - var(--iv-h, 0px)), min(20vh, 280px));
+  .work:has(> .page.interview.asks:not(.with-preview), > .page.findings) {
+    padding-top: clamp(var(--space-40), calc(100dvh - var(--bar-h) - var(--decide-h, 60px) - var(--space-24) - var(--page-h, 0px)), min(20vh, 280px));
   }
 }
 /* The reason under the recommendation is set in --iv-text, so its measure is counted in that size too: counted
