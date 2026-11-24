@@ -124,13 +124,18 @@ function git(args: string[], cwd = process.cwd()) {
 
 function source(): Source {
   const cwd = process.cwd();
-  const top = git(['rev-parse', '--show-toplevel']);
+  // The checkout and the branch from one git process: a repository without a commit yet has git fail on HEAD after
+  // it has said both, so what it printed is read either way.
+  let said = '';
+  try { said = execFileSync('git', ['rev-parse', '--show-toplevel', '--abbrev-ref', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); }
+  catch (e) { said = String((e as { stdout?: unknown }).stdout ?? '').split('\n')[0]; } // the checkout; there is no branch to name yet
+  const [top, branch] = said.split('\n').map((l) => l.trim());
   return {
     agent: agent(), // who sent it; 'unknown' outside the agents bateson is wired into
     cwd,
     top: top ? path.resolve(top) : undefined, // the checkout: decisions reach later sessions anywhere in it (resolved: git says C:/x on Windows)
     repo: path.basename(top || cwd),
-    branch: git(['rev-parse', '--abbrev-ref', 'HEAD']) || undefined,
+    branch: branch || undefined,
   };
 }
 

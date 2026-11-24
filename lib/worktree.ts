@@ -18,10 +18,24 @@ function git(args: string[], cwd: string) {
   catch { return null; }
 }
 
+/**
+ * A folder's checkout and the commit HEAD is at, each null when there is none. A repository without a commit yet
+ * has git fail on HEAD after it has said the checkout, so what it printed is read either way.
+ */
+function topAndHead(cwd: string): [string | null, string | null] {
+  let out = '';
+  try { out = execFileSync('git', ['rev-parse', '--show-toplevel', 'HEAD'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 4000 }); }
+  catch (e) { out = String((e as { stdout?: unknown }).stdout ?? ''); }
+  const [top, head] = out.split('\n').map((l) => l.trim());
+  return [top || null, /^[0-9a-f]{40,64}$/.test(head || '') ? head : null];
+}
+
 /** The repository's HEAD and every changed or untracked file with a signature of its state. */
 export function snapshot(cwd: string | undefined): Snapshot | null {
   if (!cwd) return null;
-  const top = git(['rev-parse', '--show-toplevel'], cwd)?.trim();
+  // The checkout and its HEAD from one git process, not two: each start of git is slow on Windows, and this runs
+  // on every prompt and at the end of every turn.
+  const [top, head] = topAndHead(cwd);
   if (!top) return null;
   const out = git(['status', '--porcelain=v1', '-z', '--untracked-files=all'], top);
   if (out == null) return null;
@@ -36,7 +50,7 @@ export function snapshot(cwd: string | undefined): Snapshot | null {
     try { st = fs.statSync(path.join(top, p)); } catch { /* deleted */ }
     files[p] = `${xy}|${st ? `${Math.round(st.mtimeMs)}|${st.size}` : 'gone'}`;
   }
-  return { top, head: git(['rev-parse', '-q', '--verify', 'HEAD'], top)?.trim() || null, files };
+  return { top, head, files };
 }
 
 /** Files that changed between an earlier snapshot and now, commits made in between included. */
