@@ -39,7 +39,13 @@ export function stableNode(exec = process.execPath, dirs = [...(process.env.PATH
   return exec;
 }
 
-const NODE = `"${commandPath(stableNode())}" `;
+/**
+ * This Node, quoted, as a hook's command starts. Worked out when a hook's command is first needed (the installer,
+ * Settings) and not when this file is loaded: every hook and every `bateson` command loads it, and looking for this
+ * Node in each folder on PATH is a file lookup per folder and more, on every tool call.
+ */
+let node: string | undefined;
+const NODE = () => (node ??= `"${commandPath(stableNode())}" `);
 /** The Node a hook command runs with: the quoted path it starts with. */
 const nodeOf = (command: string) => /^"([^"]+)"/.exec(command)?.[1] ?? null;
 
@@ -49,8 +55,9 @@ const nodeOf = (command: string) => /^"([^"]+)"/.exec(command)?.[1] ?? null;
  */
 export const REWAKE_TIMEOUT_S = 14400;
 
-const hook = (file: string, extra: Loose = {}): Hook => ({ type: 'command', command: `${NODE}"${HOOKS}/${file}"`, ...extra });
-const ENTRIES: Record<string, Entry | Entry[]> = {
+const hook = (file: string, extra: Loose = {}): Hook => ({ type: 'command', command: `${NODE()}"${HOOKS}/${file}"`, ...extra });
+let built: Record<string, Entry | Entry[]> | undefined;
+const ENTRIES = () => (built ??= {
   PreToolUse: { matcher: 'AskUserQuestion', hooks: [hook('ask.mjs', { timeout: 30 })] },
   PostToolUse: [
     { matcher: 'Bash', hooks: [hook('rewake.mjs', { asyncRewake: true, timeout: REWAKE_TIMEOUT_S, rewakeSummary: 'bateson: a response arrived, or a wait was renewed', rewakeMessage: 'From bateson' })] },
@@ -59,7 +66,7 @@ const ENTRIES: Record<string, Entry | Entry[]> = {
   UserPromptSubmit: { hooks: [hook('catchup.mjs', { timeout: 10 })] },
   SessionStart: { hooks: [hook('catchup.mjs', { timeout: 10 })] },
   Stop: { hooks: [hook('nudge.mjs', { timeout: 10 })] },
-};
+});
 
 const commandsOf = (e: unknown) => {
   const hooks = (e as Loose | null | undefined)?.hooks;
@@ -81,15 +88,15 @@ function read(file: string): { raw: string; settings: unknown } {
  */
 export function missingHooks(file = SETTINGS) {
   let settings;
-  try { ({ settings } = read(file)); } catch { return Object.keys(ENTRIES); }
+  try { ({ settings } = read(file)); } catch { return Object.keys(ENTRIES()); }
   const hooks = (settings as Loose | null | undefined)?.hooks;
   const there = (hooks && typeof hooks === 'object' ? hooks : {}) as Loose;
-  return Object.entries(ENTRIES).filter(([event, entries]) => {
+  return Object.entries(ENTRIES()).filter(([event, entries]) => {
     const listed = there[event];
     const commands = Array.isArray(listed) ? listed.flatMap(commandsOf) : [];
     const runs = (c: string) => { const node = nodeOf(c); return !node || fs.existsSync(node); };
     // An install from before the launchers ran hooks/<name>.ts itself, which works as well on a Node that can.
-    const either = (ours: string) => [ours.slice(NODE.length), ours.slice(NODE.length).replace(/\.mjs"$/, '.ts"')];
+    const either = (ours: string) => [ours.slice(NODE().length), ours.slice(NODE().length).replace(/\.mjs"$/, '.ts"')];
     return [entries].flat().flatMap(commandsOf).some((ours) => !commands.some((c) => either(ours).some((o) => c.includes(o)) && runs(c)));
   }).map(([event]) => event);
 }
@@ -117,7 +124,7 @@ export function writeHooks({ file = SETTINGS, uninstall = false } = {}): { chang
   }
   const skipped: string[] = [];
   if (!uninstall) {
-    for (const [event, entry] of Object.entries(ENTRIES)) {
+    for (const [event, entry] of Object.entries(ENTRIES())) {
       if (hooks[event] != null && !Array.isArray(hooks[event])) { skipped.push(event); continue; }
       for (const e of [entry].flat()) ((hooks[event] ??= []) as unknown[]).push({ ...e, [MARK]: true });
     }

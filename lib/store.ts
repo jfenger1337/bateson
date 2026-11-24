@@ -21,6 +21,8 @@
 //                                             so the path the agent is given stays good once the item is filed under done
 //   <root>/recent/<id>.json                   an item's decision was handed over lately: { at }; gone after a day
 //   <root>/hue.json                           the colour the newest item was given: { last }
+//   <root>/cache/<name>.json                  something worked out from the files above, kept with what it was worked
+//                                             out from; safe to delete
 //   <root>/sessions/<session>.json            sessions at work (hooks); <session>.tree is lib/worktree.ts's
 //   <root>/config.json                        settings
 //   <root>/hooks.log                          what went wrong in a hook (they never stop a session to say so)
@@ -192,6 +194,7 @@ export function openStore(
   const PASTED = path.join(root, 'pasted');
   const RECENT = path.join(root, 'recent');
   const HUE = path.join(root, 'hue.json');
+  const CACHE = path.join(root, 'cache');
   const CONFIG = path.join(root, 'config.json');
   const HOOK_LOG = path.join(root, 'hooks.log');
 
@@ -308,15 +311,25 @@ export function openStore(
   const parsed = (text: string | null) => { if (text === null) return null; try { return JSON.parse(text); } catch { return null; } };
   /** Keep done items' files from now on (the server, which tells forget about every change). */
   function keepDone() { doneFiles ??= new Map(); }
+  // With them, for the server alone: each done item as parsed, the names in the done folder, and the ids noted as
+  // handed over lately (recent/). Working the page's state out parsed every done item's item.json again on every
+  // change, which with a long history was most of the time it took. Dropped by forget, like the files.
+  const doneItems = new Map<string, StoredItem | null>();
+  let doneNames: string[] | null = null;
+  let recentIds: Set<string> | null = null;
+  const RECENT_IN = RECENT + path.sep;
   /**
    * Something changed at `file` (a path the watcher reported, or a folder): what was kept of the done item it is in,
    * or that was moved there, is dropped. null, for a change the watcher could not place, drops everything.
    */
   function forget(file: string | null) {
     if (!doneFiles) return;
-    if (file === null) { doneFiles.clear(); return; }
+    if (file === null) { doneFiles.clear(); doneItems.clear(); doneNames = null; recentIds = null; return; }
+    if (file === RECENT || file.startsWith(RECENT_IN)) { recentIds = null; return; }
+    if (file === DONE) { doneNames = null; return; }
     const id = doneIdOf(file);
-    if (id) doneFiles.delete(id);
+    // An item filed under done, or taken back out of it, changes the folder's names too.
+    if (id) { doneFiles.delete(id); doneItems.delete(id); doneNames = null; }
   }
 
   /**
@@ -327,7 +340,10 @@ export function openStore(
   function forgetOldest(share: number) {
     if (!doneFiles) return;
     let n = Math.ceil(doneFiles.size * share);
-    for (const id of doneFiles.keys()) { if (n-- <= 0) break; doneFiles.delete(id); }
+    for (const id of doneFiles.keys()) { if (n-- <= 0) break; doneFiles.delete(id); doneItems.delete(id); }
+    // The names and the notes are one folder's listing each: read again every time.
+    doneNames = null;
+    recentIds = null;
   }
 
   function readItemJson(file: string): unknown {
@@ -377,6 +393,21 @@ export function openStore(
   }
   const allQueued = () => listDir(ITEMS);
   const allDone = () => listDir(DONE);
+  /**
+   * Every done item, to read and not to change: for the server (keepDone) these are the objects it keeps, the same
+   * ones each time, until forget says an item changed. Anyone else gets allDone().
+   */
+  function doneKept(): readonly StoredItem[] {
+    if (!doneFiles) return allDone();
+    if (!doneNames) { try { doneNames = fs.readdirSync(DONE).filter((d) => d.startsWith('q_')); } catch { doneNames = []; } }
+    const out: StoredItem[] = [];
+    for (const name of doneNames) {
+      let item = doneItems.get(name);
+      if (item === undefined) { item = load(path.join(DONE, name)); doneItems.set(name, item); }
+      if (item) out.push(item);
+    }
+    return out;
+  }
   const isQueued = (item: StoredItem) => item.dir.startsWith(ITEMS + path.sep);
 
   const currentVersion = (item: StoredItem) => item.versions[item.versions.length - 1];
@@ -601,12 +632,15 @@ export function openStore(
     writeJson(ifile(item, 'withdrawn.json'), { at: now(), by, n: v.n } satisfies Withdrawn);
     let was: 'waiting' | 'answered' | 'received' = 'waiting';
     if (readDecision(item, v.n)) was = claimDelivery(item, v.n, 'cancel') ? 'answered' : 'received';
+    // Noted with the items handed over lately, so the page finds what was just cancelled without looking at every
+    // done item for a withdrawn.json (lately()).
+    noteDelivered(item.id);
     fileAway(item);
     return was;
   }
 
   /** Items cancelled by their agent since `since`, for the app to say so if one was in front of you. */
-  function withdrawnSince(since: number, all = allDone()) {
+  function withdrawnSince(since: number, all: readonly StoredItem[] = allDone()) {
     const out: { item: StoredItem; w: Withdrawn }[] = [];
     for (const item of all) {
       const w = readWithdrawn(item);
@@ -636,6 +670,7 @@ export function openStore(
   /** Note that an item's decision was handed over at `at`. Never in the way of the delivery itself. */
   function noteDelivered(id: string, at = now()) {
     try { fs.mkdirSync(RECENT, { recursive: true }); writeJsonFile(path.join(RECENT, `${id}.json`), { at }); } catch { /* the next full look finds it */ }
+    recentIds = null;
   }
   /**
    * The items a decision was handed over for in the last day, wherever they live now. Notes older than that go.
@@ -643,6 +678,12 @@ export function openStore(
    * deliveries are noted.
    */
   function recentlyDelivered(): StoredItem[] {
+    const out: StoredItem[] = [];
+    for (const id of notedLately()) { const item = getItem(id); if (item) out.push(item); }
+    return out;
+  }
+  /** The ids noted in recent/ within the last day. */
+  function notedLately(): string[] {
     const since = Date.now() - DAY_MS;
     let names: string[];
     try { names = fs.readdirSync(RECENT); } catch {
@@ -653,19 +694,27 @@ export function openStore(
       }
       try { fs.mkdirSync(RECENT, { recursive: true }); } catch { /* nowhere to note them: looked for again next time */ }
       for (const [item, at] of found) noteDelivered(item.id, at);
-      return found.map(([item]) => item);
+      return found.map(([item]) => item.id);
     }
-    const out: StoredItem[] = [];
+    const out: string[] = [];
     for (const name of names) {
       if (!name.endsWith('.json')) continue; // a note still being written
       const file = path.join(RECENT, name);
       const at = Date.parse((readJson(file) as { at?: string } | null)?.at || '');
       // One that cannot be read yet is being written; one that never can is a day old by its file's time.
       if (at < since || (Number.isNaN(at) && (fs.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0) < since)) { fs.rmSync(file, { force: true }); continue; }
-      const item = getItem(name.slice(0, -5));
-      if (item) out.push(item);
+      out.push(name.slice(0, -5));
     }
     return out;
+  }
+  /**
+   * Of `all` (items the caller holds already), those handed over or cancelled in the last day, by the notes in
+   * recent/. The server, which keeps the notes' ids until one changes (forget), reads no file for this; it is what
+   * lets it work out who is writing a next round, and what was just cancelled, without opening every done item.
+   */
+  function lately<T extends StoredItem>(all: readonly T[]): T[] {
+    const ids = doneFiles ? (recentIds ??= new Set(notedLately())) : new Set(notedLately());
+    return ids.size ? all.filter((it) => ids.has(it.id)) : [];
   }
 
   // A wake-up hands its decision to Claude Code and exits; whether it reached the conversation shows only in the
@@ -858,7 +907,7 @@ export function openStore(
    * server, which keeps them); otherwise only the items delivered lately are looked at. `live`: liveSessions(),
    * likewise.
    */
-  function writing(all = recentlyDelivered(), live = liveSessions()) {
+  function writing(all: readonly StoredItem[] = recentlyDelivered(), live = liveSessions()) {
     const out: { id: string; title: string; next: number; sessionId?: string }[] = [];
     const t = Date.now();
     for (const it of all) {
@@ -983,6 +1032,25 @@ export function openStore(
   /** The one live Claude Code process on a session, or null (claudeProcessOf). */
   const claudeProcess = (sessionId: string | undefined) => claudeProcessOf(claudeDir, sessionId);
 
+  // ---- Things worked out from the whole record, kept with a signature of the record they were worked out from.
+
+  /**
+   * A signature that changes whenever a decision joins the record or leaves it, read from a handful of files however
+   * long the history is: the times of the items and done folders (an item filed, taken back or removed changes its
+   * folder's), and for each item still in the queue the time of the decision on its current version, which is the one
+   * decision that can appear without an item moving.
+   */
+  function recordSig(): string {
+    const time = (file: string) => fs.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
+    return [time(DONE), time(ITEMS), ...allQueued().map((it) => `${it.id}:${it.updatedAt}:${time(vfile(it, currentVersion(it).n, 'decision.json'))}`)].join('|');
+  }
+  /** cache/<name>.json, or null. */
+  const readCache = (name: string) => readJson(path.join(CACHE, `${name}.json`));
+  /** Keep something in cache/<name>.json. Never in the way of what it was worked out for. */
+  function writeCache(name: string, data: unknown) {
+    try { fs.mkdirSync(CACHE, { recursive: true }); writeJsonFile(path.join(CACHE, `${name}.json`), data); } catch { /* worked out again next time */ }
+  }
+
   // ---- What went wrong in hooks. A hook never stops a session to say so, so it is written down here instead,
   // one line each, and Settings counts the last day's.
 
@@ -1008,7 +1076,7 @@ export function openStore(
 
   return {
     ROOT: root, readConfig, writeConfig, ensureDirs,
-    getItem, allQueued, allDone, isQueued, replacing, currentVersion, versionOf, readDecision, isDelivered, readBody,
+    getItem, allQueued, allDone, doneKept, lately, recordSig, readCache, writeCache, isQueued, replacing, currentVersion, versionOf, readDecision, isDelivered, readBody,
     readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
     readWithdrawn, withdraw, withdrawnSince,
     claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
@@ -1035,7 +1103,7 @@ export function Reviewer() {
 }
 export const {
   ROOT, readConfig, writeConfig, ensureDirs,
-  getItem, allQueued, allDone, isQueued, replacing, currentVersion, versionOf, readDecision, isDelivered, readBody,
+  getItem, allQueued, allDone, doneKept, lately, recordSig, readCache, writeCache, isQueued, replacing, currentVersion, versionOf, readDecision, isDelivered, readBody,
   readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
   readWithdrawn, withdraw, withdrawnSince,
   claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,

@@ -28,7 +28,7 @@ export function sessionClosed(pid: number) {
 }
 /** Every Claude Code session closed, and the queue empty: a clean start for each test. */
 export function reset() {
-  for (const d of [CLAUDE, path.join(HOME, 'items'), path.join(HOME, 'done'), path.join(HOME, 'sessions'), path.join(HOME, 'recent'), path.join(HOME, 'hue.json')]) {
+  for (const d of [CLAUDE, path.join(HOME, 'items'), path.join(HOME, 'done'), path.join(HOME, 'sessions'), path.join(HOME, 'recent'), path.join(HOME, 'cache'), path.join(HOME, 'hue.json')]) {
     fs.rmSync(d, { recursive: true, force: true });
   }
   fs.mkdirSync(CLAUDE, { recursive: true });

@@ -23,6 +23,16 @@
         if (t === 'dark') document.querySelector('meta[name="theme-color"]').content = '#141414';
       })();
     </script>
+    <!-- The queue is asked for now, while the app's script is still on its way and starting, not once it has
+         started: the question in front of you is on screen that much sooner (src/App.tsx takes it from here). -->
+    <script>
+      try {
+        window.__batesonState = fetch('/api/state').then(function (res) {
+          return res.text().then(function (text) { return { ok: res.ok, text: text, told: Number(res.headers.get('x-bateson-told') || NaN) }; });
+        });
+        window.__batesonState.catch(function () {});
+      } catch (e) {}
+    </script>
     <title>bateson</title>
     <!-- Installable as an app of its own (in Edge or Chrome: Install), with its own window and taskbar icon. -->
     <link rel="manifest" href="/manifest.webmanifest" />

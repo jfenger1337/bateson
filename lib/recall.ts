@@ -140,9 +140,29 @@ export function overrides(at: { top?: string; repo?: string }, limit = 5): Recal
   return all.filter((r) => r.override && (!r.key || groups.get(r.key)![0] === r)).slice(0, limit);
 }
 
+/**
+ * The same, from what was kept the last time when no decision has joined the record since (store.recordSig).
+ * Every session start asks, and working it out reads every item there has ever been: three files each, which on
+ * Windows, where opening a file is slow, held each new session up for longer with every decision made. Kept per
+ * checkout in cache/overrides.json; a checkout's entry from an older record is dropped when one is added.
+ */
+function overridesKept(at: { top?: string; repo?: string }): Recalled[] {
+  const key = `${at.top || ''}\0${at.repo || ''}`;
+  // Before the record is read: a decision made meanwhile gives another signature next time.
+  const sig = store.recordSig();
+  type Kept = { [key: string]: { sig: string; list: Recalled[] } };
+  const kept = (store.readCache('overrides') || {}) as Kept;
+  const hit = Object.hasOwn(kept, key) ? kept[key] : null;
+  if (hit?.sig === sig && Array.isArray(hit.list)) return hit.list;
+  const list = overrides(at);
+  const current = Object.fromEntries(Object.entries(kept).filter(([, v]) => v?.sig === sig));
+  store.writeCache('overrides', { ...current, [key]: { sig, list } });
+  return list;
+}
+
 /** What a session is told at its start: the overrides, one line each, or '' when there are none. */
 export function overridesNote(at: { top?: string; repo?: string }, who: string) {
-  const list = overrides(at);
+  const list = overridesKept(at);
   if (!list.length) return '';
   const lines = list.map((r) => `- ${r.at.slice(0, 10)} ${clip(r.about, 100)} They chose ${r.override!.chose}${r.override!.over ? ` over the recommended "${clip(r.override!.over, 80)}"` : ''}.`);
   return `Where ${who} went against an agent's recommendation in this repository lately, newest first. Weigh these when you recommend: they are evidence of what ${who} values, not rules, and \`bateson recall <words>\` finds the rest.\n${lines.join('\n')}`;

@@ -21,9 +21,13 @@ guard(async () => {
   // What this session was last told about `bring`: at its start, or on the prompt after a change in Settings.
   const heard = store.sessionRecord(hook.session_id)?.heard;
   store.touchSession(hook.session_id, hook.cwd, prompt ? 'working' : 'idle', { transcript: hook.transcript_path, heard: config.bring, ...(prompt ? { turn: { human: true, reminded: false } } : {}) });
-  // Where the working tree stands as the turn begins, for the Stop check.
-  if (config.stopCheck) saveSnapshot(hook.session_id, snapshot(hook.cwd));
-  if (event === 'SessionStart') sweepSnapshots();
+  // Where the working tree stands as the session starts or is resumed, for the reminder (hooks/remind.ts). Not on a
+  // prompt: the reminder only ever looks on a turn you did not start, and the turn before one of those ended with the
+  // Stop hook recording the tree (hooks/nudge.ts). A record here was two starts of git on every prompt, for nothing.
+  if (event === 'SessionStart') {
+    if (config.stopCheck) saveSnapshot(hook.session_id, snapshot(hook.cwd));
+    sweepSnapshots();
+  }
   const who: Who = { sessionId: hook.session_id };
   const parts = event === 'SessionStart' ? [howTheyWork(config.bring, config.preview), lately(hook.cwd)].filter(Boolean) : [];
   if (prompt && heard) { const line = whatChanged(heard, config.bring); if (line) parts.push(line); }

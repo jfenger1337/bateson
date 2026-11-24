@@ -234,3 +234,45 @@ test('answers that do not fit the round are refused: another question, the same 
   assert.equal(store.readDecision(store.getItem(id)!, n), null, 'nothing was written');
   assert.equal((await decide(app, id, { n, decision: 'answer', answers: [{ id: 'Q1', choice: 1 }, { id: 'Q2', choice: null, other: 'Neither' }] })).status, 200);
 });
+
+test('the live updates say how many changes were told when they connect, and the queue says the same, so a page asks once', async () => {
+  const { app, changed } = createApp({ dist: null });
+  const told = async () => Number((await app.request('/api/state', HOST)).headers.get('x-bateson-told'));
+  const hello = async () => {
+    const res = await app.request('/api/events', HOST);
+    const reader = res.body!.getReader();
+    const { value } = await reader.read();
+    await reader.cancel();
+    return new TextDecoder().decode(value);
+  };
+  assert.equal(await told(), 0);
+  assert.match(await hello(), /^data: hello 0\n/);
+  changed();
+  assert.equal(await told(), 1, 'a look after the change says so');
+  assert.match(await hello(), /^data: hello 1\n/, 'and updates connecting after an older look say there is something newer');
+});
+
+test('the server keeps done items as read, finds the cancelled and the next round being written among those noted lately, and sees a new one', () => {
+  const kept = openStore(HOME, { claudeDir: null });
+  const round = () => kept.send({ kind: 'decision', bodyType: 'questions', title: 'Round', source: {}, body: { questions: [
+    { id: 'Q1', title: 'One?', options: [{ label: 'A' }, { label: 'B' }] }, { id: 'Q2', title: 'Two?', options: [{ label: 'A' }, { label: 'B' }] } ] } });
+  const answered = round();
+  kept.decide(answered.id, 1, { decision: 'answer', answers: [{ id: 'Q1', choice: 0 }, { id: 'Q2', choice: 1 }] });
+  kept.claimDelivery(kept.getItem(answered.id)!, 1, 'test');
+  kept.fileAway(kept.getItem(answered.id)!);
+  kept.keepDone();
+  const first = kept.doneKept();
+  assert.deepEqual(first.map((it) => it.id), [answered.id]);
+  assert.equal(kept.doneKept()[0], first[0], 'the same object, not read and parsed again');
+  assert.deepEqual(kept.writing(kept.lately(kept.doneKept()), null).map((w) => w.id), [answered.id], 'its next round is being written');
+  // Cancelled before any answer: nothing was handed over, and it is still found without looking at every done item.
+  const called = round();
+  assert.equal(kept.withdraw(kept.getItem(called.id)!, 'test'), 'waiting');
+  const done = kept.doneKept();
+  assert.deepEqual(done.map((it) => it.id).sort(), [answered.id, called.id].sort(), 'the folder is listed again once an item is filed');
+  assert.deepEqual(kept.withdrawnSince(Date.now() - 60_000, kept.lately(done)).map((x) => x.item.id), [called.id]);
+  // A note gone (a day old): the item is no longer among the recent ones, once the store is told.
+  fs.rmSync(path.join(HOME, 'recent', `${called.id}.json`));
+  kept.forget(path.join(HOME, 'recent', `${called.id}.json`));
+  assert.deepEqual(kept.lately(kept.doneKept()).map((it) => it.id), [answered.id]);
+});

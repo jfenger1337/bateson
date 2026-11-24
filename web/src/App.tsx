@@ -20,6 +20,20 @@ import { AppMenu } from './Menu';
 
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
 // the decision instead of letting it land on text you never read.
+/** The server's answer to a look at the queue: its text, and how many changes the server had told of by then. */
+interface Answer { ok: boolean; text: string; told: number }
+const ask = async (url: string): Promise<Answer> => {
+  const res = await fetch(url);
+  return { ok: res.ok, text: await res.text(), told: Number(res.headers.get('x-bateson-told') || NaN) };
+};
+/** The first look, asked for by the page itself before this script had started (index.html); taken once. */
+function early(): Promise<Answer> | undefined {
+  const w = window as unknown as { __batesonState?: Promise<Answer> };
+  const p = w.__batesonState;
+  delete w.__batesonState;
+  return p;
+}
+
 interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; undone?: boolean; sent?: boolean; undo?: () => void }
 
 export function App() {
@@ -43,16 +57,26 @@ export function App() {
   const asked = useRef(0);
   const lastText = useRef('');
   const lastShown = useRef<string | undefined>(undefined);
+  // How many changes the server had told of when it gave the answer on screen, how many it says it has told of now
+  // (the live updates say so as they connect), and how many looks are on their way. A look that turns out older than
+  // the updates' connecting is taken again; one that is not saves the second look every page used to open with.
+  const told = useRef(NaN);
+  const toldNow = useRef(NaN);
+  const flying = useRef(0);
   const load = useCallback(async () => {
     const q = new URLSearchParams();
     const skip = heldRef.current.map((h) => h.id).join(',');
     if (skip) q.set('skip', skip);
     if (shownRef.current) q.set('prefer', shownRef.current);
     const mine = ++asked.current;
+    flying.current++;
     try {
-      const res = await fetch(`/api/state${q.toString() ? `?${q}` : ''}`);
-      const text = await res.text();
+      const res = await (early() ?? ask(`/api/state${q.toString() ? `?${q}` : ''}`)).finally(() => { flying.current--; });
+      const text = res.text;
       if (mine !== asked.current) return;
+      told.current = res.told;
+      // Something was told between this look and the live updates connecting: it may not be in this answer.
+      if (res.told < toldNow.current) { toldNow.current = NaN; load(); }
       // Not the queue: what stands in for a server that cannot start answers 503 with why (lib/node-check.mjs).
       if (!res.ok) { setFailed(true); return; }
       setFailed(false);
@@ -76,9 +100,21 @@ export function App() {
     let es: EventSource | null = null;
     let retry: number | undefined;
     let reloading: number | undefined;
+    let first = true;
     const connect = () => {
       es = new EventSource('/api/events');
-      es.onmessage = () => load();
+      es.onmessage = (e) => {
+        // The updates connecting, the first time: the page has just looked, or is looking. Only if the server has
+        // told of a change since that look is there anything new. When they connect again, anything may have changed.
+        const hello = /^hello (\d+)$/.exec(String(e.data));
+        if (hello && first) {
+          first = false;
+          toldNow.current = Number(hello[1]);
+          if (flying.current > 0 || told.current >= toldNow.current) return;
+        }
+        first = false;
+        load();
+      };
       // A new build: reload, unless you are mid-comment or mid-answer.
       es.addEventListener('reload', () => {
         const reload = () => {

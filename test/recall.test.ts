@@ -145,3 +145,27 @@ test('a new session hears the overrides with how they work; a session elsewhere 
   assert.match(told, /Who should be able to sign in\? They chose "Email code" over the recommended "Passkeys"\./);
   assert.doesNotMatch(start(OTHER), /went against/);
 });
+
+test('the note is kept until a decision joins the record: asked again it reads no item, and a new override shows at once', () => {
+  interview(REPO, 0, '2026-11-01T10:00:00.000Z');
+  const first = overridesNote(here(), 'Sam');
+  assert.match(first, /Who should be able to sign in\?/);
+  const kept = path.join(store.ROOT, 'cache', 'overrides.json');
+  assert.ok(fs.existsSync(kept), 'kept in cache/overrides.json');
+  // What is kept is what is told: changed by hand, the change shows, so nothing was read again.
+  fs.writeFileSync(kept, fs.readFileSync(kept, 'utf8').replace('Who should be able to sign in?', 'Who may sign in?'));
+  assert.match(overridesNote(here(), 'Sam'), /Who may sign in\?/);
+  // A decision on an item still in the queue, where nothing moves: the note is worked out again.
+  const { id } = store.send({ kind: 'decision', bodyType: 'questions', title: 'Colours', source: src(REPO), body: { questions: [
+    { id: 'Q1', title: 'Which blue?', options: [{ label: 'Navy' }, { label: 'Sky' }], recommended: 0 },
+    { id: 'Q2', title: 'Which red?', options: [{ label: 'Brick' }, { label: 'Rose' }], recommended: 0 } ] } });
+  store.decide(id, 1, { decision: 'answer', answers: [{ id: 'Q1', choice: 1 }, { id: 'Q2', choice: 0 }] });
+  const next = overridesNote(here(), 'Sam');
+  assert.match(next, /Which blue\? They chose "Sky" over the recommended "Navy"\./);
+  assert.match(next, /Who should be able to sign in\?/, 'and the earlier one as it is on record');
+  // Filed under done, and a file that is not the cache: both still told.
+  store.claimDelivery(store.getItem(id)!, 1, 'test');
+  store.fileAway(store.getItem(id)!);
+  fs.writeFileSync(kept, 'not json');
+  assert.match(overridesNote(here(), 'Sam'), /Which blue\?/);
+});

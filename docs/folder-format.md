@@ -26,8 +26,12 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
   done/<id>/                  the same layout, once delivered
   pasted/<id>/v<N>/<name>     screenshots pasted or dropped into your own answer. Kept outside the item's folder, so
                               the path the agent is given still holds once the item is filed under done.
-  recent/<id>.json            { at }: the item's decision was handed to an agent at that time. Removed after a day. The hooks
-                              look only at these for a wake-up that was lost, instead of at every item (lib/store.ts)
+  recent/<id>.json            { at }: the item's decision was handed to an agent at that time, or its agent cancelled it.
+                              Removed after a day. The hooks look only at these for a wake-up that was lost, and the
+                              server for who is writing a next round and what was just cancelled, instead of at every
+                              item (lib/store.ts)
+  cache/overrides.json        what new sessions are told of your overrides, per checkout, kept until a decision is
+                              added (lib/recall.ts). Worked out again when it is missing: safe to delete
   hue.json                    { last }: the colour the newest item was given, so the next one takes the next in turn
   hooks.log                   one line per hook error (the hooks never stop a session to report one)
   server.log                  the server's output, when it runs at login
@@ -128,4 +132,4 @@ Settings, written by the app's settings page (⌘, or Ctrl+,) and read by the ap
 
 `sessions/<session id>.json`: `{ sessionId, cwd, repo, state: "working" | "idle", at, since, heard }`. Written by the hooks, so the empty queue can show which agents are at work. `heard` is the `bring` setting the session was last told; when it changes, the session hears what changed on its next prompt (`hooks/catchup.ts`).
 
-`sessions/<session id>.tree`: the repository's HEAD and every changed or untracked file with its status, modified time and size, recorded when a prompt arrives and when a turn ends (`lib/worktree.ts`). The reminder (`hooks/remind.ts`) compares against it, so edits made through the shell count as much as the Edit tool's. Removed after a day.
+`sessions/<session id>.tree`: the repository's HEAD and every changed or untracked file with its status, modified time and size, recorded when a session starts and when a turn ends (`lib/worktree.ts`). The reminder (`hooks/remind.ts`) compares against it, so edits made through the shell count as much as the Edit tool's. Removed after a day.

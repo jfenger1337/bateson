@@ -39,14 +39,18 @@ export function itemView(item: StoredItem): Item {
  * away from under you.
  */
 export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: string } = {}): State {
-  const all = [...store.allQueued(), ...store.allDone()]; // listed once: done grows with every decision
+  // Listed once: done grows with every decision, and the server keeps what it read of it (store.doneKept).
+  const done = store.doneKept();
+  const all = [...store.allQueued(), ...done];
+  // Whoever is writing a next round, and whatever was just cancelled, is among the items handed over lately.
+  const recent = store.lately(all);
   const live = store.liveSessions(); // and Claude Code's sessions once, for both lists that need them
   const rows = store.pending().filter((r) => !skip.includes(r.item.id));
   // Items waiting from before items had colours take theirs in the order they arrived.
   for (const r of [...rows].sort((a, b) => a.item.createdAt.localeCompare(b.item.createdAt))) store.hueOf(r.item);
   const front = rows.find((r) => r.item.id === prefer) || rows[0];
   const sent = lastSentBy(all);
-  const writing = store.writing(all, live);
+  const writing = store.writing(recent, live);
   // Only agents that have sent you something today: a session that is just busy has nothing coming your way.
   const agents = store.activeSessions(live).filter(({ sessionId }) => sent.has(sessionId));
   return {
@@ -55,7 +59,7 @@ export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: str
     current: front ? itemView(front.item) : null,
     config: store.readConfig(),
     writing: writing.map(({ id, title, next, sessionId }) => ({ id, title, next, sessionId })),
-    cancelled: store.withdrawnSince(Date.now() - 10 * 60 * 1000, all.filter((it) => !store.isQueued(it)))
+    cancelled: store.withdrawnSince(Date.now() - 10 * 60 * 1000, recent.filter((it) => !store.isQueued(it)))
       .map(({ item, w }) => ({ id: item.id, title: store.versionOf(item, w.n)?.title || item.title, at: w.at })),
     agents: agents.map(({ sessionId, repo, title, since }) => ({ sessionId, repo, title: sent.get(sessionId)!.title || title || undefined, since })),
     update: readUpdate(),
@@ -68,10 +72,10 @@ export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: str
  * The interviews (/ama) behind you, newest first, for the empty page. One waiting on you is in the queue, and one
  * whose next round is being written, or whose session is at work again, is listed with the agents, so none is here.
  */
-function amas(all: StoredItem[], withAgents: Set<string>, limit = 8): State['amas'] {
+function amas(all: readonly StoredItem[], withAgents: Set<string>, limit = 8): State['amas'] {
   return all
     .filter((item) => item.kind === 'decision' && !withAgents.has(item.id))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
     .slice(0, limit * 3) // newest touched first: only these are worth reading decisions for
     .flatMap((item) => {
       const v = store.currentVersion(item);
@@ -90,7 +94,7 @@ function amas(all: StoredItem[], withAgents: Set<string>, limit = 8): State['ama
  * The latest item each session sent in the last day: only these sessions are listed as at work, and each goes by
  * its title, so its row reads the same as the question it put to you.
  */
-function lastSentBy(all: StoredItem[]): Map<string, { id: string; title: string }> {
+function lastSentBy(all: readonly StoredItem[]): Map<string, { id: string; title: string }> {
   const day = Date.now() - 24 * 3600 * 1000;
   const best = new Map<string, { at: string; id: string; title: string }>();
   for (const it of all) {

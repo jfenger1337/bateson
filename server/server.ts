@@ -29,7 +29,12 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
   const app = new Hono();
   const listeners = new Set<() => void>();
   const reloaders = new Set<() => void>();
-  const updater = given ?? openUpdater({ onChange: () => { for (const fn of listeners) fn(); } });
+  // How many times the pages have been told of a change. A page's first look at the queue and its live updates
+  // are two requests; each carries this number, so the page can tell whether anything was said between the two and
+  // need not ask for the queue a second time just because the updates connected.
+  let told = 0;
+  const tell = () => { told++; for (const fn of listeners) fn(); };
+  const updater = given ?? openUpdater({ onChange: tell });
   // When a page last asked for the queue or its live updates. A page whose live updates were cut (a proxy or an
   // antivirus that ends long responses) holds no /api/events, but still reconnects every 2 seconds.
   let pageSeen = 0;
@@ -89,6 +94,7 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
 
   app.get('/api/state', (c) => {
     pageSeen = Date.now();
+    c.header('x-bateson-told', String(told));
     return c.json(stateView({
       skip: (c.req.query('skip') || '').split(',').filter(Boolean),
       prefer: c.req.query('prefer') || undefined,
@@ -174,7 +180,7 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     listeners.add(fn);
     reloaders.add(reload);
     stream.onAbort(() => { alive = false; listeners.delete(fn); reloaders.delete(reload); });
-    await stream.writeSSE({ data: 'hello' });
+    await stream.writeSSE({ data: `hello ${told}` });
     while (alive) await stream.sleep(25000).then(() => { if (alive) return stream.writeSSE({ event: 'ping', data: '' }); });
   }));
 
@@ -210,7 +216,7 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     updater,
     /** Whether any page is open: one holding live updates, or one that asked lately. */
     pages: () => listeners.size > 0 || Date.now() - pageSeen < PAGE_SEEN_MS,
-    changed: () => { for (const fn of listeners) fn(); },
+    changed: tell,
     rebuilt: () => { for (const fn of reloaders) fn(); },
   };
 }
@@ -219,6 +225,8 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
 // record (lib/worktree.ts), and a file still being written (it is renamed into place, and that is seen).
 const UNSHOWN = /^(server\.(log|pid|stop|error)|hooks\.log(\.old)?|hue\.json)$/;
 const UNSHOWN_ANYWHERE = /\.(tmp|tree)$/;
+// What bateson worked out from the queue and kept (store.writeCache): it says nothing the queue's own files do not.
+const UNSHOWN_UNDER = /^cache([\\/]|$)/;
 
 /**
  * Watch the queue's folder. Every change is told to the store, which drops what it kept of a done item that
@@ -235,7 +243,7 @@ export function watchQueue(root: string, changed: () => void, { settle = 250 } =
     // A change the system could not name (its list of changes overflowed): anything may have changed.
     if (name == null) { store.forget(null); soon(); return; }
     const rel = String(name);
-    if (UNSHOWN.test(rel) || UNSHOWN_ANYWHERE.test(rel)) return;
+    if (UNSHOWN.test(rel) || UNSHOWN_ANYWHERE.test(rel) || UNSHOWN_UNDER.test(rel)) return;
     const file = path.join(root, rel);
     if (path.basename(rel) === 'waiter.json') {
       // A heartbeat only changes the file's time. A new waiter writes it whole (renamed into place), even over
