@@ -47,7 +47,7 @@ async function hookNeedsTypeScript(name) {
   needTypeScript(`run \`node ${install}\` with it, so the hooks use that Node`, (text) => {
     try {
       const root = process.env.BATESON_HOME || path.join(os.homedir(), '.bateson');
-      fs.mkdirSync(root, { recursive: true });
+      fs.mkdirSync(root, { recursive: true, mode: 0o700 });
       fs.appendFileSync(path.join(root, 'hooks.log'), `${new Date().toISOString()} ${name}.ts ${text.split('\n').join(' | ')}\n`);
     } catch (e) { /* nowhere to write: stderr has it */ }
   });

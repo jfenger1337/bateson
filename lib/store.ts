@@ -234,20 +234,31 @@ export function openStore(
       const key = k as keyof Config;
       const choices = CHOICES[key];
       if (key === 'bring') {
-        for (const [b, on] of Object.entries(v || {}) as [string, unknown][]) if (b in DEFAULTS.bring && typeof on === 'boolean') next.bring[b as keyof Config['bring']] = on;
+        for (const [b, on] of Object.entries(v || {}) as [string, unknown][]) if (Object.hasOwn(DEFAULTS.bring, b) && typeof on === 'boolean') next.bring[b as keyof Config['bring']] = on;
       } else if (choices) { if (choices.includes(v)) set(key, v); }
       else if (key === 'name') { if (typeof v === 'string') next.name = v.trim().slice(0, 40); }
       else if (key === 'undoSeconds') { if (typeof v === 'number' && Number.isFinite(v)) next.undoSeconds = Math.max(0, Math.min(10, Math.round(v))); }
       else if (typeof v === typeof DEFAULTS[key]) set(key, v);
     }
-    fs.mkdirSync(root, { recursive: true });
+    ensureRoot();
     writeJson(CONFIG, next);
     return next;
   }
 
   // ---- Items
 
+  /**
+   * The queue's folder is yours alone: it holds diffs, your answers and the screenshots you pasted, and another
+   * account on this machine has no business reading them. One made before this, or by something else, is closed too.
+   */
+  function ensureRoot() {
+    fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+    if (process.platform === 'win32') return; // Windows keeps a profile's folders to their owner already
+    try { if (fs.statSync(root).mode & 0o077) fs.chmodSync(root, 0o700); } catch { /* not ours to change */ }
+  }
+
   function ensureDirs() {
+    ensureRoot();
     fs.mkdirSync(ITEMS, { recursive: true });
     fs.mkdirSync(DONE, { recursive: true });
   }
@@ -977,7 +988,7 @@ export function openStore(
 
   function logHookError(hook: string, e: unknown) {
     try {
-      fs.mkdirSync(root, { recursive: true });
+      fs.mkdirSync(root, { recursive: true, mode: 0o700 });
       const st = fs.statSync(HOOK_LOG, { throwIfNoEntry: false });
       if (st && st.size > 256 * 1024) fs.renameSync(HOOK_LOG, `${HOOK_LOG}.old`);
       const msg = (e instanceof Error ? e.stack || e.message : String(e)).split('\n').slice(0, 4).join(' | ');

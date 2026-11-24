@@ -52,6 +52,8 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     // No other website may frame bateson: a page that put it in a hidden frame could steer your clicks and keys into
     // answering a question or starting an update, with every request coming from bateson's own origin.
     c.header('x-frame-options', 'SAMEORIGIN');
+    // Nor may one load what bateson serves as its own picture, script or sound, to learn from how it loads.
+    c.header('cross-origin-resource-policy', 'same-origin');
     if (!c.res.headers.has('content-security-policy')) c.header('content-security-policy', "frame-ancestors 'self'");
   });
 
@@ -159,7 +161,8 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
       'content-type': type,
       ...(media ? { 'accept-ranges': 'bytes' } : {}),
       'x-content-type-options': 'nosniff',
-      ...(type === 'application/pdf' ? {} : { 'content-security-policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox" }),
+      // A PDF is left out of the sandbox, which can stop a browser's own viewer from showing it, but loads nothing either.
+      'content-security-policy': `default-src 'none'; img-src 'self'; style-src 'unsafe-inline'${type === 'application/pdf' ? '' : '; sandbox'}`,
     });
   });
 

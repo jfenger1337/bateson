@@ -19,7 +19,7 @@ if (why) {
   const PID = path.join(root, 'server.pid');
   const STOP = path.join(root, 'server.stop');
   try {
-    fs.mkdirSync(root, { recursive: true });
+    fs.mkdirSync(root, { recursive: true, mode: 0o700 });
     fs.appendFileSync(path.join(root, 'server.log'), `${new Date().toISOString()} ${why}\n`);
     fs.rmSync(STOP, { force: true });
     fs.writeFileSync(PID, String(process.pid));

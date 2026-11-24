@@ -20,7 +20,7 @@ if (arg('--port')) process.env.BATESON_PORT = arg('--port');
 const ROOT = process.env.BATESON_HOME || path.join(os.homedir(), '.bateson');
 const PID = path.join(ROOT, 'server.pid');
 const STOP = path.join(ROOT, 'server.stop');
-fs.mkdirSync(ROOT, { recursive: true });
+fs.mkdirSync(ROOT, { recursive: true, mode: 0o700 });
 // One keepalive per queue. In WSL a send starts one when the server is down, so it can race the installer or
 // another send: a second one would only fight the first for the port. On Linux /proc tells whether the pid in
 // server.pid is a keepalive still running (a pid alone may since belong to something else); elsewhere this
