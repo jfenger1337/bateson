@@ -3,7 +3,7 @@ import { keptKey, useKept } from './lib/kept';
 import type { Decision, Finding, Item, Mark } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
-import { isTyping, Reach } from './App';
+import { isTyping, onTabbedButton, Reach } from './App';
 
 // Findings one at a time, like an interview. K keeps, X dismisses (with an optional reason), C comments. A finding
 // you pass without marking counts as kept: its ring stays dashed until you touch it.
@@ -74,7 +74,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       // ⏎ on a button reached with Tab presses that button. After a click the button keeps the focus without showing
       // it, and ⏎ goes on as everywhere else.
-      if (e.key === 'Enter' && (e.target as HTMLElement | null)?.closest?.('button, a[href]')?.matches(':focus-visible')) return;
+      if (e.key === 'Enter' && onTabbedButton(e)) return;
       if (e.key === 'Enter') { e.preventDefault(); next(); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); go(at + 1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); go(at - 1); }
