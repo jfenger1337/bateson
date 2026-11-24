@@ -50,9 +50,16 @@ export function parseDiff(text: string): File[] {
   return files.filter((x) => x.hunks.length || x.path);
 }
 
-/** `fresh`: on a revision, the +/- lines that are new since the previous version, tinted. */
-export function Diff({ text, fresh }: { text: string; fresh?: Set<string> }) {
+/** A diff's added and removed lines, in order, each with its marker: what newLines (changes.ts) compares and numbers. */
+export function changedLines(text: string): string[] {
+  return parseDiff(text).flatMap((f) => f.hunks.flatMap((hk) => hk.lines.filter((l) => l.t === 'add' || l.t === 'del').map((l) => (l.t === 'add' ? '+' : '-') + l.text)));
+}
+
+/** `fresh`: on a revision, the +/- lines that are new since the previous version, by their place among the diff's
+ *  +/- lines (changedLines), tinted. By place and not by text: a new "}" does not make every "}" new. */
+export function Diff({ text, fresh }: { text: string; fresh?: Set<number> }) {
   const files = useMemo(() => parseDiff(text), [text]);
+  let changed = 0;
   const totals = files.reduce((acc, f) => {
     for (const hk of f.hunks) for (const l of hk.lines) { if (l.t === 'add') acc.add++; if (l.t === 'del') acc.del++; }
     return acc;
@@ -71,19 +78,23 @@ export function Diff({ text, fresh }: { text: string; fresh?: Set<string> }) {
           {f.hunks.map((hk, hi) => (
             <div key={hi} className="diff-hunk">
               {hi > 0 && <div className="diff-gap" aria-hidden />}
-              {hk.lines.map((l, li) => (
+              {hk.lines.map((l, li) => {
+                const k = l.t === 'add' || l.t === 'del' ? changed++ : -1;
+                return (
                 <div
                   key={li}
-                  className={`dl dl-${l.t}${fresh?.has((l.t === 'add' ? '+' : '-') + l.text) && l.t !== 'ctx' ? ' dl-fresh' : ''}`}
+                  className={`dl dl-${l.t}${fresh?.has(k) ? ' dl-fresh' : ''}`}
                   data-file={f.path}
                   data-line={l.new ?? l.old}
                   data-side={l.t === 'del' ? 'old' : 'new'}
                   data-o={l.old ?? ''}
                   data-n={l.new ?? ''}
                 >
-                  <code>{l.text || '​'}</code>
+                  {/* The line break is text too, so a selection over several lines quotes them as lines. */}
+                  <code>{l.text || '​'}{'\n'}</code>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </section>
