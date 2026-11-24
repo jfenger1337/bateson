@@ -222,3 +222,49 @@ test('a hook that fails lets the session carry on, and writes it down', () => {
   assert.equal(r.stdout, '', 'and is told nothing');
   assert.match(fs.readFileSync(path.join(queue, 'hooks.log'), 'utf8'), /catchup\.ts .*EEXIST|catchup\.ts .*ENOTDIR/);
 });
+
+/** Run hooks/ask.mjs before an AskUserQuestion call; what it printed, parsed, or null when it said nothing. */
+function ask(questions: unknown, env: Record<string, string> = {}) {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'hooks', 'ask.mjs')], {
+    env: childEnv({ BATESON_DEBUG: '1', ...env }), cwd: REPO, encoding: 'utf8',
+    input: JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 'S', cwd: REPO, tool_name: 'AskUserQuestion', tool_input: { questions } }),
+  });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout ? JSON.parse(r.stdout).hookSpecificOutput as { permissionDecision: string; permissionDecisionReason: string } : null;
+}
+const asked = (question: string, header: string, multiSelect = false) => ({ question, header, multiSelect, options: [{ label: 'Sessions (Recommended)', description: 'Cookies.' }, { label: 'Tokens', description: 'JWT.' }] });
+/** bateson's hooks are in Claude Code's settings, so a response can wake the session (lib/agent.ts canWake). */
+function hooksInstalled() { writeHooks({ file: path.join(TMP, '.claude', 'settings.json') }); }
+
+test('a round asked with Claude Code\'s own form goes to the queue, and the agent is told to wait for it', async () => {
+  hooksInstalled();
+  sessionOpen(process.pid, 'S');
+  const out = ask([asked('Which auth should it use?', 'Auth'), asked('Where do sessions live', 'Storage')]);
+  assert.equal(out?.permissionDecision, 'deny');
+  const id = /bateson rearm (q_[a-z0-9]+)/.exec(out!.permissionDecisionReason)![1];
+  const it = store.getItem(id)!;
+  assert.equal(it.title, 'Auth, Storage');
+  assert.equal(store.readSession(it)?.sessionId, 'S', 'the item is tied to the session that asked');
+  const qs = store.readQuestions(it, store.currentVersion(it));
+  assert.deepEqual(qs.map((q) => q.title), ['Which auth should it use?', 'Where do sessions live?']);
+  assert.equal(qs[0].recommended, 0);
+  assert.equal(qs[0].options[0].label, 'Sessions');
+  // The command it is told to run starts the wake-up hook, which hands over the answers.
+  const { done } = rewake(cli(['rearm', id], { CLAUDE_CODE_SESSION_ID: 'S' }).join('\n'), `bateson rearm ${id}`);
+  await until(() => !!store.waiter(store.getItem(id)!));
+  store.decide(id, 1, { decision: 'answer', answers: [{ id: 'Q1', choice: 1 }, { id: 'Q2', choice: 0 }] });
+  const { code, err } = await done;
+  assert.equal(code, 2);
+  assert.match(err, /Q1 Which auth should it use\?: .*Tokens/);
+});
+
+test('the terminal keeps its form for one question, for pick-several, and when the setting is off', () => {
+  hooksInstalled();
+  sessionOpen(process.pid, 'S');
+  assert.equal(ask([asked('Which auth should it use?', 'Auth')]), null, 'one question is asked in chat');
+  assert.equal(ask([asked('Which auth should it use?', 'Auth'), asked('Which stores?', 'Stores', true)]), null, 'a round cannot show pick-several');
+  store.writeConfig({ terminalQuestions: false });
+  try { assert.equal(ask([asked('A?', 'A'), asked('B?', 'B')]), null); } finally { store.writeConfig({ terminalQuestions: true }); }
+  assert.equal(ask([asked('A?', 'A'), asked('B?', 'B')], { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' }), null, 'nothing can wake a headless run');
+  assert.equal(store.allQueued().length, 0);
+});

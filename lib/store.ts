@@ -81,6 +81,7 @@ export const DEFAULTS: Config = {
   hotkey: 'ctrl+option+space', // 'ctrl+option+space' | 'option+q' | 'cmd+shift+space' | 'off'
   undoSeconds: 4,             // how long a decision can be undone before the agent hears it: 0 to 10
   stopCheck: true,            // hooks/remind.ts: "did you just decide something on your own?", on turns you did not start
+  terminalQuestions: true,    // hooks/ask.ts: two or more questions asked with Claude Code's own form (AskUserQuestion) come to the queue instead
   theme: 'system',            // 'system' | 'light' | 'dark'
   motion: 'system',           // 'system' | 'full' | 'reduced'; full plays the animations whatever the system asks
   preview: false,             // the panel beside a question for its `show`; off, questions are centred and in words only
@@ -198,7 +199,7 @@ export function openStore(
     // Only the keys bateson knows, so a setting it no longer has drops out of the file on the next change.
     return {
       name: pick('name'), blocked: pick('blocked'), sound: pick('sound'), hotkey: pick('hotkey'), undoSeconds: pick('undoSeconds'),
-      stopCheck: pick('stopCheck'), theme: pick('theme'), motion: pick('motion'), preview: pick('preview'), updates: pick('updates'), bring: { ...DEFAULTS.bring, ...(c.bring || {}) },
+      stopCheck: pick('stopCheck'), terminalQuestions: pick('terminalQuestions'), theme: pick('theme'), motion: pick('motion'), preview: pick('preview'), updates: pick('updates'), bring: { ...DEFAULTS.bring, ...(c.bring || {}) },
     };
   }
 

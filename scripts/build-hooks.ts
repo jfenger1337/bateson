@@ -14,7 +14,7 @@ import type { Plugin } from 'vite';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOOKS = path.join(REPO, 'hooks');
 const OUT = path.join(HOOKS, 'dist');
-const NAMES = ['catchup', 'nudge', 'remind', 'rewake'];
+const NAMES = ['ask', 'catchup', 'nudge', 'remind', 'rewake'];
 
 // Before the sources are read: a file saved during the build counts as newer than the bundle.
 const built = Date.now();

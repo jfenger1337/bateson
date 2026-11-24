@@ -49,6 +49,7 @@ Order: revisions and next rounds first, then items a live session is waiting on,
 - `PostToolUse` hook on `bateson send`, with `asyncRewake`: waits in the background and wakes the session with the response.
 - `UserPromptSubmit` hook: hands a session any response to what it sent that arrived after the waiting hook gave up.
 - `SessionStart` hook: hands a resumed or compacted session responses to what it sent that it never received. A response never goes to another session on its own, even once the one that asked has ended; resume that one, or run `bateson inbox` in its repo to take it on purpose. At its start it also tells the session the last few times you went against an agent's recommendation in that repo.
+- `PreToolUse` hook on `AskUserQuestion`: two or more questions asked with Claude Code's own form go to the queue instead of the terminal, and the agent waits for the answers as after a send.
 - `Stop` hook: notes that the session is idle. On a turn you did not start, a `PostToolUse` hook quietly reminds the agent, the first time it changes files, that calls which are yours go to the queue.
 - All global, in `~/.claude/`, and silent unless Claude Code started them.
 
@@ -67,4 +68,4 @@ Order: revisions and next rounds first, then items a live session is waiting on,
 
 ## Parked
 
-History view, intercepting every `AskUserQuestion`, Agentation over running apps, Channels, collectors (GitHub PR review requests first).
+History view, Agentation over running apps, Channels, collectors (GitHub PR review requests first).

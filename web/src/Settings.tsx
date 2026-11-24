@@ -179,6 +179,9 @@ export function Settings({ onClose, onChange, update, theme }: { onClose: () => 
           <Seg value={also} onChange={(v) => save({ bring: { ...c.bring, ...ALSO[v] } })} options={[['none', 'Nothing more'], ['plans', 'Plans'], ['all', 'Plans and code review']]} />
         </div>
       </div>
+      <Row title="Questions asked in the terminal" hint="When an agent asks two or more questions with Claude Code's own question form, they come here instead, and the agent waits for your answers. A single question stays in its terminal. Off, they all do. It needs the switch above, Calls an agent is stuck on.">
+        <Switch on={c.terminalQuestions} onChange={(v) => save({ terminalQuestions: v })} />
+      </Row>
       <Row title="Remind agents to ask you" hint="When an agent starts changing files on a turn you did not start, it is quietly reminded to send you any call that is yours. You never see the reminder.">
         <Switch on={c.stopCheck} onChange={(v) => save({ stopCheck: v })} />
       </Row>

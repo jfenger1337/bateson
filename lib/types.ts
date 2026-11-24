@@ -91,6 +91,8 @@ export interface Config {
   hotkey: 'ctrl+option+space' | 'option+q' | 'cmd+shift+space' | 'off';
   undoSeconds: number;
   stopCheck: boolean;
+  /** Two or more questions an agent asks with Claude Code's own form (AskUserQuestion) come to the queue instead (hooks/ask.ts). */
+  terminalQuestions: boolean;
   theme: 'system' | 'light' | 'dark';
   /** Full or reduced motion, or the system's. Full plays the animations even when the system asks for reduced motion. */
   motion: 'system' | 'full' | 'reduced';

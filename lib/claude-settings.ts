@@ -51,6 +51,7 @@ export const REWAKE_TIMEOUT_S = 14400;
 
 const hook = (file: string, extra: Loose = {}): Hook => ({ type: 'command', command: `${NODE}"${HOOKS}/${file}"`, ...extra });
 const ENTRIES: Record<string, Entry | Entry[]> = {
+  PreToolUse: { matcher: 'AskUserQuestion', hooks: [hook('ask.mjs', { timeout: 30 })] },
   PostToolUse: [
     { matcher: 'Bash', hooks: [hook('rewake.mjs', { asyncRewake: true, timeout: REWAKE_TIMEOUT_S, rewakeSummary: 'bateson: a response arrived, or a wait was renewed', rewakeMessage: 'From bateson' })] },
     { matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash', hooks: [hook('remind.mjs', { timeout: 10 })] },
