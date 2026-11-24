@@ -100,7 +100,7 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     const item = store.getItem(c.req.param('id'));
     if (!item) return c.json({ error: 'No such item' }, 404);
     let decision;
-    try { decision = checkDecision(kindOf(item, store.currentVersion(item)), body); }
+    try { decision = checkDecision(kindOf(item, store.currentVersion(item)), body, store.readQuestions(item, store.currentVersion(item))); }
     catch (e) { return c.json({ error: (e as Error).message }, 400); }
     try { store.decide(item.id, typeof n === 'number' ? n : NaN, decision, { at: typeof at === 'string' ? at : undefined }); }
     catch (e) { const { message, code } = e as NodeJS.ErrnoException; return c.json({ error: message, code }, 409); }
@@ -174,6 +174,9 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
     await stream.writeSSE({ data: 'hello' });
     while (alive) await stream.sleep(25000).then(() => { if (alive) return stream.writeSSE({ event: 'ping', data: '' }); });
   }));
+
+  // Nothing else is the API's: said as JSON, not answered with the page below as if it were there.
+  app.all('/api/*', (c) => c.json({ error: 'Not found' }, 404));
 
   // The built UI. Hashed assets cache forever; the page itself never does.
   if (dist && fs.existsSync(dist)) {

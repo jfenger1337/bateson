@@ -167,9 +167,10 @@ export const KINDS = { review: REVIEW, interview: INTERVIEW, findings: FINDINGS 
  * Check a decision as the app posts it, before it is written: decision.json is written once, so one of the wrong
  * shape would leave its item stuck, never told to its agent. Only the kind's own decisions count (not a name
  * every object has, such as "constructor"), and each list holds what formatDecision reads, with the right types.
+ * With `questions`, the round the answers are to: each answer is to one of them, once, and picks an option it has.
  * Throws an Error saying what is wrong.
  */
-export function checkDecision(kind: Kind, body: unknown): Decision {
+export function checkDecision(kind: Kind, body: unknown, questions?: Question[]): Decision {
   const b = (body && typeof body === 'object' ? body : {}) as Loose;
   const { decision } = b;
   if (typeof decision !== 'string' || !Object.hasOwn(kind.decisions, decision)) throw new Error(`A ${kind.name} item cannot be decided with ${String(decision)}`);
@@ -190,6 +191,14 @@ export function checkDecision(kind: Kind, body: unknown): Decision {
     && (a.images == null || (Array.isArray(a.images) && a.images.length <= 20 && a.images.every((x) => typeof x === 'string' && PASTED_NAME.test(x)))));
   const marks = list('marks', (m) => typeof m.id === 'string' && ['keep', 'dismiss'].includes(m.mark as string) && str(m.reason) && str(m.comment));
   if (decision === 'send-back' && !comments?.length) throw new Error('Send back needs a comment');
+  if (questions && answers) {
+    const seen = new Set<unknown>();
+    for (const a of answers as Answer[]) {
+      const q = questions.find((x) => x.id === a.id);
+      if (!q || seen.has(a.id) || (a.choice != null && !q.options?.[a.choice])) throw new Error('answers do not fit the questions');
+      seen.add(a.id);
+    }
+  }
   return {
     decision: decision as DecisionName,
     ...(comments ? { comments: comments as Decision['comments'] } : {}),
