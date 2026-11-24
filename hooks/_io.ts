@@ -8,7 +8,7 @@ import { logHookError } from '../lib/store.ts';
 /** What Claude Code sends a hook on stdin: the fields bateson reads, each kept only if it has the right type. */
 export interface HookInput {
   hook_event_name?: string; session_id?: string; cwd?: string; transcript_path?: string; tool_name?: string; prompt?: string;
-  tool_input?: { command?: string; file_path?: string; notebook_path?: string };
+  tool_input?: { command?: string; file_path?: string; notebook_path?: string; questions?: unknown };
   tool_response?: unknown;
 }
 
@@ -26,7 +26,7 @@ export function input(): HookInput {
   return {
     hook_event_name: str(h.hook_event_name), session_id: str(h.session_id), cwd: str(h.cwd),
     transcript_path: str(h.transcript_path), tool_name: str(h.tool_name), prompt: str(h.prompt),
-    tool_input: t && { command: str(t.command), file_path: str(t.file_path), notebook_path: str(t.notebook_path) },
+    tool_input: t && { command: str(t.command), file_path: str(t.file_path), notebook_path: str(t.notebook_path), questions: t.questions },
     tool_response: h.tool_response,
   };
 }
