@@ -250,6 +250,19 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   const step = useRef((by: number) => go(at + by));
   step.current = (by: number) => go(at + by);
   const qRef = useRef<HTMLElement | null>(null);
+
+  // The question's height, for the drop above it (app.css): the drop gives way so a question that would fit
+  // under the bar does, instead of starting a fifth of the way down and spilling under the decision bar.
+  const pageRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page) return;
+    const root = document.documentElement;
+    const ro = new ResizeObserver(() => root.style.setProperty('--iv-h', `${Math.ceil(page.offsetHeight)}px`));
+    ro.observe(page);
+    return () => { ro.disconnect(); root.style.removeProperty('--iv-h'); };
+  }, []);
+
   useEffect(() => {
     let acc = 0;
     let fired = false;
@@ -339,7 +352,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   // A question with something to look at has the panel beside it; one with nothing keeps the normal layout.
 
   return (
-    <article className={`page interview asks arrive hue-${item.hue}${preview ? ' with-preview' : ''}`}>
+    <article ref={pageRef} className={`page interview asks arrive hue-${item.hue}${preview ? ' with-preview' : ''}`}>
       <div className="iv-main">
         {/* The dots sit just above the question, where you are reading: how far through the round you are, at a glance. */}
         {(qs.length > 1 || past.length > 0) && (
