@@ -54,6 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   var notified = Set<String>()
   var showing = Set<String>()
   var firstPoll = true
+  // Polls in a row the server did not answer: after a few, the count is not shown as if it still held.
+  var misses = 0
   var hotKey: EventHotKeyRef?
   var hotKeyName = ""
   // The page loaded while there is no server, so it is loaded again only when what it says changes, and its load.
@@ -68,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     buildWindow()
     buildStatusItem()
     installHotKeyHandler()
-    setHotKey("ctrl+option+space")
+    setHotKey(savedHotKey())
     let center = UNUserNotificationCenter.current()
     center.delegate = self
     // .badge too: without it macOS keeps the Dock count hidden, though the app sets it.
@@ -280,9 +282,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   func poll() {
     // Asked every two seconds, so an answer that takes longer is not waited for: the requests would pile up.
     URLSession.shared.dataTask(with: URLRequest(url: summaryURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 4)) { [weak self] data, _, _ in
-      guard let data, let s = try? JSONDecoder().decode(Summary.self, from: data) else { return }
-      DispatchQueue.main.async { self?.apply(s) }
+      guard let data, let s = try? JSONDecoder().decode(Summary.self, from: data) else {
+        DispatchQueue.main.async { self?.missed() }
+        return
+      }
+      DispatchQueue.main.async { self?.misses = 0; self?.apply(s) }
     }.resume()
+  }
+
+  // The server has not answered for ten seconds (longer than a restart takes): the last count may no longer be true,
+  // so the menubar and the Dock stop showing it until the server says. Notifications stay, as does what was notified.
+  func missed() {
+    misses += 1
+    guard misses == 5 else { return }
+    status.button?.image = ringImage(filled: false)
+    status.button?.title = ""
+    countItem.title = "The server is not answering"
+    NSApp.dockTile.badgeLabel = nil
+  }
+
+  /// The hotkey as Settings last saved it (config.json in the queue's folder), read at launch so it holds before the
+  /// server answers, and while it is down: one turned off or changed is never the default for a moment.
+  func savedHotKey() -> String {
+    let fallback = "ctrl+option+space"
+    guard let data = try? Data(contentsOf: home.appendingPathComponent("config.json")),
+          let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let key = config["hotkey"] as? String else { return fallback }
+    return key
   }
 
   func apply(_ s: Summary) {
