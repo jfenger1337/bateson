@@ -63,6 +63,9 @@ export function claudeAncestor(env: NodeJS.ProcessEnv = process.env): { pid: num
   if (agent(env) !== 'claude-code') return null;
   const fromEnv = Number.parseInt(env.CLAUDE_PID || '', 10);
   if (Number.isInteger(fromEnv)) { const s = store.claudeSession(fromEnv); if (s) return { pid: fromEnv, sessionId: s.sessionId }; }
+  // No Claude Code process is listed as running: none of the processes above this one can be one, so they are not
+  // looked up. On Windows that look is a PowerShell start, seconds long.
+  if (!store.liveSessions()?.size) return null;
   let pid: number | null = process.ppid;
   for (let i = 0; pid && i < 12; i++) {
     const s = store.claudeSession(pid);
@@ -70,6 +73,18 @@ export function claudeAncestor(env: NodeJS.ProcessEnv = process.env): { pid: num
     pid = parentOf(pid);
   }
   return null;
+}
+
+/**
+ * The Claude Code process a hook runs under, for a hook, which is told its session: the one live process that
+ * Claude Code lists on that session, found by reading the list. Only when the list does not say (no entry for the
+ * session, or two) are the processes above this one walked, which on Windows starts PowerShell and took most of
+ * three seconds after every send.
+ */
+export function claudeProcessFor(sessionId: string | undefined, env: NodeJS.ProcessEnv = process.env): { pid: number; sessionId: string } | null {
+  if (agent(env) !== 'claude-code') return null;
+  const pid = store.claudeProcess(sessionId);
+  return pid && sessionId ? { pid, sessionId } : claudeAncestor(env);
 }
 
 /**

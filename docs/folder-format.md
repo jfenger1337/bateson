@@ -115,6 +115,7 @@ Settings, written by the app's settings page (⌘, or Ctrl+,) and read by the ap
   "hotkey": "ctrl+option+space",  // "ctrl+option+space" | "option+q" | "cmd+shift+space" | "off" (Mac app only)
   "undoSeconds": 4,               // how long a decision can be undone before the agent hears it
   "stopCheck": true,              // remind agents, on turns you did not start, that your calls go to the queue (hooks/remind.ts)
+  "terminalQuestions": true,      // two or more questions an agent asks with Claude Code's own form (AskUserQuestion) come to the queue instead (hooks/ask.ts)
   "bring": { "decisions": true, "plans": false, "findings": false, "code": false }, // what agents send you (Settings or /setup-bateson)
   "theme": "system",              // "system" | "light" | "dark"
   "motion": "system",             // "system" | "full" | "reduced"; full plays the animations even when the system asks for reduced motion

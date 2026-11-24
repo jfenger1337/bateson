@@ -16,7 +16,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOOKS = path.join(REPO, 'hooks');
 const CLI = path.join(REPO, 'cli');
 /** What is bundled: the folder its source is in, which gets a dist folder for the bundles, and their names. */
-const SETS: [string, string[]][] = [[HOOKS, ['catchup', 'nudge', 'remind', 'rewake']], [CLI, ['bateson']]];
+const SETS: [string, string[]][] = [[HOOKS, ['ask', 'catchup', 'nudge', 'remind', 'rewake']], [CLI, ['bateson']]];
 
 // Before the sources are read: a file saved during the build counts as newer than the bundle.
 const built = Date.now();

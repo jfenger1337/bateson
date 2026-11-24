@@ -54,7 +54,7 @@ you get the `bateson` command, the skills, the hooks in `~/.claude/settings.json
 
 1. open http://localhost:4848. on a mac you can build the app for notifications, a count and a hotkey: `./mac/build.sh --install`. on windows bateson is that page, in a window of its own: an agent that asks you something opens it if it isn't open already, and edge or chrome can install it as an app (taskbar icon, no address bar). the windows app is retired for now.
 2. in a new claude code session, run [`/setup-bateson`](./skill/setup-bateson/SKILL.md) to choose what agents bring you.
-3. work as usual. agents send on their own when they hit a call that's yours. you can also ask, e.g. `/ama i want to add team accounts. ask me anything before you build.`
+3. work as usual. agents send on their own when they hit a call that's yours. a round they ask with claude code's own question form comes to bateson too, instead of waiting in a terminal (a single question stays there; settings turns this off). you can also ask, e.g. `/ama i want to add team accounts. ask me anything before you build.`
 
 an answer only ever goes to the session that asked. if you closed it, resume it (`claude --resume`) and it gets the answer there, or run `bateson inbox` in another session in the same repository to hand it over on purpose.
 
