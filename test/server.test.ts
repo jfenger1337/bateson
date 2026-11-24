@@ -196,3 +196,10 @@ test('a done item the server kept is read again once it is told the item changed
   assert.equal(s.readDecision(again, 2)?.decision, 'approve');
   assert.deepEqual(s.allDone().map((it) => it.versions.length), [2]);
 });
+
+test('a settings change naming something every object has ("constructor") is ignored, like any unknown key', async () => {
+  const { app } = createApp({ dist: null });
+  const res = await app.request('/api/config', { method: 'PUT', headers: { host: 'localhost:4848', 'content-type': 'application/json' }, body: '{"constructor":{"a":1},"__proto__":{"b":2},"toString":"x","sound":false}' });
+  assert.equal(res.status, 200);
+  assert.equal(((await res.json()) as { sound: boolean }).sound, false);
+});
