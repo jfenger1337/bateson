@@ -417,14 +417,21 @@ export function App() {
 /** Where an answer goes when no agent is waiting for it, so you know it will not wake anything now. */
 /** Whether the answer reaches the agent that asked, said above the decision buttons when it would not at once. */
 export function Reach({ item }: { item: Item }) {
-  return item.reach === 'waiting' ? null : <span className="decide-reach" role="status">{reachLine(item)}</span>;
+  if (item.reach === 'waiting') return null;
+  // Two wordings, one shown: on a phone the full one took two or three lines of a bar that sits over the work, so
+  // it says the same in a line (app.css, .reach-short). The hidden one is display: none, so a screen reader reads one.
+  return (
+    <span className="decide-reach" role="status">
+      <span className="reach-long">{reachLine(item)}</span>
+      <span className="reach-short">{reachLine(item, true)}</span>
+    </span>
+  );
 }
 
-function reachLine(item: Item) {
+function reachLine(item: Item, short = false) {
   const repo = item.source?.repo;
-  return item.reach === 'its-session'
-    ? 'Its agent stopped waiting. It gets your answer when you next write to it.'
-    : `The session that asked${repo ? ` in ${repo}` : ''} has ended. It gets your answer if you resume it.`;
+  if (item.reach === 'its-session') return short ? 'Its agent stopped waiting. It hears this when you next write.' : 'Its agent stopped waiting. It gets your answer when you next write to it.';
+  return short ? 'Its session has ended. Resume it to deliver this.' : `The session that asked${repo ? ` in ${repo}` : ''} has ended. It gets your answer if you resume it.`;
 }
 
 // Whether the focus was last moved with Tab, not the mouse. :focus-visible cannot say: a key pressed on a button

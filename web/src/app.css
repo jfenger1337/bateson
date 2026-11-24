@@ -418,6 +418,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* In the work's column the longest sentence takes two lines, which is the height of the buttons beside it. */
 /* When the answer will not reach the agent at once, that comes first, on a line of its own. */
 .decide-reach { display: block; color: var(--text-2); }
+.reach-short { display: none; }
 .decide-sentence { min-width: 0; max-width: var(--main-w); font-size: var(--text-meta); line-height: 1.4; color: var(--muted); text-wrap: balance; }
 .decide-actions { display: flex; align-items: center; gap: var(--space-8); flex: none; }
 .decide-actions .btn-quiet { margin-right: var(--space-8); }
@@ -608,9 +609,16 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
   .q-body { margin-left: 32px; }
   .options { margin-left: 0; }
   .opt-key { display: none; }
-  .decide { padding: var(--space-12) var(--space-16); }
-  .decide-in { flex-direction: column; align-items: stretch; gap: var(--space-12); }
+  /* On a phone the bar sits over the work, so it says as little as it can: the line about where the answer goes is
+     the short one, it runs on into the rest of the sentence, and the buttons follow closely. 91 to 128px at 390
+     wide, from 117 to 154. */
+  .decide { padding: var(--space-10) var(--space-16); }
+  .decide-in { flex-direction: column; align-items: stretch; gap: var(--space-8); }
   .decide-actions { justify-content: flex-end; flex-wrap: wrap; }
+  .decide-reach { display: inline; }
+  .decide-reach::after { content: ' '; }
+  .reach-long { display: none; }
+  .reach-short { display: inline; }
 }
 
 /* ---- The empty queue: the day so far, and who is at work. */
