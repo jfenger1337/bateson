@@ -42,18 +42,19 @@ function keepLocal(html: string) {
   const box = document.createElement('template');
   box.innerHTML = html;
   for (const el of [...box.content.querySelectorAll('*')]) {
-    const remote = ['src', 'poster', 'background'].some((k) => el.hasAttribute(k) && !local(el.getAttribute(k)!))
-      || (el.hasAttribute('srcset') && !localSet(el.getAttribute('srcset')!))
-      || (el.nodeName !== 'A' && ['href', 'xlink:href'].some((k) => el.hasAttribute(k) && !local(el.getAttribute(k)!)));
-    if (!remote) continue;
     const src = el.getAttribute('src');
-    if (el.nodeName === 'IMG' && src && !local(src) && /^(https?:)?\/\//i.test(src.trim())) {
+    // Each address is judged by itself: a picture here with a larger one elsewhere (srcset) keeps the one here.
+    for (const k of ['src', 'poster', 'background', ...(el.nodeName === 'A' ? [] : ['href', 'xlink:href'])]) {
+      if (el.hasAttribute(k) && !local(el.getAttribute(k)!)) el.removeAttribute(k);
+    }
+    if (el.hasAttribute('srcset') && !localSet(el.getAttribute('srcset')!)) el.removeAttribute('srcset');
+    if (el.nodeName === 'IMG' && src && !el.hasAttribute('src') && /^(https?:)?\/\//i.test(src.trim())) {
       const a = document.createElement('a');
       a.href = src; a.target = '_blank'; a.rel = 'noopener noreferrer';
       a.textContent = el.getAttribute('alt')?.trim() || src;
       a.title = 'A picture from the network: not loaded until you open it';
       el.replaceWith(a);
-    } else for (const k of ['src', 'srcset', 'poster', 'background', 'href', 'xlink:href']) el.removeAttribute(k);
+    }
   }
   return box.innerHTML;
 }
