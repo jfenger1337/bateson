@@ -53,6 +53,8 @@ export function App() {
       const res = await fetch(`/api/state${q.toString() ? `?${q}` : ''}`);
       const text = await res.text();
       if (mine !== asked.current) return;
+      // Not the queue: what stands in for a server that cannot start answers 503 with why (lib/node-check.mjs).
+      if (!res.ok) { setFailed(true); return; }
       setFailed(false);
       if (text === lastText.current) { shownRef.current = lastShown.current; return; }
       const s: State = JSON.parse(text);
