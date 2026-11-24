@@ -17,7 +17,7 @@ this starts a server on its own queue and port. in a second terminal, `BATESON_H
 ## before you open a PR
 
 - `npm run build` passes. it typechecks the server, the command and the app, then builds the app and bundles the hooks. every PR runs it too.
-- there are no tests. say in the PR how you tried the change: what you sent, what you clicked, what happened.
+- `npm test` passes. it covers the queue, the server, the hooks and the command, not the app on screen: for that, say in the PR how you tried the change: what you sent, what you clicked, what happened.
 - if you changed the installer, run it with `HOME` set to a scratch folder, then run it again with `--uninstall`, and check that the settings file came back as it was.
 - if you changed something on screen, add a screenshot.
 
