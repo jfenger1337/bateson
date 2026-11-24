@@ -22,3 +22,32 @@ export function setMotion(next: Motion | undefined) {
 }
 
 system.addEventListener('change', paint);
+
+// What a swap changes, which says what on the page takes part (app.css, "Swaps"): `item` is the whole work (the
+// next item, settings and back), `question` one question for another inside an item, `zoom` a picture's full size.
+export type Swap = 'item' | 'question' | 'zoom';
+
+type Doc = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void> } };
+
+/**
+ * A change of what is on screen, with the old leaving as the new arrives (the browser's view transition). `update`
+ * makes the change and must have it on the page when it returns (flushSync). Where the browser has no view
+ * transitions, with reduced motion, and under the launch splash, the change is made at once.
+ */
+export function swap(kind: Swap, update: () => void) {
+  const doc = document as Doc;
+  const root = document.documentElement;
+  if (!doc.startViewTransition || reduced() || document.hidden || document.querySelector('.splash')) { update(); return; }
+  root.dataset.swap = kind;
+  const done = () => { if (root.dataset.swap === kind && now === running) delete root.dataset.swap; };
+  const now = ++running;
+  try { doc.startViewTransition(update).finished.then(done, done); } catch { done(); update(); }
+}
+let running = 0;
+
+/** The spring a keyboard pick lands with (--ease-spring), for what the code moves itself. */
+export function press(el: Element | null | undefined) {
+  if (!el || reduced() || !el.animate) return;
+  const ease = getComputedStyle(document.documentElement).getPropertyValue('--ease-spring').trim() || 'ease-out';
+  try { el.animate([{ scale: 0.985 }, { scale: 1 }], { duration: 320, easing: ease }); } catch { /* an easing this browser does not know: no press */ }
+}

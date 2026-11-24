@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { swap } from './lib/motion';
 import { keptKey, useKept } from './lib/kept';
 import { usePageHeight } from './lib/fit';
 import type { Decision, Finding, Item, Mark } from '@lib/types';
@@ -38,8 +40,10 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
     clearTimeout(timer.current);
     const n = Math.max(0, Math.min(list.length, i));
     if (n === at) return;
-    setDir(n > at ? 'fwd' : 'back');
-    setAt(n);
+    const root = document.documentElement.style;
+    root.setProperty('--q-dir', n > at ? '1' : '-1');
+    root.setProperty('--q-from', '0px');
+    swap('question', () => flushSync(() => { setDir(n > at ? 'fwd' : 'back'); setAt(n); }));
   };
   const later = (by = 1) => { clearTimeout(timer.current); timer.current = window.setTimeout(() => go(at + by), ADVANCE_MS); };
   const focusField = () => window.setTimeout(() => fieldRef.current?.focus(), 0);

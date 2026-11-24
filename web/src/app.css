@@ -30,7 +30,7 @@
   display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-8); height: calc(1.5em + 4px); line-height: 1.5; overflow: hidden;
   min-width: 0; margin: 0 calc(-1 * var(--space-6)); padding: 2px var(--space-6);
   border-radius: var(--radius-sm); font-size: var(--text-meta); color: var(--text-2);
-  animation: bt-rise var(--dur-arrive) var(--ease-out), bt-tint 1.4s var(--ease-out);
+  animation: bt-rise var(--dur-swap) var(--ease-out), bt-tint 1.4s var(--ease-out);
 }
 /* One line high and wrapping: what does not fit beside the name drops out of sight whole, never cut in half. */
 .bar-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -45,7 +45,7 @@
 .bar-sentence.waiting { color: var(--ink); }
 /* A decision on hold: what you did, and the way back, in place of the item's name. Nothing
    floats over the next item. The shortcut reads as a key and is always there. */
-.bar-sentence.said { color: var(--text-2); gap: var(--space-8); }
+.bar-sentence.said { color: var(--text-2); gap: var(--space-8); animation: bt-rise var(--dur-settle) var(--ease-out); }
 .bar-sentence .bar-undo { font-weight: 600; color: var(--ink); }
 .bar-key { margin-left: calc(-1 * var(--space-2)); padding: 1px var(--space-4); border-radius: var(--radius-sm); background: var(--hover); font-size: var(--text-micro); color: var(--muted); }
 
@@ -109,8 +109,10 @@
   display: grid; grid-template-columns: 30px 1fr auto; align-items: start; width: 100%; padding: var(--space-10) var(--space-12);
   border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--ink);
   font: inherit; text-align: left; cursor: pointer;
-  transition: background var(--dur-fast), border-color var(--dur-fast);
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), scale var(--dur-instant) var(--ease-out);
 }
+/* An option gives a hair under the press: it is the button you press most. Not the row you are writing in. */
+button.opt:active, .own-open:active { scale: 0.985; }
 .opt:hover, .own-open:hover { background: var(--hover); }
 .opt.chosen { background: var(--surface); border-color: var(--border); box-shadow: 0 1px 2px rgba(30, 33, 38, 0.04); }
 /* The recommendation, preselected but not yet yours: the dashed ring and the word say so; the row itself stays bare. */
@@ -123,7 +125,7 @@
 .ring-letter { fill: var(--muted); font-family: var(--sans); font-size: 10.5px; font-weight: 600; }
 .opt:hover .opt-ring, .own-open:hover .opt-ring, .opt:focus-visible .opt-ring, .own-open:focus-visible .opt-ring { color: var(--ink); }
 .opt:hover .ring-letter, .own-open:hover .ring-letter, .opt.chosen .ring-letter { fill: var(--ink); }
-.opt.chosen .opt-ring .ring-dot { animation: bt-settle var(--dur-settle) var(--ease-out); }
+.opt.chosen .opt-ring .ring-dot { animation: bt-settle var(--dur-spring) var(--ease-spring); }
 .opt-text { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .opt-label { display: flex; align-items: baseline; font-size: var(--text-title); font-weight: 500; line-height: 1.4; }
 /* The label stays in one piece: the pill sits beside it when there is room and takes the next line when there is not. */
@@ -165,11 +167,16 @@
   width: 100%; min-height: 24px; padding: 0; border: 0; background: transparent;
   font-family: var(--sans); font-size: var(--text-title); font-weight: 500; line-height: 1.4; color: var(--ink); resize: none; field-sizing: content;
 }
+/* Where you type, the caret is in the item's colour: the one moving thing on the page is yours. What you type is
+   never animated: a letter is on the page the moment its key goes down. */
+.own-field, .note-field, .fd-reason { caret-color: var(--hue-ink, var(--ink)); }
 /* Screenshots pasted or dropped into your own answer, small under what you wrote: a click shows one large. */
 .own-body { display: grid; gap: var(--space-10); min-width: 0; }
 .own-pics { display: flex; flex-wrap: wrap; gap: var(--space-8); }
 .own-pic { position: relative; display: block; width: 96px; height: 64px; border: 1px solid var(--border-soft); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
 .own-pic img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+.own-pic:not(.adding) { animation: own-pop var(--dur-spring) var(--ease-spring); }
+@keyframes own-pop { from { opacity: 0; scale: 0.9; } }
 .opt.own.kept .own-pic img { opacity: 0.6; }
 .own-pic-x {
   position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 18px; height: 18px; padding: 0;
@@ -194,9 +201,12 @@
 /* The page wears its item's colour in its accents: the Recommended tag. The words and the buttons stay ink. */
 .interview .opt-rec { background: rgba(var(--hue-rgb), 0.22); color: var(--hue-ink); }
 .iv-step.past { cursor: default; }
+.iv-step { transition: color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
 .interview .note { margin-bottom: var(--space-24); }
+/* The question arriving, where the browser has no view transitions; where it has, the swap is theirs ("Swaps"). */
 .iv-q { animation: qr-in-fwd var(--dur-base) var(--ease-out); }
 .iv-q.iv-back { animation-name: qr-in-back; }
+@supports (view-transition-name: none) { .iv-q { animation: none; } }
 @keyframes qr-in-fwd { from { opacity: 0; transform: translateX(8px); } }
 @keyframes qr-in-back { from { opacity: 0; transform: translateX(-8px); } }
 .iv-title { font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.25; letter-spacing: -0.012em; color: var(--ink); }
@@ -266,7 +276,7 @@
 .iv-strip { flex: none; display: flex; justify-content: center; gap: var(--space-8); }
 .iv-thumb {
   width: 72px; height: 48px; padding: 0; border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--surface);
-  overflow: hidden; cursor: pointer; opacity: 0.6; transition: opacity var(--dur-fast), border-color var(--dur-fast);
+  overflow: hidden; cursor: pointer; opacity: 0.6; transition: opacity var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   display: flex; align-items: center; justify-content: center; font-size: var(--text-micro); color: var(--muted);
 }
 .iv-thumb:hover { opacity: 1; }
@@ -289,6 +299,7 @@
   background: color-mix(in srgb, var(--work) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   cursor: zoom-out; animation: zoomed-in var(--dur-base) var(--ease-out);
 }
+@supports (view-transition-name: none) { .zoomed { animation: none; } }
 .zoomed img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius); box-shadow: var(--shadow-menu); }
 @keyframes zoomed-in { from { opacity: 0; } }
 .iv-preview-stage .shown-text { margin: 0; width: 100%; max-width: 860px; }
@@ -331,17 +342,21 @@
 .iv-sum-q { grid-column: 2; grid-row: 1; font-size: var(--text-meta); color: var(--muted); }
 .iv-sum-a { grid-column: 2; grid-row: 2; font-size: var(--text-title); font-weight: 500; line-height: 1.4; }
 .iv-sum-a.none { color: var(--late); font-weight: 400; }
-.iv-sum-edit { grid-column: 3; grid-row: 1 / 3; align-self: center; font-size: var(--text-meta); color: var(--muted); opacity: 0; transition: opacity var(--dur-fast); }
+.iv-sum-edit { grid-column: 3; grid-row: 1 / 3; align-self: center; font-size: var(--text-meta); color: var(--muted); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
 .iv-sum-row:hover .iv-sum-edit, .iv-sum-row:focus-visible .iv-sum-edit { opacity: 1; }
 
 /* Pointing at a dot shows that question and your answer, under the dots in the bar, left-aligned with them. */
 .iv-step { position: relative; }
 .iv-step-tip {
   position: absolute; top: calc(100% + 6px); left: -8px; z-index: 30; display: none; flex-direction: column; gap: var(--space-2);
+  opacity: 0; translate: 0 -3px; transition: opacity var(--dur-fast) var(--ease-out), translate var(--dur-fast) var(--ease-out), display var(--dur-fast) allow-discrete;
   width: max-content; max-width: 320px; padding: var(--space-8) var(--space-12); border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--surface); box-shadow: var(--shadow-card); text-align: left; white-space: normal; pointer-events: none;
 }
-.iv-step:hover .iv-step-tip { display: flex; }
+/* It fades in a hair below where it started and fades out again (display is held until it has), where the browser
+   can start a transition from display: none; elsewhere it is simply there. */
+.iv-step:hover .iv-step-tip { display: flex; opacity: 1; translate: none; }
+@starting-style { .iv-step:hover .iv-step-tip { opacity: 0; translate: 0 -3px; } }
 /* The earlier rounds' dot: quieter than this round's, and its list stops at the window's height, latest first. */
 .iv-step.earlier { opacity: 0.55; }
 .iv-step.earlier:hover { opacity: 1; }
@@ -426,12 +441,12 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 }
 .point-mark:hover { border-color: var(--border-strong); color: var(--ink); }
 @keyframes bt-fade { from { opacity: 0; } }
-.note-card { padding: var(--space-12) var(--space-14); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); transition: border-color var(--dur-fast); }
+.note-card { padding: var(--space-12) var(--space-14); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); transition: border-color var(--dur-fast) var(--ease-out); }
 .note-card.active, .note-card.composing { border-color: var(--border-strong); box-shadow: var(--shadow-card); }
 .note-where { font-size: var(--text-label); color: var(--muted); line-height: 1.45; }
 .note-where q { font-size: var(--text-meta); font-style: italic; color: var(--text-2); }
 .note-text { margin-top: var(--space-6); font-size: var(--text-body); line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
-.note-remove { position: absolute; top: var(--space-8); right: var(--space-8); opacity: 0; transition: opacity var(--dur-fast); }
+.note-remove { position: absolute; top: var(--space-8); right: var(--space-8); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
 .note-card:hover .note-remove, .note-remove:focus-visible { opacity: 1; }
 .note-field { width: 100%; margin-top: var(--space-8); padding: 0; border: 0; background: transparent; font-size: var(--text-body); line-height: 1.5; color: var(--ink); resize: none; field-sizing: content; min-height: 60px; }
 .note-actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-12); margin-top: var(--space-8); }
@@ -632,7 +647,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .seg-item:hover { color: var(--ink); }
 .seg-item.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(30, 33, 38, 0.08); }
 .switch { position: relative; width: 36px; height: 22px; padding: 0; border: 0; border-radius: var(--radius-full); background: var(--switch-off); cursor: pointer; transition: background var(--dur-base) var(--ease-out); }
-.switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); transition: transform var(--dur-base) var(--ease-out); }
+.switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); transition: transform var(--dur-spring) var(--ease-spring); }
 .switch.on { background: var(--ink); }
 .switch:disabled { opacity: 0.4; cursor: default; }
 .set-row:has(.switch:disabled) .set-title { color: var(--muted); }
@@ -729,8 +744,51 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 [data-theme='dark'] .iv-preview-stage img { filter: brightness(0.86); transition: filter var(--dur-base) var(--ease-out); }
 [data-theme='dark'] .iv-preview-stage:hover img { filter: none; }
 
+/* ---- Swaps (lib/motion.ts swap): the old leaves as the new arrives, by the browser's view transition. What takes
+   part is named only while a swap runs (data-swap on <html>), so nothing is lifted into a layer of its own the
+   rest of the time. The page itself takes no part and stays live under it; clicks go through to it. The bar and
+   the decision bar are named in every swap so that what moves passes under them, as it does when it scrolls. */
+:root { view-transition-name: none; }
+::view-transition { pointer-events: none; }
+:root[data-swap] .bar { view-transition-name: bar; }
+:root[data-swap] .decide { view-transition-name: decide; }
+:root[data-swap='item'] .work { view-transition-name: work; }
+:root[data-swap='question'] .iv-q { view-transition-name: question; }
+:root[data-swap='question'] .iv-preview { view-transition-name: preview; }
+:root[data-swap='zoom'] .zoomed { view-transition-name: zoomed; }
+::view-transition-group(*) { animation-duration: var(--dur-swap); animation-timing-function: var(--ease-out); }
+::view-transition-old(*) { animation-duration: var(--dur-instant); animation-timing-function: var(--ease-out); }
+::view-transition-new(*) { animation-duration: var(--dur-swap); animation-timing-function: var(--ease-out); }
+/* The work: what you decided fades where it stands and is all but gone before the next thing rises in, so the two
+   are never both there to read. */
+::view-transition-old(work) { animation: swap-out var(--dur-instant) var(--ease-out) both; }
+::view-transition-new(work) { animation: bt-rise var(--dur-swap) var(--ease-out) 40ms both; }
+@keyframes swap-out { to { opacity: 0; } }
+/* A question: out the way you are going, the next one in from the other side. --q-dir is 1 forward and -1 back;
+   --q-from is how far a swipe had already carried it (Interview.tsx). */
+::view-transition-old(question) { animation: q-out var(--dur-instant) var(--ease-out) both; }
+::view-transition-new(question) { animation: q-in var(--dur-swap) var(--ease-out) 40ms both; }
+@keyframes q-out {
+  from { transform: translateX(var(--q-from, 0px)); }
+  to { opacity: 0; transform: translateX(calc(var(--q-from, 0px) - var(--q-dir, 1) * 14px)); }
+}
+@keyframes q-in { from { opacity: 0; transform: translateX(calc(var(--q-dir, 1) * 14px)); } }
+/* The decision bar comes up from the foot of the window with the first item and goes back down after the last. */
+::view-transition-new(decide):only-child { animation: decide-in var(--dur-swap) var(--ease-out) both; }
+::view-transition-old(decide):only-child { animation: decide-out var(--dur-fast) ease-in both; }
+@keyframes decide-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes decide-out { to { opacity: 0; transform: translateY(8px); } }
+/* A picture at full size: it comes up a hair small and goes back the same way. */
+::view-transition-new(zoomed):only-child { animation: zoom-in var(--dur-base) var(--ease-out) both; }
+::view-transition-old(zoomed):only-child { animation: zoom-out var(--dur-fast) ease-in both; }
+@keyframes zoom-in { from { opacity: 0; scale: 0.98; } }
+@keyframes zoom-out { to { opacity: 0; scale: 0.98; } }
+
 /* A page the server does not answer yet (App.tsx Locked): what to run, and why. */
 .locked { max-width: 34rem; margin: 0 auto; }
 .locked h1 { font: inherit; font-size: 1.35rem; margin: 0 0 .75rem; }
 .locked p { margin: 0 0 .75rem; }
 .locked-why { color: var(--muted); font-size: var(--text-meta); }
+
+/* What is shown beside a question fades in as it changes with the option you point at. */
+.iv-preview-stage { animation: qr-fade var(--dur-fast) var(--ease-out); }

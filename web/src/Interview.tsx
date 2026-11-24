@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { press, swap } from './lib/motion';
 import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
@@ -41,7 +43,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   const [peek, setPeek] = useState<string | null>(null);
   const [replay, setReplay] = useState(0);
   // A picture opened large, over everything, until a click or a key puts it back.
-  const [zoom, setZoom] = useState<string | null>(null);
+  const [zoom, setZoomNow] = useState<string | null>(null);
+  const setZoom = (src: string | null) => swap('zoom', () => flushSync(() => setZoomNow(src)));
   const otherRef = useRef<HTMLTextAreaElement | null>(null);
   const advanceTimer = useRef<number | undefined>(undefined);
 
@@ -117,18 +120,24 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
     }).catch(() => {});
   };
 
-  const go = (i: number) => {
+  // `from`: how far a swipe had carried the question already, so it leaves from where the fingers left it.
+  const go = (i: number, from = 0) => {
     clearTimeout(advanceTimer.current);
     const n = Math.max(0, Math.min(qs.length - 1, i));
     if (n === at) return;
-    if (n > at) {
-      reportEarly(at);
-      const id = qs[at]?.id;
-      if (id) setPassed((p) => (p.includes(id) ? p : [...p, id]));
-    }
-    setDir(n > at ? 'fwd' : 'back');
-    setAt(n);
-    window.scrollTo({ top: 0 });
+    const root = document.documentElement.style;
+    root.setProperty('--q-dir', n > at ? '1' : '-1');
+    root.setProperty('--q-from', `${from}px`);
+    swap('question', () => flushSync(() => {
+      if (n > at) {
+        reportEarly(at);
+        const id = qs[at]?.id;
+        if (id) setPassed((p) => (p.includes(id) ? p : [...p, id]));
+      }
+      setDir(n > at ? 'fwd' : 'back');
+      setAt(n);
+      window.scrollTo({ top: 0 });
+    }));
   };
 
   const choose = (oi: number, clicked = false) => {
@@ -137,7 +146,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
     const d = drafts[q.id];
     if (d.touched && !d.writing && d.choice === oi) { clearTimeout(advanceTimer.current); set(q.id, { choice: null }); return; }
     set(q.id, { choice: oi, writing: false });
-    if (!clicked) document.querySelector(`.interview .opt[data-oi="${oi}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Picked with its key: the option gives as it would under the pointer, so the key is seen to land.
+    if (!clicked) { const el = document.querySelector(`.interview .opt[data-oi="${oi}"]`); el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); press(el); }
     if (!last && (clicked || !compared)) {
       clearTimeout(advanceTimer.current);
       advanceTimer.current = window.setTimeout(() => go(at + 1), ADVANCE_MS);
@@ -248,8 +258,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
 
   // Two-finger swipe on a trackpad: left for the next question, right for the one before. The question follows
   // the fingers a little, and one swipe moves one question however long the gesture runs on.
-  const step = useRef((by: number) => go(at + by));
-  step.current = (by: number) => go(at + by);
+  const step = useRef((by: number, from = 0) => go(at + by, from));
+  step.current = (by: number, from = 0) => go(at + by, from);
   const qRef = useRef<HTMLElement | null>(null);
 
   // The question's height, for the drop above it (app.css).
@@ -259,10 +269,16 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
     let acc = 0;
     let fired = false;
     let idle: number | undefined;
+    // A swipe let go short of the next question: the question eases back to where it was.
     const settle = () => {
+      const el = qRef.current;
+      if (el && !fired && el.style.transform) {
+        el.style.transition = 'transform var(--dur-settle) var(--ease-out)';
+        el.style.transform = 'translateX(0)';
+        window.setTimeout(() => { if (el.style.transform === 'translateX(0)') { el.style.transition = ''; el.style.transform = ''; } }, 220);
+      }
       acc = 0;
       fired = false;
-      if (qRef.current) { qRef.current.style.transition = ''; qRef.current.style.transform = ''; }
     };
     // A sideways scroll over something that scrolls sideways itself (a long line of code, an answer being typed)
     // is that thing's, not a turn to the next question.
@@ -287,8 +303,9 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
       }
       if (Math.abs(acc) > 90) {
         fired = true;
+        const from = Math.max(-40, Math.min(40, -acc * 0.25));
         if (qRef.current) { qRef.current.style.transition = ''; qRef.current.style.transform = ''; }
-        step.current(acc > 0 ? 1 : -1);
+        step.current(acc > 0 ? 1 : -1, from);
       }
     };
     window.addEventListener('wheel', onWheel, { passive: false });

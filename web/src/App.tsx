@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { Config, Decision, Item, State } from '@lib/types';
 import { Interview } from './Interview';
 import { Review } from './Review';
@@ -12,7 +13,7 @@ import { Toaster, toast } from 'sonner';
 import { Settings as Gear } from 'lucide-react';
 import { MOD, MOD_KEY, modHeld } from './lib/keys';
 import { setTheme } from '@/lib/theme';
-import { setMotion } from '@/lib/motion';
+import { setMotion, swap } from '@/lib/motion';
 import { forgetKept } from '@/lib/kept';
 import { Logo } from './Logo';
 import { AppMenu } from './Menu';
@@ -29,7 +30,11 @@ export function App() {
   // Why the server cannot start, when what answers in its place says (lib/node-check.mjs: a Node too old for it).
   const [why, setWhy] = useState<string | null>(null);
   const [held, setHeld] = useState<Held[]>([]);
-  const [settings, setSettings] = useState(false);
+  const [settings, setSettingsNow] = useState(false);
+  const settingsRef = useRef(false);
+  settingsRef.current = settings;
+  // Settings and back is a swap of the whole work, as the next item is.
+  const setSettings = useCallback((v: boolean | ((was: boolean) => boolean)) => swap('item', () => flushSync(() => setSettingsNow(v))), []);
   const undoMs = useRef(4000);
   const heldRef = useRef<Held[]>([]);
   heldRef.current = held;
@@ -44,6 +49,7 @@ export function App() {
   const asked = useRef(0);
   const lastText = useRef('');
   const lastShown = useRef<string | undefined>(undefined);
+  const lastView = useRef<string | undefined>(undefined);
   const load = useCallback(async () => {
     const q = new URLSearchParams();
     const skip = heldRef.current.map((h) => h.id).join(',');
@@ -70,7 +76,12 @@ export function App() {
       for (const c of s.cancelled || []) forgetKept(c.id);
       lastText.current = text;
       shownRef.current = lastShown.current = s.current?.id;
-      setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
+      const put = () => setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
+      // Another thing in front (the next item, a new version of this one, the empty page): the old leaves as it
+      // arrives. Behind settings nothing on screen changes, and the first answer has nothing to leave.
+      const view = s.current ? `${s.current.id}:${s.current.version.n}:${s.current.version.createdAt}` : '';
+      if (lastView.current !== undefined && lastView.current !== view && !settingsRef.current) swap('item', () => flushSync(put)); else put();
+      lastView.current = view;
       if (s.config) { undoMs.current = s.config.undoSeconds * 1000; setTheme(s.config.theme); setMotion(s.config.motion); }
     } catch { if (mine === asked.current) setFailed(true); }
   }, []);

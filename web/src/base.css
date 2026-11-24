@@ -114,8 +114,12 @@
   --dur-fast: 120ms;     /* anything you opened */
   --dur-base: 160ms;     /* toasts, the page settling */
   --dur-settle: 200ms;   /* a decision landing */
-  --dur-arrive: 450ms;   /* an item rising in */
+  --dur-swap: 220ms;     /* the next item, the next question: what you asked for by deciding */
+  --dur-spring: 320ms;   /* a pick landing, with --ease-spring */
+  --dur-arrive: 450ms;   /* what arrives unasked: the empty page, an agent appearing */
   --ease-out: cubic-bezier(.2, .8, .2, 1);   /* entering and moving */
+  /* A spring that goes a hair past (4 in 100) and comes back: for the small things your own pick moves. */
+  --ease-spring: linear(0, 0.107, 0.329, 0.563, 0.759, 0.899, 0.985, 1.029, 1.045, 1.044, 1.035, 1.024, 1.014, 1.007, 1.002, 0.999, 0.998, 0.998, 0.998, 0.999, 1);
 }
 
 /* An item's colour as properties, for anything drawn in it. --hue-ink is the hue dark enough for text (5.4:1 or
@@ -221,9 +225,10 @@ p, li { text-wrap: pretty; }
 .btn-icon.lg { width: var(--control-lg); height: var(--control-lg); }
 .btn-icon:hover { background: var(--hover); color: var(--ink); }
 
-/* Press: the primary and pill buttons give a little under the pointer. Rows and quiet links do not. */
-.btn-primary, .btn-pill { transition: scale var(--dur-instant) var(--ease-out); }
-.btn-primary:active:not(:disabled), .btn-pill:active:not(:disabled) { scale: 0.96; }
+/* Press: a button gives a little under the pointer, an icon a little more. Quiet links do not. */
+.btn-primary, .btn-pill, .btn-ghost, .btn-icon { transition: scale var(--dur-instant) var(--ease-out); }
+:is(.btn-primary, .btn-pill, .btn-ghost):active:not(:disabled) { scale: 0.96; }
+.btn-icon:active:not(:disabled) { scale: 0.92; }
 
 /* On a phone a quiet control keeps its look and reaches 44px under a thumb: the target grows, the text does not. */
 @media (max-width: 760px) {
@@ -236,11 +241,15 @@ p, li { text-wrap: pretty; }
 @keyframes bt-rise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 /* In the item's colour (.hue-*). */
 @keyframes bt-tint { from { background: rgba(var(--hue-rgb), 0.22); } to { background: transparent; } }
-/* The drop: a decided thing sits one step lower and stays there. No bounce.
-   bt-settle is the ring gaining its dot; bt-drop is a note landing. */
+/* The drop: a decided thing sits one step lower and stays there.
+   bt-settle is the ring gaining its dot (on the spring, where it is used); bt-drop is a note landing. */
 @keyframes bt-settle { from { opacity: 0; transform: translateY(-4px) scale(0.6); } to { opacity: 1; transform: none; } }
 @keyframes bt-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-.arrive { animation: bt-rise var(--dur-arrive) var(--ease-out); }
+/* An item's page arriving. Its parts rise, not the page: a transform on the page would hold the decision bar and
+   a zoomed picture (fixed to the window) to the page's own box while it ran. Where the browser has view
+   transitions the swap is theirs (app.css, "Swaps") and this stays out of it. */
+.arrive > :not(.decide, .zoomed) { animation: bt-rise var(--dur-swap) var(--ease-out); }
+@supports (view-transition-name: none) { .arrive > :not(.decide, .zoomed) { animation: none; } }
 .drop-in { animation: bt-drop var(--dur-settle) var(--ease-out); }
 
 /* Reduced motion, once for the whole app: everything lands in its final state at once. 1ms, not none,
@@ -252,7 +261,7 @@ p, li { text-wrap: pretty; }
   transition-duration: 1ms !important; transition-delay: 0s !important; scroll-behavior: auto !important;
 }
 /* The press is movement only; the button's colour already answers. */
-:root[data-motion="reduced"] :is(.btn-primary, .btn-pill):active:not(:disabled) { scale: none; }
+:root[data-motion="reduced"] :is(.btn-primary, .btn-pill, .btn-ghost, .btn-icon, .opt, .own-open):active:not(:disabled) { scale: none; }
 
 .rec { font-family: var(--mono); font-size: 0.93em; font-weight: 400; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 
