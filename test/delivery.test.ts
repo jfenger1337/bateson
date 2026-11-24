@@ -265,7 +265,7 @@ test('the working tree is recorded in a repository without a commit yet, and wit
   const { execFileSync } = await import('node:child_process');
   fs.writeFileSync(path.join(REPO, 'new.md'), 'x\n');
   const before = snapshot(REPO)!;
-  assert.equal(before.top, checkoutOf(REPO));
+  assert.equal(path.resolve(before.top), checkoutOf(REPO)); // git says C:/x on Windows
   assert.equal(before.head, null);
   assert.ok(before.files['new.md']);
   execFileSync('git', ['add', '.'], { cwd: REPO });
