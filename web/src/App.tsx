@@ -376,6 +376,17 @@ function reachLine(item: Item) {
     : `The session that asked${repo ? ` in ${repo}` : ''} has ended. It gets your answer if you resume it.`;
 }
 
+// Whether the focus was last moved with Tab, not the mouse. :focus-visible cannot say: a key pressed on a button
+// that was clicked makes it match, and the key in question is the one being asked about.
+let tabbed = false;
+window.addEventListener('keydown', (e) => { if (e.key === 'Tab') tabbed = true; }, true);
+window.addEventListener('pointerdown', () => { tabbed = false; }, true);
+
+/** A key pressed on a button or a link that Tab brought the focus to: the key is that button's. */
+export function onTabbedButton(e: KeyboardEvent) {
+  return tabbed && !!(e.target as HTMLElement | null)?.closest?.('button, a[href]');
+}
+
 export function isTyping(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   // In a menu, keys move and pick in the menu: none is a shortcut for the item behind it.
