@@ -723,3 +723,9 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 /* A light picture on the dark ground glares: it rests a step dimmer and comes to its true colours under the pointer. */
 [data-theme='dark'] .iv-preview-stage img { filter: brightness(0.86); transition: filter var(--dur-base) var(--ease-out); }
 [data-theme='dark'] .iv-preview-stage:hover img { filter: none; }
+
+/* A page the server does not answer yet (App.tsx Locked): what to run, and why. */
+.locked { max-width: 34rem; margin: 0 auto; }
+.locked h1 { font: inherit; font-size: 1.35rem; margin: 0 0 .75rem; }
+.locked p { margin: 0 0 .75rem; }
+.locked-why { color: var(--muted); font-size: var(--text-meta); }

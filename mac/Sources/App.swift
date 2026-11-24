@@ -26,6 +26,17 @@ let paper = NSColor(name: nil) { look in
     : NSColor(srgbRed: 0xFC / 255, green: 0xFC / 255, blue: 0xFB / 255, alpha: 1)
 }
 
+/// The server answers only who has its key (lib/key.ts): another account on this Mac reaches its port too. The key is
+/// in the queue's folder, read each time since the server may make it after the app starts. The window's first request
+/// carries it, and is answered with a cookie the page keeps for the rest.
+func keyed(_ url: URL, cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy) -> URLRequest {
+  var request = URLRequest(url: url, cachePolicy: cachePolicy)
+  if let key = try? String(contentsOf: home.appendingPathComponent("key"), encoding: .utf8) {
+    request.setValue("Bearer \(key.trimmingCharacters(in: .whitespacesAndNewlines))", forHTTPHeaderField: "Authorization")
+  }
+  return request
+}
+
 @main
 enum Main {
   static let delegate = AppDelegate()
@@ -106,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     window.contentView = web
     window.center()
     window.setFrameAutosaveName("bateson.main")
-    web.load(URLRequest(url: serverURL))
+    web.load(keyed(serverURL))
   }
 
   @objc func show() {
@@ -123,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     web.evaluateJavaScript("window.dispatchEvent(new Event('qr-settings'))")
   }
 
-  @objc func reload() { web.load(URLRequest(url: serverURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)) }
+  @objc func reload() { web.load(keyed(serverURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)) }
 
   // The server is a login item; if it is not up yet, say so and try again. If it cannot start (a Node too old for
   // it), say why instead. The page is loaded again only when that changes, so its text (the command that fixes it)
@@ -266,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   }
 
   func poll() {
-    URLSession.shared.dataTask(with: summaryURL) { [weak self] data, _, _ in
+    URLSession.shared.dataTask(with: keyed(summaryURL)) { [weak self] data, _, _ in
       guard let data, let s = try? JSONDecoder().decode(Summary.self, from: data) else { return }
       DispatchQueue.main.async { self?.apply(s) }
     }.resume()

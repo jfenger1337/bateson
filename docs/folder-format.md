@@ -28,6 +28,7 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
                               the path the agent is given still holds once the item is filed under done.
   recent/<id>.json            { at }: the item's decision was handed to an agent at that time. Removed after a day. The hooks
                               look only at these for a wake-up that was lost, instead of at every item (lib/store.ts)
+  key                         the server's key (lib/key.ts): who sends it is answered. Yours alone to read
   hue.json                    { last }: the colour the newest item was given, so the next one takes the next in turn
   hooks.log                   one line per hook error (the hooks never stop a session to report one)
   server.log                  the server's output, when it runs at login

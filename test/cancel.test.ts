@@ -10,6 +10,7 @@ import store from '../lib/store.ts';
 import { own, checkoutOf, collect } from '../lib/delivery.ts';
 import { stateView } from '../lib/view.ts';
 import { createApp } from '../server/server.ts';
+import { accessKey } from '../lib/key.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -50,7 +51,7 @@ test('an answer given after the cancel is refused, and one given before is never
   cli(['cancel', it.id]);
   const { app } = createApp({ dist: null });
   const res = await app.request(`/api/items/${it.id}/decide`, {
-    method: 'POST', headers: { host: 'localhost:4848', 'content-type': 'application/json' }, body: JSON.stringify({ n: 1, ...answer }),
+    method: 'POST', headers: { host: 'localhost:4848', authorization: `Bearer ${accessKey()}`, 'content-type': 'application/json' }, body: JSON.stringify({ n: 1, ...answer }),
   });
   assert.equal(res.status, 409);
   assert.equal(((await res.json()) as { code: string }).code, 'withdrawn');
