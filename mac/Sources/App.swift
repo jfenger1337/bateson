@@ -29,8 +29,8 @@ let paper = NSColor(name: nil) { look in
 /// The server answers only who has its key (lib/key.ts): another account on this Mac reaches its port too. The key is
 /// in the queue's folder, read each time since the server may make it after the app starts. The window's first request
 /// carries it, and is answered with a cookie the page keeps for the rest.
-func keyed(_ url: URL, cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy) -> URLRequest {
-  var request = URLRequest(url: url, cachePolicy: cachePolicy)
+func keyed(_ url: URL, cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy, timeout: TimeInterval = 60) -> URLRequest {
+  var request = URLRequest(url: url, cachePolicy: cachePolicy, timeoutInterval: timeout)
   if let key = try? String(contentsOf: home.appendingPathComponent("key"), encoding: .utf8) {
     request.setValue("Bearer \(key.trimmingCharacters(in: .whitespacesAndNewlines))", forHTTPHeaderField: "Authorization")
   }
@@ -70,6 +70,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   // The page loaded while there is no server, so it is loaded again only when what it says changes, and its load.
   var downPage: String?
   var downLoad: WKNavigation?
+  // The next try for the server while it is down: one at a time, however many loads fail (a ⌘R on the waiting page
+  // starts another), so tries do not pile up and each reload the page again once the server is back.
+  var retry: DispatchWorkItem?
 
   func applicationDidFinishLaunching(_ note: Notification) {
     buildMenu()
@@ -149,12 +152,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
       // At the server's address, so the page's own look for the server (and the theme it keeps) is bateson's.
       downLoad = webView.loadHTMLString(page, baseURL: serverURL)
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.reload() }
+    retry?.cancel()
+    let again = DispatchWorkItem { [weak self] in self?.reload() }
+    retry = again
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: again)
+  }
+
+  // macOS ends the page's process when memory is short, or it crashes: the window would stay blank until ⌘R. The
+  // page is loaded again instead; what you had started is kept by the page itself.
+  func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+    reload()
   }
 
   // The server's page is up: the next time it is down, the page saying so is loaded afresh.
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    if navigation != downLoad { downPage = nil; downLoad = nil }
+    if navigation != downLoad { downPage = nil; downLoad = nil; retry?.cancel(); retry = nil }
   }
 
   /// What the window says while there is no server: web/public/waiting.html, the page a browser shows then too, which
@@ -277,7 +289,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   }
 
   func poll() {
-    URLSession.shared.dataTask(with: keyed(summaryURL)) { [weak self] data, _, _ in
+    // Asked every two seconds, so an answer that takes longer is not waited for: the requests would pile up.
+    URLSession.shared.dataTask(with: keyed(summaryURL, cachePolicy: .reloadIgnoringLocalCacheData, timeout: 4)) { [weak self] data, _, _ in
       guard let data, let s = try? JSONDecoder().decode(Summary.self, from: data) else { return }
       DispatchQueue.main.async { self?.apply(s) }
     }.resume()
