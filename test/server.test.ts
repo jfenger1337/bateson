@@ -96,6 +96,17 @@ test('no other website may frame the app, and a file keeps its own sandboxing po
   fs.writeFileSync(path.join(item.dir, 'v1', 'files', 'notes.html'), '<script>alert(1)</script>');
   const file = await app.request(`/api/items/${id}/files/1/notes.html`, HOST);
   assert.match(file.headers.get('content-security-policy') || '', /sandbox/);
+  assert.equal(file.headers.get('cross-origin-resource-policy'), 'same-origin');
+  // A PDF keeps out of the sandbox (a browser's viewer may not show it there), and still loads nothing.
+  fs.writeFileSync(path.join(item.dir, 'v1', 'files', 'spec.pdf'), '%PDF-1.1');
+  const pdf = await app.request(`/api/items/${id}/files/1/spec.pdf`, HOST);
+  assert.match(pdf.headers.get('content-security-policy') || '', /default-src 'none'/);
+  assert.doesNotMatch(pdf.headers.get('content-security-policy') || '', /sandbox/);
+  // Settings keeps only the keys it knows, not ones every object has.
+  await app.request('/api/config', { ...HOST, method: 'PUT', headers: { ...HOST.headers, 'content-type': 'application/json' }, body: JSON.stringify({ bring: { toString: true } }) });
+  assert.ok(!Object.hasOwn(store.readConfig().bring, 'toString'));
+  // The queue's folder is the user's alone.
+  if (process.platform !== 'win32') assert.equal(fs.statSync(store.ROOT).mode & 0o077, 0);
   fs.rmSync(dist, { recursive: true, force: true });
 });
 

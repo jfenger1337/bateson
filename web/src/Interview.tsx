@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
-import { isTyping, Reach } from './App';
+import { isTyping, onTabbedButton, Reach } from './App';
 import { ArrowRight, Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { keptKey, useKept, useKeptRef } from './lib/kept';
@@ -303,7 +303,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       // ⏎ on a button reached with Tab presses that button. After a click the button keeps the focus without showing
       // it, and ⏎ goes on as everywhere else.
-      if (e.key === 'Enter' && (e.target as HTMLElement | null)?.closest?.('button, a[href]')?.matches(':focus-visible')) return;
+      if (e.key === 'Enter' && onTabbedButton(e)) return;
       if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); if (early) sendNow(); }
       else if (e.key === 'Enter') { e.preventDefault(); next(); }
       else if (e.key === 'ArrowRight' || e.key === 'j') { e.preventDefault(); go(at + 1); }

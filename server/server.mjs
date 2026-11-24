@@ -18,7 +18,7 @@ const why = whyNot(`run \`node ${install} --login\` with it if the server starts
 
 if (why) {
   console.error(why);
-  try { fs.mkdirSync(root, { recursive: true }); fs.writeFileSync(error, why + '\n'); } catch { /* stderr has it */ }
+  try { fs.mkdirSync(root, { recursive: true, mode: 0o700 }); fs.writeFileSync(error, why + '\n'); } catch { /* stderr has it */ }
   if (process.argv.includes('--login')) {
     serveWhy(why, Number(process.env.BATESON_PORT || 4848));
     setTimeout(() => process.exit(1), Number(process.env.BATESON_STAND_IN_MS) || 60_000);

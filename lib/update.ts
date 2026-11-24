@@ -95,7 +95,7 @@ const version = (v: number[]) => (v[2] ? v.join('.') : v[1] ? `${v[0]}.${v[1]}` 
  * waits for this one to quit and free the port (server/server.ts reads BATESON_REPLACES).
  */
 export function relaunch(repo = REPO) {
-  fs.mkdirSync(store.ROOT, { recursive: true });
+  fs.mkdirSync(store.ROOT, { recursive: true, mode: 0o700 });
   const log = fs.openSync(path.join(store.ROOT, 'server.log'), 'a');
   spawn(process.execPath, [path.join(repo, 'server', 'server.mjs')], {
     cwd: repo, detached: true, windowsHide: true, stdio: ['ignore', log, log],
