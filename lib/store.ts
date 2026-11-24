@@ -19,6 +19,8 @@
 //   <root>/done/<id>/                         delivered items, same layout
 //   <root>/pasted/<id>/v<N>/<name>           screenshots pasted into your own answer; outside the item's folder,
 //                                             so the path the agent is given stays good once the item is filed under done
+//   <root>/recent/<id>.json                   an item's decision was handed over lately: { at }; gone after a day
+//   <root>/hue.json                           the colour the newest item was given: { last }
 //   <root>/sessions/<session>.json            sessions at work (hooks); <session>.tree is lib/worktree.ts's
 //   <root>/config.json                        settings
 //   <root>/hooks.log                          what went wrong in a hook (they never stop a session to say so)
@@ -169,6 +171,8 @@ export function openStore(
   const DONE = path.join(root, 'done');
   const SESSIONS = path.join(root, 'sessions');
   const PASTED = path.join(root, 'pasted');
+  const RECENT = path.join(root, 'recent');
+  const HUE = path.join(root, 'hue.json');
   const CONFIG = path.join(root, 'config.json');
   const HOOK_LOG = path.join(root, 'hooks.log');
 
@@ -283,6 +287,17 @@ export function openStore(
     if (file === null) { doneFiles.clear(); return; }
     const id = doneIdOf(file);
     if (id) doneFiles.delete(id);
+  }
+
+  /**
+   * Drop what was kept of the `share` of done items read longest ago, so they are read again: for a change the
+   * watcher missed. A little at a time, because reading them all at once holds the server up for as long as it
+   * takes, which on Windows with a long history is seconds.
+   */
+  function forgetOldest(share: number) {
+    if (!doneFiles) return;
+    let n = Math.ceil(doneFiles.size * share);
+    for (const id of doneFiles.keys()) { if (n-- <= 0) break; doneFiles.delete(id); }
   }
 
   function readItemJson(file: string): unknown {
@@ -476,7 +491,10 @@ export function openStore(
         fs.copyFileSync(from, path.join(vfile(item, v.n, 'files'), name));
       }
     }
-    item.hue ??= freeHue(item.id);
+    if (!item.hue) {
+      item.hue = freeHue(item.id);
+      try { writeJsonFile(HUE, { last: item.hue }); } catch { /* the next send works it out from the items */ }
+    }
     writeJson(path.join(dir, 'item.json'), item);
     // A decision the reviewer made while this was being written was made on the text it replaced (item.json still
     // said so): it is not a decision on this version, which is waiting now.
@@ -574,7 +592,50 @@ export function openStore(
     try { fs.writeFileSync(vfile(item, n, 'delivered.json'), JSON.stringify({ at: now(), by, ...to } satisfies Delivered), { flag: 'wx' }); }
     catch { return false; }
     forget(item.dir);
+    noteDelivered(item.id);
     return true;
+  }
+
+  // ---- Items whose decision was handed over in the last day. The hooks ask on every prompt and at every turn's
+  // end whether a wake-up was lost and whether an interview's next round is being written, and both are only ever
+  // about a delivery of the last day. Finding those among all the items meant reading every item there has ever
+  // been, each time; on Windows, where opening a file is slow, a prompt waited longer with every decision made.
+  // So a delivery leaves a note here, and only the noted items are looked at.
+
+  const DAY_MS = 24 * 3600 * 1000;
+  /** Note that an item's decision was handed over at `at`. Never in the way of the delivery itself. */
+  function noteDelivered(id: string, at = now()) {
+    try { fs.mkdirSync(RECENT, { recursive: true }); writeJsonFile(path.join(RECENT, `${id}.json`), { at }); } catch { /* the next full look finds it */ }
+  }
+  /**
+   * The items a decision was handed over for in the last day, wherever they live now. Notes older than that go.
+   * A queue from before these notes has no folder for them: every item is looked at, once, and the last day's
+   * deliveries are noted.
+   */
+  function recentlyDelivered(): StoredItem[] {
+    const since = Date.now() - DAY_MS;
+    let names: string[];
+    try { names = fs.readdirSync(RECENT); } catch {
+      const found: [StoredItem, string][] = [];
+      for (const item of [...allQueued(), ...allDone()]) {
+        const d = readDelivered(item, currentVersion(item).n);
+        if (d && Date.parse(d.at) >= since) found.push([item, d.at]);
+      }
+      try { fs.mkdirSync(RECENT, { recursive: true }); } catch { /* nowhere to note them: looked for again next time */ }
+      for (const [item, at] of found) noteDelivered(item.id, at);
+      return found.map(([item]) => item);
+    }
+    const out: StoredItem[] = [];
+    for (const name of names) {
+      if (!name.endsWith('.json')) continue; // a note still being written
+      const file = path.join(RECENT, name);
+      const at = Date.parse((readJson(file) as { at?: string } | null)?.at || '');
+      // One that cannot be read yet is being written; one that never can is a day old by its file's time.
+      if (at < since || (Number.isNaN(at) && (fs.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0) < since)) { fs.rmSync(file, { force: true }); continue; }
+      const item = getItem(name.slice(0, -5));
+      if (item) out.push(item);
+    }
+    return out;
   }
 
   // A wake-up hands its decision to Claude Code and exits; whether it reached the conversation shows only in the
@@ -592,7 +653,7 @@ export function openStore(
   function unconfirmed() {
     const day = Date.now() - 24 * 3600 * 1000;
     const out: { item: StoredItem; n: number; delivered: Delivered }[] = [];
-    for (const item of [...allQueued(), ...allDone()]) {
+    for (const item of recentlyDelivered()) {
       const { n } = currentVersion(item);
       const d = readDelivered(item, n);
       if (!d || !d.by?.startsWith('rewake:') || Date.parse(d.at) < day || isConfirmed(item, n)) continue;
@@ -723,11 +784,17 @@ export function openStore(
 
   // ---- The queue in review order, and what the empty queue shows.
 
-  /** The next colour in turn after the newest item's, skipping every colour an item still waiting has. */
+  /**
+   * The next colour in turn after the newest item's, skipping every colour an item still waiting has. The newest
+   * item's colour is kept in hue.json, so a send reads the items waiting and not every item there has ever been;
+   * a queue from before that file is read whole, once.
+   */
   function freeHue(id: string): Hue {
-    const others = [...allQueued(), ...allDone()].filter((it) => it.id !== id && it.hue);
-    const waiting = new Set(others.filter((it) => isQueued(it) && !readDecision(it, currentVersion(it).n)).map((it) => it.hue));
-    const newest = others.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.hue;
+    const queued = allQueued().filter((it) => it.id !== id && it.hue);
+    const waiting = new Set(queued.filter((it) => !readDecision(it, currentVersion(it).n)).map((it) => it.hue));
+    const kept = (readJson(HUE) as { last?: Hue } | null)?.last;
+    const newest = kept && HUES.includes(kept) ? kept
+      : [...queued, ...allDone().filter((it) => it.id !== id && it.hue)].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.hue;
     const turn = HUES.map((_, i) => HUES[((newest ? HUES.indexOf(newest) + 1 : 0) + i) % HUES.length]);
     return turn.find((h) => !waiting.has(h)) ?? turn[0];
   }
@@ -757,10 +824,11 @@ export function openStore(
   /**
    * Interviews whose answers an agent has received and whose next round it is presumably writing: the answers
    * were delivered in the last 15 minutes, no newer round has arrived, and that session has not ended its turn
-   * since (the Stop hook marks that with stopped.json). `all`: every item, and `live`: liveSessions(), when the
-   * caller has them already.
+   * since (the Stop hook marks that with stopped.json). `all`: every item, when the caller has them already (the
+   * server, which keeps them); otherwise only the items delivered lately are looked at. `live`: liveSessions(),
+   * likewise.
    */
-  function writing(all = [...allQueued(), ...allDone()], live = liveSessions()) {
+  function writing(all = recentlyDelivered(), live = liveSessions()) {
     const out: { id: string; title: string; next: number; sessionId?: string }[] = [];
     const t = Date.now();
     for (const it of all) {
@@ -916,7 +984,7 @@ export function openStore(
     saveEarly, unreportedEarly, markEarlyReported, readDraft, saveDraft,
     pending, hueOf, writing, markStopped,
     validSession, touchSession, sessionRecord, activeSessions, liveSessions, claudeSession, sessionsDir,
-    logHookError, hookErrors, keepDone, forget,
+    logHookError, hookErrors, keepDone, forget, forgetOldest,
   };
 }
 
@@ -943,5 +1011,5 @@ export const {
   saveEarly, unreportedEarly, markEarlyReported, readDraft, saveDraft,
   pending, hueOf, writing, markStopped,
   validSession, touchSession, sessionRecord, activeSessions, liveSessions, claudeSession, sessionsDir,
-  logHookError, hookErrors, keepDone, forget,
+  logHookError, hookErrors, keepDone, forget, forgetOldest,
 } = store;

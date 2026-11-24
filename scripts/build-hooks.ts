@@ -1,4 +1,5 @@
-// Part of `npm run build`: each hook (hooks/<name>.ts) bundled into one plain JavaScript file, hooks/dist/<name>.js.
+// Part of `npm run build`: each hook (hooks/<name>.ts) bundled into one plain JavaScript file, hooks/dist/<name>.js,
+// and the bateson command (cli/bateson.ts) into cli/dist/bateson.js, which an agent waits on just the same.
 //
 // Claude Code starts a hook as a new Node process after every Edit, Write and Bash call, and the agent waits for
 // it. Run from source, each one first strips the types from a dozen TypeScript files, which costs about 100 ms
@@ -13,15 +14,18 @@ import type { Plugin } from 'vite';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOOKS = path.join(REPO, 'hooks');
-const OUT = path.join(HOOKS, 'dist');
-const NAMES = ['catchup', 'nudge', 'remind', 'rewake'];
+const CLI = path.join(REPO, 'cli');
+/** What is bundled: the folder its source is in, which gets a dist folder for the bundles, and their names. */
+const SETS: [string, string[]][] = [[HOOKS, ['catchup', 'nudge', 'remind', 'rewake']], [CLI, ['bateson']]];
 
 // Before the sources are read: a file saved during the build counts as newer than the bundle.
 const built = Date.now();
+for (const [dir, names] of SETS) {
+const OUT = path.join(dir, 'dist');
 fs.rmSync(OUT, { recursive: true, force: true });
 const inputs: Record<string, string[]> = {};
 
-for (const name of NAMES) {
+for (const name of names) {
   const files: string[] = [];
   // A module that finds files next to itself (lib/claude-settings.ts finds hooks/, lib/update.ts the repository)
   // does it from import.meta.url, which in the bundle would be hooks/dist/<name>.js. It is given its own place.
@@ -44,7 +48,7 @@ for (const name of NAMES) {
     plugins: [ownPlace],
     ssr: { noExternal: true, target: 'node' },
     build: {
-      ssr: path.join(HOOKS, `${name}.ts`),
+      ssr: path.join(dir, `${name}.ts`),
       outDir: OUT,
       emptyOutDir: false,
       target: 'node22',
@@ -56,5 +60,6 @@ for (const name of NAMES) {
   inputs[name] = files.filter((f) => path.isAbsolute(f) && fs.existsSync(f)).map((f) => path.relative(REPO, f).split(path.sep).join('/')).sort();
 }
 
-fs.writeFileSync(path.join(OUT, 'inputs.json'), JSON.stringify({ built, hooks: inputs }, null, 2) + '\n');
-console.log(`hooks bundled in ${path.relative(process.cwd(), OUT) || '.'}`);
+fs.writeFileSync(path.join(OUT, 'inputs.json'), JSON.stringify({ built, bundles: inputs }, null, 2) + '\n');
+console.log(`${names.join(', ')} bundled in ${path.relative(process.cwd(), OUT) || '.'}`);
+}

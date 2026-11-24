@@ -108,10 +108,43 @@ test('the app is told where an undecided answer will go', () => {
 /** A wake-up delivered the answer to session `to` two minutes ago, with this transcript. */
 function wokeUp(item: ReturnType<typeof answered>, to: string, transcript: string) {
   const vdir = path.join(item.dir, 'v1');
+  // Taken as the hook takes it, which notes the delivery among the recent ones; then set two minutes back.
+  assert.ok(store.claimDelivery(item, 1, `rewake:${to}`, { sessionId: to, transcript }));
   fs.writeFileSync(path.join(vdir, 'delivered.json'), JSON.stringify({ at: new Date(Date.now() - 120_000).toISOString(), by: `rewake:${to}`, sessionId: to, transcript }));
   store.fileAway(item);
   return store.getItem(item.id)!;
 }
+
+test('a lost wake-up in a queue from before deliveries were noted is still found, and noted from then on', () => {
+  sessionOpen(A_PID, 'A');
+  const item = answered('A');
+  wokeUp(item, 'A', path.join(REPO, '..', 'gone-before.jsonl'));
+  const recent = path.join(store.ROOT, 'recent');
+  fs.rmSync(recent, { recursive: true, force: true });
+  assert.equal(store.unconfirmed().length, 1, 'found by reading every item, once');
+  assert.deepEqual(fs.readdirSync(recent), [`${item.id}.json`]);
+  assert.equal(collect({ sessionId: 'A' }, 'test').length, 1);
+});
+
+test('only items delivered in the last day are looked at for a lost wake-up, and an older note goes', () => {
+  sessionOpen(A_PID, 'A');
+  const item = answered('A');
+  wokeUp(item, 'A', path.join(REPO, '..', 'gone-old.jsonl'));
+  const note = path.join(store.ROOT, 'recent', `${item.id}.json`);
+  fs.writeFileSync(note, JSON.stringify({ at: new Date(Date.now() - 25 * 3600 * 1000).toISOString() }));
+  assert.deepEqual(store.unconfirmed(), []);
+  assert.ok(!fs.existsSync(note));
+});
+
+test('a new item takes the colour after the newest one\'s without the done items being read', () => {
+  const hues = ['slate', 'terracotta', 'moss', 'plum', 'ochre'];
+  const first = answered(null);
+  claim(first.id, 1, 'test');
+  // The done item is gone from disk: only hue.json says what colour came last.
+  fs.rmSync(path.join(store.ROOT, 'done'), { recursive: true, force: true });
+  const next = store.getItem(store.send({ kind: 'review', bodyType: 'markdown', title: 't', note: 'n', body: 'b', source: { cwd: REPO, repo: 'repo' } }).id)!;
+  assert.equal(next.hue, hues[(hues.indexOf(first.hue!) + 1) % hues.length]);
+});
 
 test('a wake-up found in its transcript is confirmed and not handed over again', () => {
   sessionOpen(A_PID, 'A');
