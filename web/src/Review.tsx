@@ -330,6 +330,8 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A key held down decides once: its repeats would land on the next item as it arrives, and decide that unread.
+      if (e.repeat && !isTyping(e)) return;
       // ⌘⏎ is the main action everywhere: here, Approve, or Send back once there are comments.
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !isTyping(e)) {
         e.preventDefault();

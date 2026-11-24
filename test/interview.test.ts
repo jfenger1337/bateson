@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import store from '../lib/store.ts';
-import { formatDecision } from '../lib/kinds.ts';
+import { formatDecision, validateQuestions, checkDecision, kindOf } from '../lib/kinds.ts';
 
 beforeEach(reset);
 
@@ -69,4 +69,35 @@ test('only a picture can be pasted, and only for the version on screen', () => {
   assert.throws(() => store.savePasted(id, n, 'text/html', Buffer.from('<script>')), /Only a picture/);
   assert.throws(() => store.savePasted(id, n + 1, 'image/png', Buffer.from('x')), /newer version/);
   assert.equal(store.pastedPath(store.getItem(id)!, n, '../item.json'), null);
+});
+
+// ---- What a round may be. Answers are matched to their question by id, as text, so a round whose ids cannot be
+// matched (a number, the same one twice) could be sent but never answered.
+
+test('a question id written as a number is taken as its digits, so its answer finds it', () => {
+  const opt = (label: string) => ({ label });
+  const round = validateQuestions({ questions: [
+    { id: 1, title: 'Who owns a team?', options: [opt('The creator'), opt('Billing contact')] },
+    { id: 2, title: 'Invite by link?', options: [opt('Yes'), opt('No')] },
+  ] });
+  assert.deepEqual(round.questions.map((q) => q.id), ['1', '2']);
+  const { id, n } = store.send({ kind: 'decision', bodyType: 'questions', title: 'Team accounts', body: round, source: {} });
+  store.decide(id, n, checkDecision(kindOf(store.getItem(id)!), { decision: 'answer', answers: [{ id: '1', choice: 1 }, { id: '2', choice: 0 }] }));
+  const msg = formatDecision(store.getItem(id)!, n)!;
+  assert.match(msg, /1 Who owns a team\?: Billing contact/);
+  assert.doesNotMatch(msg, /sent this round early/);
+});
+
+test('a round that could not be answered is refused as it is sent, with what is wrong', () => {
+  const opt = (label: string) => ({ label });
+  const q = (over: object) => ({ questions: [{ id: 'Q1', title: 'Who owns a team?', options: [opt('The creator'), opt('Billing contact')], ...over }, { title: 'Invite by link?', options: [opt('Yes'), opt('No')] }] });
+  assert.throws(() => validateQuestions(q({ id: 'Q2' })), /two questions have the id Q2/);
+  assert.throws(() => validateQuestions(q({ id: 'a b/../c' })), /id is a short name/);
+  assert.throws(() => validateQuestions(q({ id: { n: 1 } })), /id is a short name/);
+  assert.throws(() => validateQuestions(q({ title: ['Who?'] })), /needs a title/);
+  assert.throws(() => validateQuestions(q({ options: [{}, opt('B')] })), /option 1: .* needs its label/);
+  assert.throws(() => validateQuestions(q({ options: [opt('A'), null] })), /option 2: .* needs its label/);
+  assert.throws(() => validateQuestions(q({ recommended: 'length' })), /recommended must be an option index/);
+  assert.throws(() => validateQuestions({ questions: [null, null] }), /question 1 is not an object/);
+  assert.equal(validateQuestions(q({})).questions[1].id, 'Q2', 'a question without an id is numbered');
 });

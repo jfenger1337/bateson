@@ -211,7 +211,7 @@ export function openStore(
     const next = readConfig();
     const set = (k: keyof Config, v: unknown) => { (next as Record<keyof Config, unknown>)[k] = v; };
     for (const [k, v] of Object.entries(patch || {}) as [string, unknown][]) {
-      if (!(k in DEFAULTS)) continue;
+      if (!Object.hasOwn(DEFAULTS, k)) continue; // its own keys only: "constructor" is in every object
       const key = k as keyof Config;
       const choices = CHOICES[key];
       if (key === 'bring') {
