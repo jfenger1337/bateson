@@ -24,9 +24,43 @@ DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
   if (data.attrName === 'class' && !(node.nodeName === 'CODE' && /^language-[\w+#.-]+$/.test(data.attrValue))) data.keepAttr = false;
 });
 
+/** Whether an address is on this machine (bateson's own files, a dev server, a data: picture) and not out on the network. */
+function local(url: string) {
+  try {
+    const u = new URL(url, location.href);
+    return ['data:', 'blob:'].includes(u.protocol) || (/^https?:$/.test(u.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname));
+  } catch { return false; }
+}
+const localSet = (srcset: string) => srcset.split(',').every((part) => { const url = part.trim().split(/\s+/)[0]; return !url || local(url); });
+
+/**
+ * Nothing is fetched from the network just because an agent's markdown is on screen: a picture there would tell
+ * its server that, and whatever the address carries, without a click. A remote picture becomes a link to it, which
+ * you may follow; anything else that would load from elsewhere (a video, a poster, an SVG's image) loses the address.
+ */
+function keepLocal(html: string) {
+  const box = document.createElement('template');
+  box.innerHTML = html;
+  for (const el of [...box.content.querySelectorAll('*')]) {
+    const remote = ['src', 'poster', 'background'].some((k) => el.hasAttribute(k) && !local(el.getAttribute(k)!))
+      || (el.hasAttribute('srcset') && !localSet(el.getAttribute('srcset')!))
+      || (el.nodeName !== 'A' && ['href', 'xlink:href'].some((k) => el.hasAttribute(k) && !local(el.getAttribute(k)!)));
+    if (!remote) continue;
+    const src = el.getAttribute('src');
+    if (el.nodeName === 'IMG' && src && !local(src) && /^(https?:)?\/\//i.test(src.trim())) {
+      const a = document.createElement('a');
+      a.href = src; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.textContent = el.getAttribute('alt')?.trim() || src;
+      a.title = 'A picture from the network: not loaded until you open it';
+      el.replaceWith(a);
+    } else for (const k of ['src', 'srcset', 'poster', 'background', 'href', 'xlink:href']) el.removeAttribute(k);
+  }
+  return box.innerHTML;
+}
+
 /** An agent's markdown as HTML that cannot run: whatever HTML it carries is cleaned of scripts and handlers. */
 export function markdownHtml(text: string) {
-  return DOMPurify.sanitize(marked.parse(text, { async: false }) as string, FORBID);
+  return keepLocal(DOMPurify.sanitize(marked.parse(text, { async: false }) as string, FORBID));
 }
 
 export function Markdown({ text, className }: { text: string; className?: string }) {
