@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { easeHeight, swap } from './lib/motion';
 import { keptKey, useKept } from './lib/kept';
+import { usePageHeight } from './lib/fit';
 import type { Decision, Finding, Item, Mark } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
@@ -37,8 +40,10 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
     clearTimeout(timer.current);
     const n = Math.max(0, Math.min(list.length, i));
     if (n === at) return;
-    setDir(n > at ? 'fwd' : 'back');
-    setAt(n);
+    const root = document.documentElement.style;
+    root.setProperty('--q-dir', n > at ? '1' : '-1');
+    root.setProperty('--q-from', '0px');
+    swap('question', () => flushSync(() => { setDir(n > at ? 'fwd' : 'back'); setAt(n); }));
   };
   const later = (by = 1) => { clearTimeout(timer.current); timer.current = window.setTimeout(() => go(at + by), ADVANCE_MS); };
   const focusField = () => window.setTimeout(() => fieldRef.current?.focus(), 0);
@@ -61,6 +66,8 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
   const next = () => { if (reviewing) send(); else go(at + 1); };
 
   useEffect(() => () => clearTimeout(timer.current), []);
+  // The finding's height, for the drop above it (app.css).
+  const pageRef = usePageHeight<HTMLElement>();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -94,7 +101,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
   };
 
   return (
-    <article className={`page interview findings arrive hue-${item.hue}`}>
+    <article ref={pageRef} className={`page interview findings arrive hue-${item.hue}`}>
         {/* The dots sit just above the finding, where you are reading: how far through the list you are, at a glance. */}
         <nav className="iv-steps iv-round" aria-label="Findings">
           {list.map((x, i) => (
@@ -157,7 +164,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
               <span className="opt-text"><span className="opt-label">Keep</span><span className="opt-desc">The agent fixes it.</span></span>
               <span className="key opt-key">K</span>
             </button>
-            <div className={`opt own${commenting ? ' chosen' : ''}`}>
+            <div ref={easeHeight} className={`opt own${commenting ? ' chosen' : ''}`}>
               {commenting || d.comment ? (
                 <>
                   <span className="opt-ring"><Ring kind={commenting ? 'dot' : 'open'} size={18} /></span>
@@ -182,7 +189,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
                 </button>
               )}
             </div>
-            <div className={`opt own${d.mark === 'dismiss' ? ' chosen' : ''}`}>
+            <div ref={easeHeight} className={`opt own${d.mark === 'dismiss' ? ' chosen' : ''}`}>
               {d.mark === 'dismiss' ? (
                 <>
                   <span className="opt-ring"><Ring kind="dot" size={18} /></span>

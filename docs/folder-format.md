@@ -34,6 +34,7 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
                               added (lib/recall.ts). Worked out again when it is missing: safe to delete
   cache/decisions.json        every decision on record as `bateson recall` reads them, kept the same way, so a recall
                               reads one file and not every item. Safe to delete
+  key                         the server's key (lib/key.ts): who sends it is answered. Yours alone to read
   hue.json                    { last }: the colour the newest item was given, so the next one takes the next in turn
   hooks.log                   one line per hook error (the hooks never stop a session to report one)
   server.log                  the server's output, when it runs at login

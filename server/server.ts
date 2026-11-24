@@ -8,12 +8,15 @@ import type { Context } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { streamSSE } from 'hono/streaming';
+import { getCookie, setCookie } from 'hono/cookie';
+import crypto from 'node:crypto';
 import store, { PORT } from '../lib/store.ts';
 import { kindOf, checkDecision } from '../lib/kinds.ts';
 import { missingHooks, writeHooks } from '../lib/claude-settings.ts';
 import { stateView, summaryView } from '../lib/view.ts';
 import { reachOf } from '../lib/delivery.ts';
 import { openUpdater, due } from '../lib/update.ts';
+import { accessKey, sameKey } from '../lib/key.ts';
 
 /** What the app posts to decide: the version it saw (its number and createdAt) and the decision on it. */
 type DecideBody = { n?: unknown; at?: unknown };
@@ -22,10 +25,14 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(HERE, '..', 'web', 'dist');
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const PAGE_SEEN_MS = 20_000;
+const TICKET_MS = 30_000;
+const YEAR_S = 365 * 24 * 3600;
 
 /** The app without a socket. `changed` and `rebuilt` are how pages hear about the queue and a new build. */
-export function createApp({ dist = DIST, updater: given }: { dist?: string | null; updater?: ReturnType<typeof openUpdater> } = {}) {
+export function createApp({ dist = DIST, updater: given, key = accessKey() }: { dist?: string | null; updater?: ReturnType<typeof openUpdater>; key?: string } = {}) {
   store.ensureDirs();
+  // Tickets not yet used, and when each stops being good (lib/key.ts).
+  const tickets = new Map<string, number>();
   const app = new Hono();
   const listeners = new Set<() => void>();
   const reloaders = new Set<() => void>();
@@ -53,6 +60,25 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
       const type = c.req.header('content-type') || '';
       if (!type.startsWith('application/json')) return c.json({ error: 'JSON only' }, 415);
     }
+    // And whose page it is (lib/key.ts): another account on this machine reaches this port too. The key comes from
+    // the command and the Mac app as a header, from a page as the cookie it was given. A ticket is traded for that
+    // cookie, once. Without either, only the page itself and whether the server is up are answered: neither says
+    // anything of yours, and the page says how to get in.
+    const name = `bateson-${host.split(':').pop()}`; // by port: a browser keeps one jar of cookies for all of localhost
+    const sign = () => setCookie(c, name, key, { httpOnly: true, sameSite: 'Lax', path: '/', maxAge: YEAR_S });
+    const ticket = c.req.method === 'GET' ? c.req.query('ticket') : undefined;
+    if (ticket !== undefined) {
+      const until = tickets.get(ticket);
+      tickets.delete(ticket);
+      if (until && until > Date.now()) sign();
+      const to = new URL(c.req.url);
+      to.searchParams.delete('ticket');
+      return c.redirect(to.pathname + to.search, 302);
+    }
+    const bearer = /^Bearer (.+)$/.exec(c.req.header('authorization') || '')?.[1];
+    const cookie = getCookie(c, name);
+    if (sameKey(bearer, key)) { if (c.req.method === 'GET' && cookie !== key) sign(); } // the Mac app's window keeps it for its page
+    else if (!sameKey(cookie, key) && c.req.path.startsWith('/api/') && c.req.path !== '/api/health') return c.json({ error: 'Not signed in', code: 'key' }, 401);
     await next();
     // No other website may frame bateson: a page that put it in a hidden frame could steer your clicks and keys into
     // answering a question or starting an update, with every request coming from bateson's own origin.
@@ -70,6 +96,15 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
   // pages: how many bateson pages are open now (each holds /api/events), so a send knows whether to open one.
   // One that asked in the last 20 seconds counts too, even without a live connection.
   app.get('/api/health', (c) => c.json({ ok: true, pages: Math.max(listeners.size, Date.now() - pageSeen < PAGE_SEEN_MS ? 1 : 0) }));
+
+  // A ticket: an address that signs a page in, for whoever already has the key (`bateson open`, a send that opens the window).
+  app.post('/api/ticket', (c) => {
+    const now = Date.now();
+    for (const [t, until] of tickets) if (until <= now) tickets.delete(t);
+    const ticket = crypto.randomBytes(24).toString('hex');
+    tickets.set(ticket, now + TICKET_MS);
+    return c.json({ ticket });
+  });
 
   app.get('/api/config', (c) => c.json(store.readConfig()));
   app.put('/api/config', async (c) => c.json(store.writeConfig(await json(c))));
@@ -223,7 +258,7 @@ export function createApp({ dist = DIST, updater: given }: { dist?: string | nul
 
 // Files in the queue's folder that no page shows: the logs and the server's own marks, the last colour given, a session's working-tree
 // record (lib/worktree.ts), and a file still being written (it is renamed into place, and that is seen).
-const UNSHOWN = /^(server\.(log|pid|stop|error)|hooks\.log(\.old)?|hue\.json)$/;
+const UNSHOWN = /^(server\.(log|pid|stop|error)|hooks\.log(\.old)?|hue\.json|key)$/;
 const UNSHOWN_ANYWHERE = /\.(tmp|tree)$/;
 // What bateson worked out from the queue and kept (store.writeCache): it says nothing the queue's own files do not.
 const UNSHOWN_UNDER = /^cache([\\/]|$)/;

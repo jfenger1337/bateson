@@ -132,10 +132,12 @@ say('bateson inbox', ...cli('inbox'));
 // ---- The server: what the page asks it, first and after.
 async function server(home: string, port: number) {
   const child = spawn(NODE, [path.join(REPO, 'server', 'server.mjs')], { cwd: REPO, env: { ...process.env, ...env(home), BATESON_PORT: String(port) }, stdio: 'ignore', windowsHide: true });
+  // The server answers the queue only to who has its key (lib/key.ts), made when it starts.
+  const key = () => { try { return fs.readFileSync(path.join(home, 'key'), 'utf8').trim(); } catch { return ''; } };
   const get = (host: string, p: string) => new Promise<number>((resolve, reject) => {
     const t = performance.now();
     // A connection of its own each time, as a page's first request has.
-    http.get({ host, port, path: p, agent: false, headers: { host: `localhost:${port}` } }, (res) => { res.resume(); res.on('end', () => resolve(performance.now() - t)); }).on('error', reject);
+    http.get({ host, port, path: p, agent: false, headers: { host: `localhost:${port}`, authorization: `Bearer ${key()}` } }, (res) => { res.resume(); res.on('end', () => resolve(performance.now() - t)); }).on('error', reject);
   });
   const started = performance.now();
   for (let i = 0; i < 100; i++) { try { await get('127.0.0.1', '/api/health'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }

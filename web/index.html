@@ -28,7 +28,7 @@
     <script>
       try {
         window.__batesonState = fetch('/api/state').then(function (res) {
-          return res.text().then(function (text) { return { ok: res.ok, text: text, told: Number(res.headers.get('x-bateson-told') || NaN) }; });
+          return res.text().then(function (text) { return { ok: res.ok, status: res.status, text: text, told: Number(res.headers.get('x-bateson-told') || NaN) }; });
         });
         window.__batesonState.catch(function () {});
       } catch (e) {}

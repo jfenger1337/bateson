@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { Config, Decision, Item, State } from '@lib/types';
 import { Interview } from './Interview';
 import { Review } from './Review';
@@ -12,7 +13,7 @@ import { Toaster, toast } from 'sonner';
 import { Settings as Gear } from 'lucide-react';
 import { MOD, MOD_KEY, modHeld } from './lib/keys';
 import { setTheme } from '@/lib/theme';
-import { setMotion } from '@/lib/motion';
+import { setMotion, swap } from '@/lib/motion';
 import { forgetKept } from '@/lib/kept';
 import { Logo } from './Logo';
 import { AppMenu } from './Menu';
@@ -21,10 +22,10 @@ import { AppMenu } from './Menu';
 // `at` is the version's createdAt as you saw it: if the agent replaced that version since, the server refuses
 // the decision instead of letting it land on text you never read.
 /** The server's answer to a look at the queue: its text, and how many changes the server had told of by then. */
-interface Answer { ok: boolean; text: string; told: number }
+interface Answer { ok: boolean; status: number; text: string; told: number }
 const ask = async (url: string): Promise<Answer> => {
   const res = await fetch(url);
-  return { ok: res.ok, text: await res.text(), told: Number(res.headers.get('x-bateson-told') || NaN) };
+  return { ok: res.ok, status: res.status, text: await res.text(), told: Number(res.headers.get('x-bateson-told') || NaN) };
 };
 /** The first look, asked for by the page itself before this script had started (index.html); taken once. */
 function early(): Promise<Answer> | undefined {
@@ -39,10 +40,15 @@ interface Held { id: string; n: number; at: string; decision: Decision; label: s
 export function App() {
   const [state, setState] = useState<State | null>(null);
   const [failed, setFailed] = useState(false);
+  const [locked, setLocked] = useState(false);
   // Why the server cannot start, when what answers in its place says (lib/node-check.mjs: a Node too old for it).
   const [why, setWhy] = useState<string | null>(null);
   const [held, setHeld] = useState<Held[]>([]);
-  const [settings, setSettings] = useState(false);
+  const [settings, setSettingsNow] = useState(false);
+  const settingsRef = useRef(false);
+  settingsRef.current = settings;
+  // Settings and back is a swap of the whole work, as the next item is.
+  const setSettings = useCallback((v: boolean | ((was: boolean) => boolean)) => swap('item', () => flushSync(() => setSettingsNow(v))), []);
   const undoMs = useRef(4000);
   const heldRef = useRef<Held[]>([]);
   heldRef.current = held;
@@ -63,6 +69,7 @@ export function App() {
   const told = useRef(NaN);
   const toldNow = useRef(NaN);
   const flying = useRef(0);
+  const lastView = useRef<string | undefined>(undefined);
   const load = useCallback(async () => {
     const q = new URLSearchParams();
     const skip = heldRef.current.map((h) => h.id).join(',');
@@ -78,6 +85,9 @@ export function App() {
       // Something was told between this look and the live updates connecting: it may not be in this answer.
       if (res.told < toldNow.current) { toldNow.current = NaN; load(); }
       // Not the queue: what stands in for a server that cannot start answers 503 with why (lib/node-check.mjs).
+      // Not this browser's to see yet: the server answers only a page it was opened for (lib/key.ts).
+      setLocked(res.status === 401);
+      if (res.status === 401) return;
       if (!res.ok) { setFailed(true); return; }
       setFailed(false);
       if (text === lastText.current) { shownRef.current = lastShown.current; return; }
@@ -90,7 +100,12 @@ export function App() {
       for (const c of s.cancelled || []) forgetKept(c.id);
       lastText.current = text;
       shownRef.current = lastShown.current = s.current?.id;
-      setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
+      const put = () => setState((prev) => (prev?.current && s.current && JSON.stringify(prev.current) === JSON.stringify(s.current) ? { ...s, current: prev.current } : s));
+      // Another thing in front (the next item, a new version of this one, the empty page): the old leaves as it
+      // arrives. Behind settings nothing on screen changes, and the first answer has nothing to leave.
+      const view = s.current ? `${s.current.id}:${s.current.version.n}:${s.current.version.createdAt}` : '';
+      if (lastView.current !== undefined && lastView.current !== view && !settingsRef.current) swap('item', () => flushSync(put)); else put();
+      lastView.current = view;
       if (s.config) { undoMs.current = s.config.undoSeconds * 1000; setTheme(s.config.theme); setMotion(s.config.motion); }
     } catch { if (mine === asked.current) setFailed(true); }
   }, []);
@@ -355,7 +370,7 @@ export function App() {
           )}
         </div>
         <div className="bar-right">
-          {failed && (why
+          {failed && !locked && (why
             // Reloading shows the page that says why in full, with what to do; it is a link, so nothing half written is lost unasked.
             ? <span className="bar-sentence late" title={why}>The bateson server cannot start. <a className="bar-undo" href="/">See why</a></span>
             : <span className="bar-sentence late"><Spinner variant="ellipsis" size={14} aria-hidden />Not connected. Is <span className="rec">bateson serve</span> running?</span>)}
@@ -363,7 +378,7 @@ export function App() {
       </header>
 
       <main className="work">
-        {settings ? (
+        {locked ? <Locked /> : settings ? (
           <Settings update={state?.update} theme={state?.config.theme} onClose={() => setSettings(false)} onChange={(c) => { undoMs.current = c.undoSeconds * 1000; setState((s) => s && { ...s, config: c }); }} />
         ) : !state ? <Loading /> : item ? (
           item.kind === 'interview'
@@ -427,4 +442,20 @@ export function isTyping(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   // In a menu, keys move and pick in the menu: none is a shortcut for the item behind it.
   return !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable || !!t.closest?.('[role="menu"]'));
+}
+
+/**
+ * What a page shows that the server will not answer: one opened by address alone, in a browser bateson has not
+ * been opened in before. The command opens it signed in, and this page goes on by itself once it is (it keeps asking).
+ */
+function Locked() {
+  return (
+    <div className="calm again">
+      <div className="locked">
+        <h1>This browser is not signed in to your bateson</h1>
+        <p>Run <span className="rec">bateson open</span> in a terminal, or ask your agent to. It opens bateson here, and this browser stays signed in.</p>
+        <p className="locked-why">bateson answers only you: other accounts on this machine can reach its address too, and an answer here is an instruction to your agent.</p>
+      </div>
+    </div>
+  );
 }

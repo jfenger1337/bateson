@@ -11,6 +11,7 @@ import { peek, awaitDecision, collect, own, claim, pendingFor } from '../lib/del
 import { agent, canWake, currentSession } from '../lib/agent.ts';
 import { recall, formatRecalled } from '../lib/recall.ts';
 import { RESTART, WSL } from '../lib/update.ts';
+import { ticketUrl } from '../lib/key.ts';
 import type { Attachment, Body, StoredItem } from '../lib/store.ts';
 import type { BodyType, Question, Reply, Source } from '../lib/types.ts';
 
@@ -42,6 +43,7 @@ const HELP = `bateson: a review queue for what needs human judgment.
                             kept with a comment or dismissed. Best match first; with no words, the latest.
   bateson config [--set -]  print the settings, or change them with a JSON patch on stdin (see /setup-bateson)
   bateson serve             run the app on http://localhost:${PORT}
+  bateson open              open bateson in the browser, signed in (the server answers only a page opened this way, or the Mac app)
 
 Interview round JSON:
   { "questions": [ { "id": "Q1", "title": "Install scope", "body": "markdown: the question and its trade-offs",
@@ -209,15 +211,36 @@ function pageOpener(url: string): { exe: string; args: string[] } | null {
   return fs.existsSync(explorer) ? { exe: explorer, args: [url] } : null;
 }
 
-function openPage(): boolean {
-  const how = pageOpener(`http://localhost:${PORT}/`);
-  if (!how) return false;
+function launch(how: { exe: string; args: string[] }): boolean {
   try {
     const child = spawn(how.exe, how.args, { detached: true, stdio: 'ignore', windowsHide: true });
     child.on('error', () => {});
     child.unref();
     return true;
   } catch { return false; }
+}
+
+/** The page signed in (lib/key.ts), or its plain address for a server from before it asked who is there. */
+async function openPage(): Promise<boolean> {
+  if (!pageOpener('')) return false;
+  const how = pageOpener(await ticketUrl() ?? `http://localhost:${PORT}/`);
+  return !!how && launch(how);
+}
+
+/**
+ * `bateson open`: bateson in the browser, signed in. The server answers only a page it was opened for, so one reached
+ * by its address alone asks for this. Where nothing here can open a browser (a machine reached over ssh), the address
+ * is printed to open by hand: it works once, within half a minute.
+ */
+async function cmdOpen() {
+  const url = await ticketUrl();
+  if (!url) die(`the bateson app is not running, or is older than this command. Start it with \`bateson serve\`, or run the installer again, which restarts it.`);
+  const windows = pageOpener(url);
+  if (windows && launch(windows)) { console.log('Opened bateson.'); return; }
+  const onPath = (exe: string) => (process.env.PATH || '').split(path.delimiter).some((d) => d && fs.existsSync(path.join(d, exe)));
+  const exe = process.env.BATESON_NO_OPEN ? null : process.platform === 'darwin' ? 'open' : onPath('xdg-open') ? 'xdg-open' : null;
+  if (exe && launch({ exe, args: [url] })) console.log(`Opened bateson in your browser. If nothing opened, open this yourself within half a minute:\n${url}`);
+  else console.log(`Open this within half a minute, in the browser you use for bateson:\n${url}`);
 }
 
 /**
@@ -306,7 +329,7 @@ async function cmdSend(o: Args) {
   // The rewake hook reads the first line, so keep its shape.
   console.log(`queued ${res.id} v${res.n}${res.replaced ? ' (replaced the unread version)' : ''}`);
   if (started) console.log(`(The bateson app was not running, so it was started.)`);
-  if (running && pages === 0 && openPage()) console.log(`(Opened the bateson window for ${reviewer()}.)`);
+  if (running && pages === 0 && await openPage()) console.log(`(Opened the bateson window for ${reviewer()}.)`);
   if (running && pages === null && pageOpener('')) console.log(`(The bateson server is older than this command. Tell ${reviewer()} to run the installer again, which restarts it.)`);
   if (!running) console.log(`(The bateson app is not running. It is waiting in ~/.bateson; ${reviewer()} can start the app with \`bateson serve\`.)`);
   // What the agent does next depends on whether anything can wake it, which it cannot know and this can check.
@@ -504,6 +527,7 @@ try {
   else if (cmd === 'list') cmdList();
   else if (cmd === 'recall') cmdRecall(o);
   else if (cmd === 'serve') cmdServe();
+  else if (cmd === 'open') await cmdOpen();
   else if (cmd === 'config') cmdConfig(o);
   else process.stdout.write(HELP);
 } catch (e) { die((e as Error).message); }
