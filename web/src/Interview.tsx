@@ -286,6 +286,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (zoom) { e.preventDefault(); setZoom(null); return; }
+      // ⏎ held down goes on once: its repeats would walk every question, send the round and start on the next one.
+      if (e.repeat && e.key === 'Enter') { if (!isTyping(e) || e.metaKey || e.ctrlKey) e.preventDefault(); return; }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); if (isTyping(e)) { (e.target as HTMLElement).blur(); next(); } else next(); return; }
       if (isTyping(e)) {
         if (e.key === 'Escape') (e.target as HTMLElement).blur();

@@ -64,6 +64,8 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A key held down acts once (the arrows aside): its repeats would land on the next item as it arrives.
+      if (e.repeat && !isTyping(e) && e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); if (isTyping(e)) (e.target as HTMLElement).blur(); send(); return; }
       if (isTyping(e)) {
         if (e.key === 'Escape') (e.target as HTMLElement).blur();
