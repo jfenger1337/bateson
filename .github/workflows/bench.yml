@@ -1,10 +1,8 @@
 # How long bateson's parts take on Windows, next to Linux: scripts/bench.ts, as a table on the run's page.
-# By hand, and on a push to the branch that is measuring.
+# Run by hand, from the Actions tab.
 name: bench
 on:
   workflow_dispatch:
-  push:
-    branches: ['claude/blissful-einstein-ty4dxc']
 
 # The workflows only read the code: the token they get can do nothing else.
 permissions:

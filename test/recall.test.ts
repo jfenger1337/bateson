@@ -169,3 +169,20 @@ test('the note is kept until a decision joins the record: asked again it reads n
   fs.writeFileSync(kept, 'not json');
   assert.match(overridesNote(here(), 'Sam'), /Which blue\?/);
 });
+
+test('recall keeps what it read until a decision is added, and then reads the record again', () => {
+  interview(REPO, 0, '2026-11-01T10:00:00.000Z');
+  assert.equal(recall('passkeys').total, 1);
+  const kept = path.join(store.ROOT, 'cache', 'decisions.json');
+  assert.ok(fs.existsSync(kept), 'kept in cache/decisions.json');
+  // What is kept is what is searched: changed by hand, the change is found, so no item was read again.
+  fs.writeFileSync(kept, fs.readFileSync(kept, 'utf8').replaceAll('Passkeys', 'Hardware keys'));
+  assert.equal(recall('hardware').total, 1);
+  // Another decision: the record is read again, and says what it says.
+  interview(OTHER, 1, '2026-11-02T10:00:00.000Z');
+  assert.equal(recall('hardware').total, 0);
+  assert.equal(recall('passkeys').shown.length, 2, 'one per repository');
+  // A copy that cannot be read is no copy.
+  fs.writeFileSync(kept, 'not json');
+  assert.equal(recall('passkeys').shown.length, 2);
+});

@@ -32,6 +32,8 @@ The queue is plain files in `~/.bateson/` (or `$BATESON_HOME`). This is the cont
                               item (lib/store.ts)
   cache/overrides.json        what new sessions are told of your overrides, per checkout, kept until a decision is
                               added (lib/recall.ts). Worked out again when it is missing: safe to delete
+  cache/decisions.json        every decision on record as `bateson recall` reads them, kept the same way, so a recall
+                              reads one file and not every item. Safe to delete
   hue.json                    { last }: the colour the newest item was given, so the next one takes the next in turn
   hooks.log                   one line per hook error (the hooks never stop a session to report one)
   server.log                  the server's output, when it runs at login

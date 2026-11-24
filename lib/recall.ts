@@ -1,5 +1,6 @@
 // `bateson recall`: what the reviewer already decided, one short line each, so an agent can check before it asks
-// again. Read straight from the queue's files on every call: no index, no model, nothing to keep in step.
+// again. Read straight from the queue's files: no index, no model. What was read is kept until a decision is added
+// (everythingKept), so the next call reads one file and not every item.
 import store from './store.ts';
 import type { DecisionFile, StoredItem, StoredVersion } from './store.ts';
 import type { Question, Source } from './types.ts';
@@ -86,6 +87,23 @@ export function everything(which?: (item: StoredItem) => boolean): Recalled[] {
   return out.sort((a, b) => b.at.localeCompare(a.at));
 }
 
+/**
+ * The same, from what was kept the last time when no decision has joined the record since (store.recordSig), in
+ * cache/decisions.json. Working it out reads every item there has ever been, three files each: on Windows, where
+ * opening a file is slow, `bateson recall` took half a second with 2000 items, and an agent runs it before it asks.
+ * One file is read instead. The record itself stays the only source: the copy is dropped the moment its signature
+ * is not the record's, and deleting it costs one slow recall.
+ */
+export function everythingKept(): Recalled[] {
+  // Before the record is read: a decision made meanwhile gives another signature next time.
+  const sig = store.recordSig();
+  const kept = store.readCache('decisions') as { sig?: string; list?: Recalled[] } | null;
+  if (kept?.sig === sig && Array.isArray(kept.list)) return kept.list;
+  const list = everything();
+  store.writeCache('decisions', { sig, list });
+  return list;
+}
+
 // Words in nearly every question ("Which ... should ...?"), which would match everything.
 const COMMON = new Set('the and for with what which who how why when where should would could does this that these those are you your from into than then'.split(' '));
 /** A ticket or issue key (DEV-77996, ABC-12): one word to search for, never "dev" and "77996" apart. */
@@ -134,8 +152,7 @@ const isHere = (s: Pick<Source, 'top' | 'repo'> | undefined, at: { top?: string;
  * The latest times they went against an agent in this checkout, newest first: another option than the one
  * recommended, or an answer of their own. A question answered again counts by its latest answer only.
  */
-export function overrides(at: { top?: string; repo?: string }, limit = 5): Recalled[] {
-  const all = everything((item) => isHere(item.source, at));
+export function overrides(at: { top?: string; repo?: string }, limit = 5, all = everything((item) => isHere(item.source, at))): Recalled[] {
   const groups = grouped(all);
   return all.filter((r) => r.override && (!r.key || groups.get(r.key)![0] === r)).slice(0, limit);
 }
@@ -154,7 +171,7 @@ function overridesKept(at: { top?: string; repo?: string }): Recalled[] {
   const kept = (store.readCache('overrides') || {}) as Kept;
   const hit = Object.hasOwn(kept, key) ? kept[key] : null;
   if (hit?.sig === sig && Array.isArray(hit.list)) return hit.list;
-  const list = overrides(at);
+  const list = overrides(at, 5, everythingKept().filter((r) => isHere({ top: r.top, repo: r.repo }, at)));
   const current = Object.fromEntries(Object.entries(kept).filter(([, v]) => v?.sig === sig));
   store.writeCache('overrides', { ...current, [key]: { sig, list } });
   return list;
@@ -175,7 +192,7 @@ export function overridesNote(at: { top?: string; repo?: string }, who: string) 
  */
 export function recall(query: string, { top, repo, limit = 12 }: { top?: string; repo?: string; limit?: number } = {}) {
   const words = terms(query);
-  const all = everything();
+  const all = everythingKept();
   const groups = grouped(all);
   const here = (r: Recalled) => isHere({ top: r.top, repo: r.repo }, { top, repo }) ? 1 : 0;
   const found: Found[] = [];
