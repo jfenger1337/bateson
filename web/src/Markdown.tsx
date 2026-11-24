@@ -15,6 +15,11 @@ const FORBID = {
   FORBID_TAGS: ['form', 'input', 'button', 'textarea', 'select', 'option', 'style'],
   FORBID_ATTR: ['style', 'action', 'formaction', 'id'],
 };
+// A link opens in a window of its own (the Mac app hands it to the browser): followed in place it would take
+// bateson away from under you, and send whatever decision you could still undo.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.nodeName === 'A' && node.hasAttribute('href')) { node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener noreferrer'); }
+});
 DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
   if (data.attrName === 'class' && !(node.nodeName === 'CODE' && /^language-[\w+#.-]+$/.test(data.attrValue))) data.keepAttr = false;
 });
