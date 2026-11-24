@@ -292,6 +292,10 @@ export async function start() {
     let reloadTimer: ReturnType<typeof setTimeout> | undefined;
     fs.watch(DIST, () => { clearTimeout(reloadTimer); reloadTimer = setTimeout(rebuilt, 300); });
   }
+  // On ::1 as well, where there is one. The page is opened as http://localhost, which Windows looks up as ::1
+  // first: with nothing listening there, each new connection waited for that to fail before it tried 127.0.0.1.
+  // A machine without IPv6 has no ::1 to listen on, and goes without.
+  serve({ fetch: app.fetch, port: PORT, hostname: '::1' }).on('error', () => {});
   serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' }, () => {
     console.log(`bateson on http://localhost:${PORT}${fs.existsSync(DIST) ? '' : ' (API only: run npm run build for the UI)'}`);
   });
