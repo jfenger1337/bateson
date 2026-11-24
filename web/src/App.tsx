@@ -92,7 +92,10 @@ export function App() {
     return () => { es?.close(); clearTimeout(retry); };
   }, [load]);
 
-  useEffect(() => { load(); }, [held, load]);
+  // Again whenever a decision is held or let go: the queue is asked without the held items. Not when the page
+  // opens, which has asked already.
+  const opened = useRef(false);
+  useEffect(() => { if (opened.current) load(); else opened.current = true; }, [held, load]);
 
   const count = (state?.queue.length ?? 0);
   useEffect(() => { document.title = count ? `(${count}) bateson` : 'bateson'; }, [count]);
@@ -346,7 +349,7 @@ export function App() {
         <Gear size={20} strokeWidth={1.75} aria-hidden />
       </button>
 
-      <Splash />
+      <Splash waiting={failed || (state ? !!state.current : undefined)} />
     </div>
     </AppMenu>
   );
