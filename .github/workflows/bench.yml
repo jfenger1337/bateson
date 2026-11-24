@@ -1,0 +1,28 @@
+# How long bateson's parts take on Windows, next to Linux: scripts/bench.ts, as a table on the run's page.
+# By hand, and on a push to the branch that is measuring.
+name: bench
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/blissful-einstein-ty4dxc']
+
+# The workflows only read the code: the token they get can do nothing else.
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/bench.ts --done 2000
