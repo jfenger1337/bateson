@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { press, swap } from './lib/motion';
+import { easeHeight, press, swap } from './lib/motion';
 import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
@@ -460,6 +460,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
           {/* What you wrote stays on screen when you pick an option instead, and on every question you come back
               to: pointing into it makes it your answer again. */}
           <div
+            ref={easeHeight}
             className={`opt own${d.writing ? ' chosen' : said(d) ? ' kept' : ''}`}
             onClick={() => { if (!d.writing && said(d)) otherRef.current?.focus(); }}
           >

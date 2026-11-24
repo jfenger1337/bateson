@@ -51,3 +51,27 @@ export function press(el: Element | null | undefined) {
   const ease = getComputedStyle(document.documentElement).getPropertyValue('--ease-spring').trim() || 'ease-out';
   try { el.animate([{ scale: 0.985 }, { scale: 1 }], { duration: 320, easing: ease }); } catch { /* an easing this browser does not know: no press */ }
 }
+
+/**
+ * A ref for a box whose height follows what is typed in it (the row of your own answer): when its content takes
+ * another line, or gives one back, the box eases to the new height instead of jumping, and what sits under it
+ * moves with it. Nothing is clipped while it does: the letter that started the new line is on the page at once,
+ * and the box comes to it. A change of width (the window resized) is not eased: that is the text reflowing.
+ */
+export function easeHeight(el: HTMLElement | null) {
+  if (!el || typeof ResizeObserver === 'undefined' || !el.animate) return;
+  let h = el.offsetHeight, w = el.offsetWidth;
+  let run: Animation | null = null;
+  const ro = new ResizeObserver(() => {
+    if (run) return; // its own steps; a change made meanwhile shows when it ends, and is eased from there
+    const nh = el.offsetHeight, nw = el.offsetWidth;
+    const from = h;
+    h = nh;
+    if (nw !== w || Math.abs(nh - from) < 2 || reduced()) { w = nw; return; }
+    run = el.animate([{ height: `${from}px` }, { height: `${nh}px` }], { duration: 160, easing: 'cubic-bezier(.2, .8, .2, 1)' }); // --dur-base, --ease-out
+    const end = () => { run = null; };
+    run.finished.then(end, end);
+  });
+  ro.observe(el);
+  return () => { ro.disconnect(); run?.cancel(); };
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { swap } from './lib/motion';
+import { easeHeight, swap } from './lib/motion';
 import { keptKey, useKept } from './lib/kept';
 import { usePageHeight } from './lib/fit';
 import type { Decision, Finding, Item, Mark } from '@lib/types';
@@ -164,7 +164,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
               <span className="opt-text"><span className="opt-label">Keep</span><span className="opt-desc">The agent fixes it.</span></span>
               <span className="key opt-key">K</span>
             </button>
-            <div className={`opt own${commenting ? ' chosen' : ''}`}>
+            <div ref={easeHeight} className={`opt own${commenting ? ' chosen' : ''}`}>
               {commenting || d.comment ? (
                 <>
                   <span className="opt-ring"><Ring kind={commenting ? 'dot' : 'open'} size={18} /></span>
@@ -189,7 +189,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
                 </button>
               )}
             </div>
-            <div className={`opt own${d.mark === 'dismiss' ? ' chosen' : ''}`}>
+            <div ref={easeHeight} className={`opt own${d.mark === 'dismiss' ? ' chosen' : ''}`}>
               {d.mark === 'dismiss' ? (
                 <>
                   <span className="opt-ring"><Ring kind="dot" size={18} /></span>
