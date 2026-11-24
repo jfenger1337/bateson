@@ -228,21 +228,25 @@ const UNSHOWN_ANYWHERE = /\.(tmp|tree)$/;
  * every page read the whole queue again, every second for as long as an agent waited.
  */
 export function watchQueue(root: string, changed: () => void, { settle = 250 } = {}) {
-  const waiters = new Map<string, boolean>();
+  const waiters = new Map<string, string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const soon = () => { clearTimeout(timer); timer = setTimeout(changed, settle); };
-  const watcher = fs.watch(root, { recursive: true }, (event, name) => {
+  const watcher = fs.watch(root, { recursive: true }, (_event, name) => {
     // A change the system could not name (its list of changes overflowed): anything may have changed.
     if (name == null) { store.forget(null); soon(); return; }
     const rel = String(name);
     if (UNSHOWN.test(rel) || UNSHOWN_ANYWHERE.test(rel)) return;
     const file = path.join(root, rel);
     if (path.basename(rel) === 'waiter.json') {
-      const there = fs.existsSync(file);
       // A heartbeat only changes the file's time. A new waiter writes it whole (renamed into place), even over
-      // one left by a waiter that died, and that is told.
-      if (event === 'change' && waiters.get(file) === there) return;
-      if (there) waiters.set(file, true); else waiters.delete(file);
+      // one left by a waiter that died, and that is told. Which of the two it was is read from the file itself,
+      // which file it is and what it says, and not from the kind of event: macOS goes on calling a touch of a
+      // file that was just renamed into place a rename, and every heartbeat then had the pages read the queue.
+      let now: string | undefined;
+      try { now = `${fs.statSync(file).ino}:${fs.readFileSync(file, 'utf8')}`; }
+      catch { if (fs.existsSync(file)) return; } // there, and being replaced this moment: its next event says
+      if (waiters.get(file) === now) return;
+      if (now === undefined) waiters.delete(file); else waiters.set(file, now);
       soon();
       return;
     }
