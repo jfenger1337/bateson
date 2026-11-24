@@ -47,6 +47,8 @@ export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: str
   const front = rows.find((r) => r.item.id === prefer) || rows[0];
   const sent = lastSentBy(all);
   const writing = store.writing(all, live);
+  // Only agents that have sent you something today: a session that is just busy has nothing coming your way.
+  const agents = store.activeSessions(live).filter(({ sessionId }) => sent.has(sessionId));
   return {
     reviewer: reviewer(),
     queue: rows.map((r) => ({ id: r.item.id, n: r.v.n, title: r.v.title || r.item.title, kind: kindOf(r.item, r.v).name, repo: r.item.source?.repo, waiting: r.waiting })),
@@ -55,21 +57,20 @@ export function stateView({ skip = [], prefer }: { skip?: string[]; prefer?: str
     writing: writing.map(({ id, title, next, sessionId }) => ({ id, title, next, sessionId })),
     cancelled: store.withdrawnSince(Date.now() - 10 * 60 * 1000, all.filter((it) => !store.isQueued(it)))
       .map(({ item, w }) => ({ id: item.id, title: store.versionOf(item, w.n)?.title || item.title, at: w.at })),
-    // Only agents that have sent you something today: a session that is just busy has nothing coming your way.
-    agents: store.activeSessions(live).filter(({ sessionId }) => sent.has(sessionId))
-      .map(({ sessionId, repo, title, since }) => ({ sessionId, repo, title: sent.get(sessionId) || title || undefined, since })),
+    agents: agents.map(({ sessionId, repo, title, since }) => ({ sessionId, repo, title: sent.get(sessionId)!.title || title || undefined, since })),
     update: readUpdate(),
-    amas: amas(all, new Set(writing.map((w) => w.id))),
+    // An item whose session is at work again is that agent's row, so it is not in the history as well.
+    amas: amas(all, new Set([...writing.map((w) => w.id), ...agents.map((a) => sent.get(a.sessionId)!.id)])),
   };
 }
 
 /**
  * The interviews (/ama) behind you, newest first, for the empty page. One waiting on you is in the queue, and one
- * whose next round is being written is listed with the agents, so neither is here.
+ * whose next round is being written, or whose session is at work again, is listed with the agents, so none is here.
  */
-function amas(all: StoredItem[], writing: Set<string>, limit = 8): State['amas'] {
+function amas(all: StoredItem[], withAgents: Set<string>, limit = 8): State['amas'] {
   return all
-    .filter((item) => item.kind === 'decision' && !writing.has(item.id))
+    .filter((item) => item.kind === 'decision' && !withAgents.has(item.id))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .slice(0, limit * 3) // newest touched first: only these are worth reading decisions for
     .flatMap((item) => {
@@ -86,21 +87,21 @@ function amas(all: StoredItem[], writing: Set<string>, limit = 8): State['amas']
 }
 
 /**
- * The title of the latest item each session sent in the last day: only these sessions are listed as at work,
- * and each goes by it, so its row reads the same as the question it put to you.
+ * The latest item each session sent in the last day: only these sessions are listed as at work, and each goes by
+ * its title, so its row reads the same as the question it put to you.
  */
-function lastSentBy(all: StoredItem[]): Map<string, string> {
+function lastSentBy(all: StoredItem[]): Map<string, { id: string; title: string }> {
   const day = Date.now() - 24 * 3600 * 1000;
-  const best = new Map<string, { at: string; title: string }>();
+  const best = new Map<string, { at: string; id: string; title: string }>();
   for (const it of all) {
     const v = store.currentVersion(it);
     if (Date.parse(v.createdAt) < day) continue;
     const id = store.readSession(it)?.sessionId;
     if (!id) continue;
     const prev = best.get(id);
-    if (!prev || v.createdAt > prev.at) best.set(id, { at: v.createdAt, title: v.title || it.title });
+    if (!prev || v.createdAt > prev.at) best.set(id, { at: v.createdAt, id: it.id, title: v.title || it.title });
   }
-  return new Map([...best].map(([id, b]) => [id, b.title]));
+  return new Map([...best].map(([id, b]) => [id, { id: b.id, title: b.title }]));
 }
 
 /** For the Mac shell's menubar and Dock badge: cheap enough to poll. */
