@@ -4,6 +4,3 @@ hooks/dist
 cli/dist
 .DS_Store
 mac/build
-windows/bin
-windows/obj
-windows/build

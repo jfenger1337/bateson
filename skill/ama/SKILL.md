@@ -5,7 +5,7 @@ description: Grill the user relentlessly about a plan, decision or idea, one rou
 
 # ama
 
-This is Matt Pocock's `grilling` skill (MIT), with the rounds sent to **bateson**, the user's review queue, instead of written in chat. Load the `bateson` skill for how sending works.
+This is Matt Pocock's `grilling` skill (https://github.com/mattpocock/skills, MIT, copyright Matt Pocock; its license is at the end of this file), with the rounds sent to **bateson**, the user's review queue, instead of written in chat. Load the `bateson` skill for how sending works.
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.
 
@@ -91,3 +91,27 @@ If `command -v bateson` fails, run the rounds in chat, formatted like so, and wa
 ```
 
 Word each question so "yes" accepts your recommended answer.
+
+## License
+
+MIT License
+
+Copyright (c) 2026 Matt Pocock
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
