@@ -10,7 +10,7 @@
 import store from '../lib/store.ts';
 import type { StoredItem } from '../lib/store.ts';
 import { register, release, awaitDecision } from '../lib/delivery.ts';
-import { claudeAncestor } from '../lib/agent.ts';
+import { claudeProcessFor } from '../lib/agent.ts';
 import { REWAKE_TIMEOUT_S } from '../lib/claude-settings.ts';
 import { input, guard } from './_io.ts';
 
@@ -34,7 +34,7 @@ guard(async () => {
   // The session this waits for. When Claude Code goes (closed, crashed) or moves on to another conversation
   // (/clear), the decision is left for whoever may take it, instead of being handed to nobody.
   // Three readings in a row, so a list entry caught half-written does not count as the session going.
-  const claude = claudeAncestor();
+  const claude = claudeProcessFor(hook.session_id);
   const parent = process.ppid;
   let misses = 0;
   const alive = () => {

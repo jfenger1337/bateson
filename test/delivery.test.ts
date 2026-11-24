@@ -251,3 +251,24 @@ test('while a send is writing the next version, a decision waits and none is del
   fs.rmSync(mark);
   assert.match(claim(res.id, res.n, 'test') || '', /Approved/);
 });
+
+test('a hook finds its Claude Code process from the session it is told, when exactly one live process lists it', () => {
+  sessionOpen(A_PID, 'A');
+  assert.equal(store.claudeProcess('A'), A_PID);
+  assert.equal(store.claudeProcess('B'), null, 'no process lists it');
+  sessionOpen(B_PID, 'A');
+  assert.equal(store.claudeProcess('A'), null, 'two do: no telling which');
+});
+
+test('the working tree is recorded in a repository without a commit yet, and with its HEAD once there is one', async () => {
+  const { snapshot } = await import('../lib/worktree.ts');
+  const { execFileSync } = await import('node:child_process');
+  fs.writeFileSync(path.join(REPO, 'new.md'), 'x\n');
+  const before = snapshot(REPO)!;
+  assert.equal(before.top, checkoutOf(REPO));
+  assert.equal(before.head, null);
+  assert.ok(before.files['new.md']);
+  execFileSync('git', ['add', '.'], { cwd: REPO });
+  execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-q', '-m', 'first'], { cwd: REPO });
+  assert.match(snapshot(REPO)!.head!, /^[0-9a-f]{40,64}$/);
+});

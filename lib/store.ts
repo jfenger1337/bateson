@@ -147,6 +147,24 @@ function claudeSessions(dir: string | null): Map<string, string> | null {
   return out;
 }
 
+/**
+ * The Claude Code process that is on session `sessionId` now, by that list: its pid, or null when no live process
+ * lists the session, or more than one does (the same conversation resumed in two terminals), which leaves no telling.
+ */
+function claudeProcessOf(dir: string | null, sessionId: string | undefined): number | null {
+  if (!dir || !sessionId) return null;
+  let files;
+  try { files = fs.readdirSync(dir).filter((f) => /^\d+\.json$/.test(f)); } catch { return null; }
+  const pids: number[] = [];
+  for (const f of files) {
+    let s: { sessionId?: string; pid?: number } | null;
+    try { s = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch { continue; }
+    const pid = s?.pid ?? Number.parseInt(f, 10);
+    if (s?.sessionId === sessionId && pidAlive(pid)) pids.push(pid);
+  }
+  return pids.length === 1 ? pids[0] : null;
+}
+
 /** One Claude Code process's entry in that list: the session it is on now, if the process is alive. */
 function claudeSessionOf(dir: string | null, pid: number): { sessionId: string; status: string } | null {
   if (!dir || !Number.isInteger(pid) || pid <= 1) return null;
@@ -950,6 +968,8 @@ export function openStore(
   const liveSessions = () => claudeSessions(claudeDir);
   /** The session a Claude Code process is on now, or null if it is not one (or not alive). */
   const claudeSession = (pid: number) => claudeSessionOf(claudeDir, pid);
+  /** The one live Claude Code process on a session, or null (claudeProcessOf). */
+  const claudeProcess = (sessionId: string | undefined) => claudeProcessOf(claudeDir, sessionId);
 
   // ---- What went wrong in hooks. A hook never stops a session to say so, so it is written down here instead,
   // one line each, and Settings counts the last day's.
@@ -983,7 +1003,7 @@ export function openStore(
     watchItem, beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
     saveEarly, unreportedEarly, markEarlyReported, readDraft, saveDraft,
     pending, hueOf, writing, markStopped,
-    validSession, touchSession, sessionRecord, activeSessions, liveSessions, claudeSession, sessionsDir,
+    validSession, touchSession, sessionRecord, activeSessions, liveSessions, claudeSession, claudeProcess, sessionsDir,
     logHookError, hookErrors, keepDone, forget, forgetOldest,
   };
 }
@@ -1010,6 +1030,6 @@ export const {
   watchItem, beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
   saveEarly, unreportedEarly, markEarlyReported, readDraft, saveDraft,
   pending, hueOf, writing, markStopped,
-  validSession, touchSession, sessionRecord, activeSessions, liveSessions, claudeSession, sessionsDir,
+  validSession, touchSession, sessionRecord, activeSessions, liveSessions, claudeSession, claudeProcess, sessionsDir,
   logHookError, hookErrors, keepDone, forget, forgetOldest,
 } = store;
