@@ -32,8 +32,23 @@ export function readInput() {
 /** Run hook `name` (catchup, nudge, remind or rewake): its bundle if it is current, else its source. */
 export async function runHook(name) {
   await hookNeedsTypeScript(name);
-  const built = currentBundle(path.join(HERE, 'dist'), name);
-  await import(built ? pathToFileURL(built).href : `./${name}.ts`);
+  // A hook that cannot load (its files rewritten under it by an update, one missing) does nothing, quietly: the
+  // error goes to hooks.log, where Settings shows it, and not to the person as a stack trace after every tool call.
+  try {
+    const built = currentBundle(path.join(HERE, 'dist'), name);
+    await import(built ? pathToFileURL(built).href : `./${name}.ts`);
+  } catch (e) {
+    logHook(name, `could not load: ${e && e.stack ? e.stack : e}`);
+    process.exit(0);
+  }
+}
+
+function logHook(name, text) {
+  try {
+    const root = process.env.BATESON_HOME || path.join(os.homedir(), '.bateson');
+    fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+    fs.appendFileSync(path.join(root, 'hooks.log'), `${new Date().toISOString()} ${name}.ts ${String(text).split('\n').join(' | ')}\n`);
+  } catch (e) { /* nowhere to write */ }
 }
 
 /** Exit unless this Node runs TypeScript. */
@@ -44,11 +59,5 @@ async function hookNeedsTypeScript(name) {
   if (process.env.CLAUDECODE !== '1') process.exit(0);
   const { needTypeScript } = await import('../lib/node-check.mjs');
   const install = path.join(REPO, 'scripts', 'install.mjs');
-  needTypeScript(`run \`node ${install}\` with it, so the hooks use that Node`, (text) => {
-    try {
-      const root = process.env.BATESON_HOME || path.join(os.homedir(), '.bateson');
-      fs.mkdirSync(root, { recursive: true, mode: 0o700 });
-      fs.appendFileSync(path.join(root, 'hooks.log'), `${new Date().toISOString()} ${name}.ts ${text.split('\n').join(' | ')}\n`);
-    } catch (e) { /* nowhere to write: stderr has it */ }
-  });
+  needTypeScript(`run \`node ${install}\` with it, so the hooks use that Node`, (text) => logHook(name, text));
 }

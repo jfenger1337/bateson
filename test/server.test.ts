@@ -357,3 +357,38 @@ test('a delivery that lands while a send is writing the next version leaves the 
   store.fileAway(store.getItem(id)!);
   assert.ok(fs.existsSync(path.join(HOME, 'done', id, 'item.json')), 'moved once the send is done');
 });
+
+test('a recording is sent in the ranges asked for, read from disk as it goes', async () => {
+  const { app } = createApp({ dist: null });
+  const { id } = sent();
+  const item = store.getItem(id)!;
+  fs.mkdirSync(path.join(item.dir, 'v1', 'files'), { recursive: true });
+  const bytes = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256));
+  fs.writeFileSync(path.join(item.dir, 'v1', 'files', 'clip.mp4'), bytes);
+  const url = `/api/items/${id}/files/1/clip.mp4`;
+  const part = await app.request(url, { headers: { ...HOST.headers, range: 'bytes=10-19' } });
+  assert.equal(part.status, 206);
+  assert.equal(part.headers.get('content-range'), 'bytes 10-19/1000');
+  assert.deepEqual(Buffer.from(await part.arrayBuffer()), bytes.subarray(10, 20));
+  const end = await app.request(url, { headers: { ...HOST.headers, range: 'bytes=-5' } });
+  assert.deepEqual(Buffer.from(await end.arrayBuffer()), bytes.subarray(995));
+  const whole = await app.request(url, HOST);
+  assert.equal(whole.status, 200);
+  assert.deepEqual(Buffer.from(await whole.arrayBuffer()), bytes);
+  assert.equal((await app.request(url, { headers: { ...HOST.headers, range: 'bytes=2000-' } })).status, 416);
+  fs.writeFileSync(path.join(item.dir, 'v1', 'files', 'empty.txt'), '');
+  assert.equal(await (await app.request(`/api/items/${id}/files/1/empty.txt`, HOST)).text(), '');
+});
+
+test('a key file left empty (a crash while it was written) is replaced, not a lock-out', () => {
+  const file = path.join(store.ROOT, 'key');
+  const before = fs.readFileSync(file, 'utf8');
+  try {
+    fs.writeFileSync(file, '');
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(file, old, old);
+    const key = accessKey();
+    assert.match(key, /^[0-9a-f]{64}$/);
+    assert.equal(accessKey(), key, 'the same key the next time');
+  } finally { fs.writeFileSync(file, before); }
+});

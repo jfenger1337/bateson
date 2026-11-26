@@ -10,7 +10,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { SETTINGS, writeHooks, stableNode, commandPath } from '../lib/claude-settings.ts';
+import { SETTINGS, writeHooks, stableNode, commandPath, quoted } from '../lib/claude-settings.ts';
 import { AGENTS } from '../lib/agent.ts';
 import { WSL } from '../lib/update.ts';
 
@@ -131,7 +131,7 @@ for (const [link, target] of links) {
 const inCmd = (p: string) => (p.toLowerCase().startsWith(HOME.toLowerCase() + path.sep) ? `%USERPROFILE%${p.slice(HOME.length)}` : p);
 const SHIMS: [string, string][] = WIN ? [
   [`${BIN}.cmd`, `@echo off\r\nrem bateson: the command, made by scripts/install.ts\r\n"${inCmd(NODE)}" "${inCmd(path.join(REPO, 'cli', 'bateson.mjs'))}" %*\r\n`],
-  [BIN, `#!/bin/sh\n# bateson: the command, made by scripts/install.ts\nexec "${commandPath(NODE)}" "${commandPath(path.join(REPO, 'cli', 'bateson.mjs'))}" "$@"\n`],
+  [BIN, `#!/bin/sh\n# bateson: the command, made by scripts/install.ts\nexec ${quoted(commandPath(NODE))} ${quoted(commandPath(path.join(REPO, 'cli', 'bateson.mjs')))} "$@"\n`],
 ] : [];
 for (const [file, text] of [...SHIMS, ...(uninstall && WIN ? (installed?.shims || []).map((f) => [f, ''] as [string, string]) : [])]) {
   const exists = fs.existsSync(file);
@@ -213,9 +213,13 @@ if (WIN) {
       const keepalive = path.join(REPO, 'scripts', 'keepalive.mjs');
       const extra = [...(SERVER_ENV.BATESON_HOME ? ['--home', ROOT] : []), ...(SERVER_ENV.BATESON_PORT ? ['--port', PORT] : [])];
       const quoted = extra.map((a) => (a.startsWith('--') ? a : `"${a}"`)).join(' ');
-      execFileSync('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
+      // A server running is restarted, but a login item is made only when one was asked for (now or before): `bateson
+      // send` starts a server when none is running, and that is no request to start one at every login.
+      if (login || installed?.loginItem) {
+        execFileSync('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
+        log(`the server starts at login (${WIN_LOGIN}): http://localhost:${PORT}`);
+      }
       if (!updating) spawn(NODE, [keepalive, ...extra], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref();
-      log(`the server starts at login (${WIN_LOGIN}): http://localhost:${PORT}`);
     }
   }
 } else if (WSL) {
@@ -232,11 +236,14 @@ if (WIN) {
       const extra = [...(SERVER_ENV.BATESON_HOME ? ['--home', ROOT] : []), ...(SERVER_ENV.BATESON_PORT ? ['--port', PORT] : [])];
       const quoted = extra.map((a) => (a.startsWith('--') ? a : `"${a}"`)).join(' ');
       const distro = process.env.WSL_DISTRO_NAME ? `-d "${process.env.WSL_DISTRO_NAME}" ` : '';
-      try {
-        execFileSync(REG, ['add', RUN_KEY, '/v', WSL_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless wsl.exe ${distro}--exec "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
-        log(`the server starts at Windows login (${WSL_LOGIN}): http://localhost:${PORT}`);
-      } catch {
-        log('could not reach reg.exe from WSL, so the server does not start at login; bateson send starts it when it is down');
+      // As on Windows: restarted when running, a login item only when one was asked for.
+      if (login || installed?.loginItem) {
+        try {
+          execFileSync(REG, ['add', RUN_KEY, '/v', WSL_VALUE, '/t', 'REG_SZ', '/d', `conhost.exe --headless wsl.exe ${distro}--exec "${NODE}" "${keepalive}"${quoted ? ` ${quoted}` : ''}`, '/f'], { stdio: 'ignore' });
+          log(`the server starts at Windows login (${WSL_LOGIN}): http://localhost:${PORT}`);
+        } catch {
+          log('could not reach reg.exe from WSL, so the server does not start at login; bateson send starts it when it is down');
+        }
       }
       if (!updating) spawn(NODE, [keepalive, ...extra], { cwd: REPO, detached: true, stdio: 'ignore' }).unref();
     }
@@ -299,7 +306,7 @@ if (uninstall) fs.rmSync(MANIFEST, { force: true });
 else {
   fs.mkdirSync(path.dirname(MANIFEST), { recursive: true });
   const manifest: Manifest = {
-    at: new Date().toISOString(), repo: REPO, node: NODE, agents: Object.keys(AGENTS),
+    at: new Date().toISOString(), repo: REPO, node: NODE, agents: only ? [only] : Object.keys(AGENTS),
     settings: [SETTINGS], madeSettings, links: links.map(([link]) => link), shims: SHIMS.map(([file]) => file),
     loginItem: login || installed?.loginItem ? (WIN ? WIN_LOGIN : WSL ? WSL_LOGIN : process.platform === 'darwin' ? PLIST : null) : null,
   };

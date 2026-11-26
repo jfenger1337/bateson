@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { easeHeight, swap } from './lib/motion';
 import { keptKey, useKept } from './lib/kept';
 import { usePageHeight } from './lib/fit';
+import { keyOf } from './lib/keys';
 import type { Decision, Finding, Item, Mark } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
@@ -82,14 +83,15 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
       // ⏎ on a button reached with Tab presses that button. After a click the button keeps the focus without showing
       // it, and ⏎ goes on as everywhere else.
       if (e.key === 'Enter' && onTabbedButton(e)) return;
+      const key = keyOf(e);
       if (e.key === 'Enter') { e.preventDefault(); next(); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); go(at + 1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); go(at - 1); }
-      else if (e.key === 'k' && f) { e.preventDefault(); keep(); }
-      else if (e.key === 'x' && f) { e.preventDefault(); dismiss(); }
-      else if (e.key === 'c' && f) { e.preventDefault(); comment(); }
-      else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); onLater(item); }
-      else if (e.key === 'D') { e.preventDefault(); onDecide(item, { decision: 'drop' }); }
+      else if (key === 'k' && f) { e.preventDefault(); keep(); }
+      else if (key === 'x' && f) { e.preventDefault(); dismiss(); }
+      else if (key === 'c' && f) { e.preventDefault(); comment(); }
+      else if (key === 'l' || key === 'L') { e.preventDefault(); onLater(item); }
+      else if (key === 'D') { e.preventDefault(); onDecide(item, { decision: 'drop' }); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

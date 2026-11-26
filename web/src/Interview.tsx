@@ -9,6 +9,7 @@ import { ArrowRight, Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { keptKey, useKept, useKeptRef } from './lib/kept';
 import { usePageHeight } from './lib/fit';
+import { keyOf } from './lib/keys';
 
 // One question at a time. Choosing moves you on; the recommendation is preselected (dashed) until you touch it.
 
@@ -329,12 +330,13 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
       // ⏎ on a button reached with Tab presses that button. After a click the button keeps the focus without showing
       // it, and ⏎ goes on as everywhere else.
       if (e.key === 'Enter' && onTabbedButton(e)) return;
+      const key = keyOf(e);
       if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); if (early) sendNow(); }
       else if (e.key === 'Enter') { e.preventDefault(); next(); }
-      else if (e.key === 'ArrowRight' || e.key === 'j') { e.preventDefault(); go(at + 1); }
-      else if (e.key === 'ArrowLeft' || e.key === 'k') { e.preventDefault(); go(at - 1); }
-      else if (LETTERS.includes(e.key) && q?.options[LETTERS.indexOf(e.key)]) { e.preventDefault(); choose(LETTERS.indexOf(e.key)); hear(LETTERS.indexOf(e.key)); }
-      else if (e.key === 'w') { e.preventDefault(); write(); }
+      else if (e.key === 'ArrowRight' || key === 'j') { e.preventDefault(); go(at + 1); }
+      else if (e.key === 'ArrowLeft' || key === 'k') { e.preventDefault(); go(at - 1); }
+      else if (LETTERS.includes(key) && q?.options[LETTERS.indexOf(key)]) { e.preventDefault(); choose(LETTERS.indexOf(key)); hear(LETTERS.indexOf(key)); }
+      else if (key === 'w') { e.preventDefault(); write(); }
       // Any other character starts your own answer with it, so ending the interview has no key: a capital D
       // would end it mid-sentence.
       else if (e.key.length === 1 && e.key !== ' ') { e.preventDefault(); write(e.key); }

@@ -17,7 +17,19 @@ export function accessKey(): string {
   const had = read();
   if (had) return had;
   store.ensureDirs();
-  try { fs.writeFileSync(FILE(), crypto.randomBytes(32).toString('hex') + '\n', { mode: 0o600, flag: 'wx' }); } catch { /* another got there first */ }
+  // Written whole to a file of its own, then linked into place, which fails if a key is there already: no one ever
+  // reads a key file that is there but still empty. An empty one (left by a crash, or a full disk, before this was
+  // so) is no key, and is replaced.
+  const tmp = `${FILE()}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+  try {
+    fs.writeFileSync(tmp, crypto.randomBytes(32).toString('hex') + '\n', { mode: 0o600 });
+    const st = fs.statSync(FILE(), { throwIfNoEntry: false });
+    if (st && st.size === 0 && Date.now() - st.mtimeMs > 5000) fs.rmSync(FILE(), { force: true });
+    try { fs.linkSync(tmp, FILE()); } catch (e) {
+      // A file system without hard links: written in place, if no other got there first.
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') fs.copyFileSync(tmp, FILE(), fs.constants.COPYFILE_EXCL);
+    }
+  } catch { /* nowhere to write: said below */ } finally { fs.rmSync(tmp, { force: true }); }
   const key = read();
   if (!key) throw new Error(`bateson could not write its key to ${FILE()}.`);
   return key;

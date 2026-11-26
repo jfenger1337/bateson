@@ -9,7 +9,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import store from '../lib/store.ts';
 import { own, checkoutOf, collect } from '../lib/delivery.ts';
-import { stableNode, missingHooks, writeHooks } from '../lib/claude-settings.ts';
+import { stableNode, missingHooks, writeHooks, quoted } from '../lib/claude-settings.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -283,4 +283,11 @@ test('settings kept elsewhere behind a link: the file it points to is changed, t
   writeHooks({ file, uninstall: true });
   assert.ok(fs.lstatSync(file).isSymbolicLink(), 'still a link after uninstall');
   assert.doesNotMatch(fs.readFileSync(real, 'utf8'), /rewake/);
+});
+
+test('a path with $, ` or " in it reaches a hook command as written, not run by the shell', { skip: process.platform === 'win32' }, () => {
+  const odd = '/tmp/a $HOME `id` "q" \\x';
+  const out = spawnSync('sh', ['-c', `printf %s ${quoted(odd)}`], { encoding: 'utf8' }).stdout;
+  assert.equal(out, odd);
+  assert.equal(quoted('/plain/path'), '"/plain/path"', 'a plain path is quoted as before');
 });
