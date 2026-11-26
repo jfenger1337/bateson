@@ -42,6 +42,14 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   const onCode = v.bodyType === 'diff';
   // For each reply (a0, a1, ...), the change it made in this version.
   const links = useRef(new Map<string, Range[]>());
+  // For each reply that changed nothing there, the passage it is about, as it stands in this version.
+  const homes = useRef(new Map<string, Range[]>());
+  // A reply jumped to: its card and its passage light up for a moment.
+  const [pulse, setPulse] = useState<string | null>(null);
+  const pulseTimer = useRef<number | undefined>(undefined);
+
+  // Where a reply is in this version: the change it made, else the passage it is about.
+  const passageOf = (key: string): Range[] => { const r = links.current.get(key); return r?.length ? r : homes.current.get(key) ?? []; };
 
   // The version's attachments, and those its markdown already shows in place: they are not listed again under it.
   const filesBase = `/api/items/${item.id}/files/${v.n}/`;
@@ -55,6 +63,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     const reg = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights;
     const H = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight;
     links.current = new Map();
+    homes.current = new Map();
     if (!root || !prev) return;
     if (v.bodyType === 'diff') {
       asked.forEach((c, k) => {
@@ -73,17 +82,26 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       const at = c.reply?.addressed && c.anchor.kind === 'text' ? locate(old, c.anchor.quote, c.anchor.start, c.anchor.end) : null;
       if (at) links.current.set(`a${k}`, toRanges(changes.at(at[0], at[1])));
     });
+    // A reply that changed nothing sits under the passage it is about, which keeps a dotted underline.
+    const now = root.textContent ?? '';
+    asked.forEach((c, k) => {
+      if (links.current.get(`a${k}`)?.length || c.anchor.kind !== 'text') return;
+      const at = locate(now, c.anchor.quote, c.anchor.start, c.anchor.end);
+      if (at) homes.current.set(`a${k}`, toRanges([at]));
+    });
     reg.set('qr-new', new H(...toRanges(changes.changed)));
-    return () => { reg.delete('qr-new'); };
+    reg.set('qr-asked', new H(...[...homes.current.values()].flat()));
+    return () => { reg.delete('qr-new'); reg.delete('qr-asked'); };
   }, [prev, v]);
 
   useLayoutEffect(() => {
     const reg = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights;
     const H = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight;
     if (!reg || !H) return;
-    reg.set('qr-new-hot', new H(...(hot ? links.current.get(hot) ?? [] : [])));
+    const lit = hot ?? pulse;
+    reg.set('qr-new-hot', new H(...(lit ? passageOf(lit) : [])));
     return () => { reg.delete('qr-new-hot'); };
-  }, [hot]);
+  }, [hot, pulse]);
 
   // A selected passage of the work, as an anchor for a comment; null when the range is not in the work.
   const anchorOf = useCallback((range: Range) => {
@@ -217,10 +235,13 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       return r ? [r] : 'end';
     };
     if (key === 'draft') return draft ? at(draft.anchor) : 'end';
-    if (key.startsWith('a')) { const r = links.current.get(key); return r?.length ? r : 'end'; }
+    if (key.startsWith('a')) {
+      const r = passageOf(key);
+      return r.length ? r : asked[Number(key.slice(1))]?.anchor.kind === 'item' ? 'title' : 'end';
+    }
     const c = comments.find((x) => x.id === key);
     return c ? at(c.anchor) : 'end';
-  }, [comments, draft]);
+  }, [comments, draft, asked]);
 
   // Lay the notes out under the block their place is in, which makes room for them. The room is kept from one pass
   // to the next and changed only when it has to be: taking it away to measure the block without it shortened the
@@ -290,10 +311,29 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       }
       m.held = held;
     }
-    const t = notes.getBoundingClientRect().top;
+    const box = notes.getBoundingClientRect();
+    const t = box.top;
     for (const [b, els] of groups) {
       let y = b.getBoundingClientRect().bottom - t + GAP;
       for (const el of els) { el.style.top = `${Math.round(y)}px`; y += el.offsetHeight + GAP; }
+    }
+    // Each reply's number, in the margin right of the passage it is about: the same number as on its card.
+    const root = bodyRef.current;
+    const taken: { top: number; left: number }[] = [];
+    for (const m of notes.querySelectorAll<HTMLElement>('[data-mark]')) {
+      const p = placeOf(m.dataset.mark!);
+      const first = Array.isArray(p) ? p[0].getClientRects()[0] : undefined;
+      if (!root || !first || !Array.isArray(p)) { m.hidden = true; continue; }
+      const n = p[0].startContainer;
+      let b = n.nodeType === 1 ? n as Element : n.parentElement!;
+      while (b.parentElement && b.parentElement !== root && !b.parentElement.classList.contains('prose')) b = b.parentElement;
+      const top = Math.round(first.top - t + (first.height - 20) / 2);
+      let left = Math.min(b.getBoundingClientRect().right + 12, box.right - 24) - box.left;
+      while (taken.some((x) => Math.abs(x.top - top) < 20 && Math.abs(x.left - left) < 24)) left += 24;
+      taken.push({ top, left });
+      m.hidden = false;
+      m.style.top = `${top}px`;
+      m.style.left = `${Math.round(left)}px`;
     }
   }, [placeOf, release]);
 
@@ -330,6 +370,45 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       if (ranges.some((r) => [...r.getClientRects()].some((b) => e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom))) { found = key; break; }
     }
     if (found !== hot) setHot(found);
+  };
+
+  // Jumping between a reply's card and its passage: the view glides to it, and both light up for a moment.
+  const glide = (top: number, bottom: number) => {
+    const upper = (document.querySelector('.bar')?.getBoundingClientRect().bottom ?? 0) + 16;
+    const foot = (document.querySelector('.decide')?.getBoundingClientRect().top ?? window.innerHeight) - 16;
+    if (top >= upper && bottom <= foot) return;
+    const by = top - upper - Math.max(0, (foot - upper - (bottom - top)) / 3);
+    window.scrollBy({ top: by, behavior: reduced() ? 'auto' : 'smooth' });
+  };
+  const flash = (key: string) => {
+    clearTimeout(pulseTimer.current);
+    setPulse(null);
+    requestAnimationFrame(() => setPulse(key));
+    pulseTimer.current = window.setTimeout(() => setPulse(null), 1400);
+  };
+  useEffect(() => () => clearTimeout(pulseTimer.current), []);
+  const toCard = (key: string) => {
+    const card = notesRef.current?.querySelector<HTMLElement>(`[data-slot="${key}"]`);
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    glide(r.top, r.bottom);
+    flash(key);
+  };
+  const toPassage = (key: string) => {
+    const p = placeOf(key);
+    const r = p === 'title' ? titleRef.current?.getBoundingClientRect() : p === 'end' ? null : p[0].getBoundingClientRect();
+    if (!r) return;
+    glide(r.top, r.bottom);
+    flash(key);
+  };
+  // What the agent did with each comment on the version before, counted, each count a way to step through them.
+  const stateOf = (c: (typeof asked)[number]) => (!c.reply ? 'none' : c.reply.addressed ? 'done' : 'kept');
+  const tally = (['done', 'kept', 'none'] as const).map((st) => ({ st, keys: asked.flatMap((c, k) => (stateOf(c) === st ? [`a${k}`] : [])) })).filter((x) => x.keys.length);
+  const stepped = useRef<Record<string, number>>({});
+  const step = (st: string, keys: string[]) => {
+    const i = ((stepped.current[st] ?? -1) + 1) % keys.length;
+    stepped.current[st] = i;
+    toCard(keys[i]);
   };
 
   const whole: Anchor = { kind: 'item' };
@@ -407,31 +486,50 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
         <aside ref={notesRef} className="notes" aria-label="Your comments">
           {asked.map((c, k) => {
             const key = `a${k}`;
-            const done = !!c.reply?.addressed;
-            const lead = fromFindings ? c.title ?? c.anchor.quote : c.text;
+            const st = stateOf(c);
+            const label = st === 'none' ? 'No reply' : st === 'done' ? (fromFindings ? 'Fixed' : 'Changed') : (fromFindings ? 'Not fixed' : 'Kept');
+            const num = fromFindings ? c.id : String(k + 1);
+            // The passage first, as one muted line, then what you said, then the agent's answer.
+            const about = fromFindings ? c.title ?? c.anchor.quote : c.anchor.kind === 'text' ? c.anchor.quote : null;
+            const mine = c.text;
             return (
               <div
                 key={c.id ?? k}
                 data-slot={key}
-                className={`note-card asked-card${c.reply ? (done ? ' is-done' : ' is-not') : ''}${hot === key ? ' hot' : ''}`}
-                aria-label={`Your ${fromFindings ? 'finding' : 'comment'} on version ${prev!.n}`}
+                className={`note-card asked-card is-${st}${hot === key ? ' hot' : ''}${pulse === key ? ' flash' : ''}`}
+                aria-label={`Your ${fromFindings ? 'finding' : 'comment'} ${num} on version ${prev!.n}: ${label}`}
                 onMouseEnter={() => setHot(key)}
                 onMouseLeave={() => setHot(null)}
+                onClick={(e) => { if (!window.getSelection()?.toString() && !(e.target as Element).closest('a')) toPassage(key); }}
+                title={fromFindings ? undefined : 'Show the passage'}
               >
-                {c.anchor.kind === 'item' && <p className="note-where">On the whole piece</p>}
-                {fromFindings && c.anchor.file && <p className="note-where"><span className="rec">{c.anchor.file}{c.anchor.line ? `:${c.anchor.line}` : ''}</span></p>}
-                {lead && <p className="note-text">{lead}</p>}
-                {fromFindings && c.text && <p className="asked-comment">{c.text}</p>}
-                {!fromFindings && c.anchor.kind === 'text' && c.anchor.quote && (
-                  done ? <p className="asked-was"><s>{clip(c.anchor.quote)}</s></p> : <p className="asked-was"><q>{clip(c.anchor.quote)}</q></p>
-                )}
-                <p className="reply">
-                  <span className="reply-mark">{c.reply ? (done ? (fromFindings ? 'Fixed' : 'Addressed') : 'Not changed') : 'No reply'}</span>
-                  {c.reply && <span className="reply-text">{c.reply.text}</span>}
+                <p className="asked-head">
+                  <span className="asked-n">{num}</span>
+                  <span className="asked-state">{label}</span>
+                  {fromFindings && c.anchor.file && <span className="rec asked-file">{c.anchor.file}{c.anchor.line ? `:${c.anchor.line}` : ''}</span>}
                 </p>
+                {c.anchor.kind === 'item' && !fromFindings
+                  ? <p className="asked-was">On the whole piece</p>
+                  : about && <p className="asked-was">{st === 'done' && !fromFindings ? <s>{clip(about)}</s> : <q>{clip(about)}</q>}</p>}
+                {mine && <p className="asked-mine">{mine}</p>}
+                {c.reply && <p className="asked-reply">{c.reply.text}</p>}
               </div>
             );
           })}
+          {!fromFindings && v.bodyType !== 'diff' && asked.map((c, k) => (
+            <button
+              key={`m${k}`}
+              data-mark={`a${k}`}
+              hidden
+              className={`asked-mark is-${stateOf(c)}${hot === `a${k}` || pulse === `a${k}` ? ' hot' : ''}`}
+              onClick={() => toCard(`a${k}`)}
+              onMouseEnter={() => setHot(`a${k}`)}
+              onMouseLeave={() => setHot(null)}
+              aria-label={`Comment ${k + 1}: show the reply`}
+            >
+              {k + 1}
+            </button>
+          ))}
           {comments.filter((c) => c.id !== draft?.id).map((c) => (
             <div
               key={c.id}
@@ -502,6 +600,20 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
         <div className="decide-in">
           <p className="decide-sentence">
             <Reach item={item} />
+            {tally.length > 0 && (
+              <span className="asked-tally">
+                {asked.length === 1 ? 'Your comment' : `Your ${asked.length} ${fromFindings ? 'findings' : 'comments'}`} on v{prev!.n}:{' '}
+                {tally.map((x, i) => (
+                  <span key={x.st}>
+                    {i > 0 && ', '}
+                    <button className={`tally-btn is-${x.st}`} onClick={() => step(x.st, x.keys)} title="Go to the next one">
+                      {x.keys.length} {x.st === 'done' ? (fromFindings ? 'fixed' : 'changed') : x.st === 'kept' ? (fromFindings ? 'not fixed' : 'kept') : 'without a reply'}
+                    </button>
+                  </span>
+                ))}
+                .{' '}
+              </span>
+            )}
             {comments.length
               ? `${comments.length} comment${comments.length === 1 ? '' : 's'}. Sending back gives the agent exactly these.`
               : onCode

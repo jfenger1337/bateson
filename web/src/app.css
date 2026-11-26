@@ -506,18 +506,35 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 
 /* ---- A revision: your comments on the version before, each beside the change it made: what you said, what it
    said before, and the agent's answer. Pointing at one lights the other. */
-.asked-card { background: var(--linen); border-color: transparent; }
+.asked-card { background: var(--linen); border-color: transparent; cursor: pointer; }
 .asked-card.hot { border-color: rgba(141, 165, 131, 0.8); }
-.asked-card .note-text { margin-top: 0; }
-.asked-card .note-where + .note-text { margin-top: var(--space-6); }
-.asked-comment { margin-top: var(--space-4); font-size: var(--text-meta); line-height: 1.5; color: var(--text-2); white-space: pre-wrap; }
-.asked-was { margin-top: var(--space-6); font-size: var(--text-meta); line-height: 1.45; color: var(--muted); }
+.asked-card.flash { animation: asked-flash 1.4s var(--ease-out); }
+@keyframes asked-flash { 0%, 50% { border-color: var(--border-strong); box-shadow: var(--shadow-card); } }
+.asked-head { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
+.asked-file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-label); color: var(--muted); }
+/* The number on the card and in the margin by its passage: the same chip, so one finds the other. */
+.asked-n, .asked-mark {
+  display: inline-grid; place-items: center; flex: none; min-width: 20px; height: 20px; padding: 0 5px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-full); background: var(--surface);
+  font-size: var(--text-micro); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.notes > .asked-mark { position: absolute; pointer-events: auto; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.notes > .asked-mark[hidden] { display: none; }
+.asked-mark.hot, .asked-mark:hover { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+/* What the agent did, at a glance: changed in green, kept in amber, no reply in grey. */
+.asked-state { padding: 1px var(--space-8); border-radius: var(--radius-full); font-size: var(--text-label); font-weight: 500; line-height: 1.5; }
+.is-done .asked-state { background: rgba(141, 165, 131, 0.24); color: #4E6346; }
+.is-done .asked-state::before { content: '✓ '; }
+.is-kept .asked-state { background: rgba(214, 163, 92, 0.22); color: #8A5A3F; }
+.is-none .asked-state { background: var(--border-soft); color: var(--muted); }
+.asked-was { margin-top: var(--space-8); font-size: var(--text-meta); line-height: 1.45; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asked-was q { font-style: italic; }
 .asked-was s { text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent); }
-.reply { margin-top: var(--space-8); padding-top: var(--space-8); border-top: 1px solid var(--border-soft); font-size: var(--text-meta); line-height: 1.5; color: var(--ink); }
-.reply-mark { display: block; font-size: var(--text-label); color: var(--muted); }
-.is-done .reply-mark { color: #4E6346; }
-.is-done .reply-mark::before { content: '✓ '; }
-.is-not .reply-mark { color: #8A5A3F; }
+.asked-mine { margin-top: var(--space-4); font-size: var(--text-body); font-weight: 500; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.asked-reply { margin-top: var(--space-8); padding-top: var(--space-8); border-top: 1px solid var(--border-soft); font-size: var(--text-meta); line-height: 1.5; color: var(--ink-body); white-space: pre-wrap; }
+::highlight(qr-asked) { text-decoration: underline dotted rgba(138, 90, 63, 0.55); text-underline-offset: 4px; }
+.tally-btn { padding: 0; border: 0; background: none; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; cursor: pointer; }
+.tally-btn:hover { text-decoration-color: currentColor; }
 
 /* ---- Diffs: line numbers are drawn from data attributes, so they are never part of a selection. */
 .diff-sum { margin-bottom: var(--space-12); font-size: var(--text-meta); color: var(--muted); }
@@ -760,8 +777,8 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 [data-theme='dark'] .hue-moss, [data-theme='dark'] .dl-add { --hue-ink: #A9C09F; }
 [data-theme='dark'] .hue-ochre { --hue-ink: #D6BB74; }
 [data-theme='dark'] .fd-sev.fd-high { color: #DDA084; }
-[data-theme='dark'] .is-done .reply-mark { color: #A9C09F; }
-[data-theme='dark'] .is-not .reply-mark { color: #D0A084; }
+[data-theme='dark'] .is-done .asked-state { color: #A9C09F; }
+[data-theme='dark'] .is-kept .asked-state { color: #D0A084; }
 [data-theme='dark']::highlight(qr-note-active), [data-theme='dark'] ::highlight(qr-note-active) { background-color: #7D651C; }
 [data-theme='dark'] .key.on-ink, [data-theme='dark'] .toast .key { border-color: rgba(20, 20, 20, 0.3); color: rgba(20, 20, 20, 0.75); }
 /* The knob is the opposite of its track: light on the grey one, dark on the lit one. */
