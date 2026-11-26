@@ -71,7 +71,10 @@ export function runner(cwd: string): Run {
 export function supervised() {
   // `bateson serve` names itself, so a server it did not start (its child's child) does not count on it.
   if (process.env.BATESON_SERVE_PID && process.env.BATESON_SERVE_PID === String(process.ppid)) return true;
-  if (process.platform === 'darwin') return process.ppid === 1 || (process.env.XPC_SERVICE_NAME || '').includes('com.bateson.server');
+  // The login item starts the server with --login (scripts/install.ts). A parent of pid 1 says nothing: a server
+  // relaunched after an update, or left by a `bateson serve` that was killed, is handed to launchd too, and one that
+  // quit to be restarted would stay down.
+  if (process.platform === 'darwin') return process.argv.includes('--login') || (process.env.XPC_SERVICE_NAME || '').includes('com.bateson.server');
   if (WIN || WSL) { try { return fs.readFileSync(path.join(store.ROOT, 'server.pid'), 'utf8').trim() === String(process.ppid); } catch { return false; } }
   return false;
 }
@@ -192,14 +195,18 @@ export function openUpdater({
         step('Setting it up'); await run(process.execPath, [path.join(repo, 'scripts', 'install.ts'), '--updating']);
       } catch (e) {
         step('Going back to the version you had');
+        let back = true;
         try {
           await git('reset', '--keep', old);
           if (deps) await run('npm', ['ci', '--no-audit', '--no-fund']);
           await run('npm', ['run', 'build']);
           // The new installer may have got as far as changing the hooks: the old one puts its own back.
           await run(process.execPath, [path.join(repo, 'scripts', 'install.ts'), '--updating']);
-        } catch { /* best effort: the old code is still what is running */ }
-        return save({ ...v, state: 'failed', step: undefined, reason: `The update did not go through, so bateson went back to the version you had. ${tail(e)}` });
+        } catch { back = false; /* the old code is still what is running, but it may not start again */ }
+        const reason = back
+          ? `The update did not go through, so bateson went back to the version you had. ${tail(e)}`
+          : `The update did not go through, and going back to the version you had did not finish either, so bateson may not start next time. In ${where}, run npm ci, npm run build and node scripts/install.mjs --login. ${tail(e)}`;
+        return save({ ...v, state: 'failed', step: undefined, reason });
       }
       let note: string | undefined;
       // The Mac window is its own small app, rebuilt only when it changed and only if it is installed.

@@ -28,11 +28,16 @@ const ask = async (url: string): Promise<Answer> => {
   return { ok: res.ok, status: res.status, text: await res.text(), told: Number(res.headers.get('x-bateson-told') || NaN) };
 };
 /** The first look, asked for by the page itself before this script had started (index.html); taken once. */
+let taken = false;
 function early(): Promise<Answer> | undefined {
-  const w = window as unknown as { __batesonState?: Promise<Answer> };
+  // Read once only: once deleted, the name would find any element of the page named so (a picture in an agent's
+  // markdown, <img name="__batesonState">), and every later look at the queue would fail on it.
+  if (taken) return undefined;
+  taken = true;
+  const w = window as unknown as { __batesonState?: unknown };
   const p = w.__batesonState;
   delete w.__batesonState;
-  return p;
+  return p instanceof Promise ? (p as Promise<Answer>) : undefined;
 }
 
 interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; undone?: boolean; sent?: boolean; undo?: () => void }

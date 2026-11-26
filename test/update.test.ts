@@ -38,21 +38,25 @@ beforeEach(() => {
 });
 
 /** git for real; npm and the installer pretend, failing when `fail` names them. Every call is noted. */
-function fake(fail: string[] = []) {
+/** A runner where each command in `fail` fails the first time (the new version's), and `always` every time. */
+function fake(fail: string[] = [], always: string[] = []) {
   const real = runner(LOCAL);
   const calls: string[] = [];
+  const left = [...fail];
   const run: Run = async (cmd, args, opts) => {
     const line = `${path.basename(cmd)} ${args.join(' ')}`;
     calls.push(line);
     if (cmd === 'git') return real(cmd, args, opts);
-    if (fail.some((f) => line.startsWith(f))) throw Object.assign(new Error(`${line} failed`), { output: 'error TS2304: Cannot find name x.\n' });
+    const once = left.findIndex((f) => line.startsWith(f));
+    if (once >= 0) left.splice(once, 1);
+    if (once >= 0 || always.some((f) => line.startsWith(f))) throw Object.assign(new Error(`${line} failed`), { output: 'error TS2304: Cannot find name x.\n' });
     return '';
   };
   return { run, calls };
 }
 
-function updater(opts: { fail?: string[]; restartable?: boolean; node?: string } = {}) {
-  const { run, calls } = fake(opts.fail);
+function updater(opts: { fail?: string[]; always?: string[]; restartable?: boolean; node?: string } = {}) {
+  const { run, calls } = fake(opts.fail, opts.always);
   let exited = 0, replaced = 0;
   const u = openUpdater({ repo: LOCAL, file: FILE, run, restartable: () => opts.restartable ?? true, exit: () => { exited++; }, replace: () => { replaced++; }, macApp: path.join(TMP, 'no-app'), node: opts.node });
   return { u, calls, exited: () => exited, replaced: () => replaced };
@@ -116,6 +120,15 @@ test('a failed build goes back to the version they had and says why', async () =
   assert.equal(v.changes.length, 1, 'the new version is still there to try again');
   await sleep(400);
   assert.equal(exited(), 0);
+});
+
+test('a way back that fails too is not called a way back: it says what to run', async () => {
+  const { u } = updater({ always: ['npm run build'] });
+  commit(OTHER, 'README.md', 'two\n', 'Broken');
+  const v = await u.apply();
+  assert.equal(v.state, 'failed');
+  assert.doesNotMatch(v.reason!, /so bateson went back/);
+  assert.match(v.reason!, /may not start next time.*npm run build/);
 });
 
 test('changed files or commits of their own: never touched', async () => {

@@ -268,3 +268,19 @@ test('the terminal keeps its form for one question, for pick-several, and when t
   assert.equal(ask([asked('A?', 'A'), asked('B?', 'B')], { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' }), null, 'nothing can wake a headless run');
   assert.equal(store.allQueued().length, 0);
 });
+
+test('settings kept elsewhere behind a link: the file it points to is changed, the link stays, and so does who may read it', { skip: process.platform === 'win32' }, () => {
+  const dir = fs.mkdtempSync(path.join(TMP, 'linked-'));
+  const real = path.join(dir, 'dotfiles-settings.json');
+  const file = path.join(dir, 'settings.json');
+  fs.writeFileSync(real, '{}\n', { mode: 0o600 });
+  fs.chmodSync(real, 0o600);
+  fs.symlinkSync(real, file);
+  writeHooks({ file });
+  assert.ok(fs.lstatSync(file).isSymbolicLink(), 'still a link');
+  assert.match(fs.readFileSync(real, 'utf8'), /rewake/);
+  assert.equal(fs.statSync(real).mode & 0o777, 0o600);
+  writeHooks({ file, uninstall: true });
+  assert.ok(fs.lstatSync(file).isSymbolicLink(), 'still a link after uninstall');
+  assert.doesNotMatch(fs.readFileSync(real, 'utf8'), /rewake/);
+});
