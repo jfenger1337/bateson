@@ -126,8 +126,11 @@ for (const [link, target] of links) {
 
 // ---- the command on Windows: bateson.cmd for cmd and PowerShell, and a shell script for Git Bash, where Claude
 // Code runs its commands. Both start the CLI with the same Node as the hooks.
+// cmd reads a .cmd file in the console's code page, not UTF-8: a home folder with a letter outside ASCII (C:\\Users\\Søren)
+// would come out garbled, so a path under it is written from %USERPROFILE%, which cmd fills in itself.
+const inCmd = (p: string) => (p.toLowerCase().startsWith(HOME.toLowerCase() + path.sep) ? `%USERPROFILE%${p.slice(HOME.length)}` : p);
 const SHIMS: [string, string][] = WIN ? [
-  [`${BIN}.cmd`, `@echo off\r\nrem bateson: the command, made by scripts/install.ts\r\n"${NODE}" "${path.join(REPO, 'cli', 'bateson.mjs')}" %*\r\n`],
+  [`${BIN}.cmd`, `@echo off\r\nrem bateson: the command, made by scripts/install.ts\r\n"${inCmd(NODE)}" "${inCmd(path.join(REPO, 'cli', 'bateson.mjs'))}" %*\r\n`],
   [BIN, `#!/bin/sh\n# bateson: the command, made by scripts/install.ts\nexec "${commandPath(NODE)}" "${commandPath(path.join(REPO, 'cli', 'bateson.mjs'))}" "$@"\n`],
 ] : [];
 for (const [file, text] of [...SHIMS, ...(uninstall && WIN ? (installed?.shims || []).map((f) => [f, ''] as [string, string]) : [])]) {

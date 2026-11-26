@@ -73,7 +73,8 @@ export function createApp({ dist = DIST, updater: given, key = accessKey() }: { 
       if (until && until > Date.now()) sign();
       const to = new URL(c.req.url);
       to.searchParams.delete('ticket');
-      return c.redirect(to.pathname + to.search, 302);
+      // Back to this server's own page: a path starting "//" would send the browser to another site.
+      return c.redirect('/' + to.pathname.replace(/^[/\\]+/, '') + to.search, 302);
     }
     const bearer = /^Bearer (.+)$/.exec(c.req.header('authorization') || '')?.[1];
     const cookie = getCookie(c, name);
@@ -333,10 +334,13 @@ export async function start() {
   let pulse = '';
   setInterval(() => {
     if (!pages()) return;
-    store.forgetOldest(1 / 20);
-    const live = store.liveSessions();
-    const now = JSON.stringify([stateView(), store.pending().map((r) => [r.item.id, reachOf(r.item, live)])]);
-    if (now !== pulse) { pulse = now; changed(); }
+    // An error here would end the server (nothing catches it in a timer): it is logged, and the next pulse tries again.
+    try {
+      store.forgetOldest(1 / 20);
+      const live = store.liveSessions();
+      const now = JSON.stringify([stateView(), store.pending().map((r) => [r.item.id, reachOf(r.item, live)])]);
+      if (now !== pulse) { pulse = now; changed(); }
+    } catch (e) { console.error('bateson: the 15-second check failed:', e); }
   }, 15000);
   if (fs.existsSync(DIST)) {
     let reloadTimer: ReturnType<typeof setTimeout> | undefined;

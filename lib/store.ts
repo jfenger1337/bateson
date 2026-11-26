@@ -220,7 +220,8 @@ export function openStore(
 
   function readConfig(): Config {
     const c = (readJson(CONFIG, {}) || {}) as Partial<Config>;
-    const pick = <K extends keyof Config>(k: K): Config[K] => c[k] ?? DEFAULTS[k];
+    // A value of another type than the default's (a hand-edited file) is left out, as if it were not there.
+    const pick = <K extends keyof Config>(k: K): Config[K] => (typeof c[k] === typeof DEFAULTS[k] ? c[k] as Config[K] : DEFAULTS[k]);
     // Only the keys bateson knows, so a setting it no longer has drops out of the file on the next change.
     return {
       name: pick('name'), blocked: pick('blocked'), sound: pick('sound'), hotkey: pick('hotkey'), undoSeconds: pick('undoSeconds'),
@@ -380,7 +381,10 @@ export function openStore(
 
   function load(dir: string): StoredItem | null {
     const item = readItemJson(path.join(dir, 'item.json')) as ItemFile | null;
-    return item ? withDir(item, dir) : null;
+    // An item.json without a version (another producer's, or cut short) is no item: everything after reads the last
+    // version, and one such file would fail every read of the queue.
+    if (!item || typeof item !== 'object' || !Array.isArray(item.versions) || !item.versions.length) return null;
+    return withDir(item, dir);
   }
 
   /** The item as it is now, wherever it lives; or null. */
@@ -503,19 +507,32 @@ export function openStore(
     let mark: string | null = null;
     try {
     if (item) {
-      dir = item.dir;
-      // A finished item coming back for another round re-enters the queue.
-      if (!isQueued(item)) {
-        const back = path.join(ITEMS, path.basename(dir));
-        fs.renameSync(dir, back);
-        forget(dir);
-        dir = back;
+      // A hook delivering the last decision can move the item to done/ while this starts (fileAway): then the
+      // mark finds no folder, or the item is gone from where it was, and it is looked up again where it is now.
+      for (let tries = 0; ; tries++) {
+        dir = item.dir;
+        // A finished item coming back for another round re-enters the queue.
+        if (!isQueued(item)) {
+          const back = path.join(ITEMS, path.basename(dir));
+          fs.renameSync(dir, back);
+          forget(dir);
+          dir = back;
+        }
+        // Marked before the version is looked at: a decision written from here on waits for this send to finish
+        // (decide), and one written before it is seen below, so this becomes the next version instead.
+        mark = path.join(dir, 'replacing.json');
+        let marked = true;
+        try { fs.writeFileSync(mark, JSON.stringify({ pid: process.pid, at: now() })); } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== 'ENOENT' || tries >= 3) throw e;
+          marked = false;
+        }
+        const fresh = marked ? load(dir) : null;
+        if (fresh) { item = fresh; break; }
+        mark = null;
+        if (tries >= 3) throw new Error(`Item ${itemId} moved while it was being sent. Send it again.`);
+        item = getItem(itemId);
+        if (!item) throw new Error(`No item ${itemId}. Leave out --item to start a new one.`);
       }
-      // Marked before the version is looked at: a decision written from here on waits for this send to finish
-      // (decide), and one written before it is seen below, so this becomes the next version instead.
-      mark = path.join(dir, 'replacing.json');
-      fs.writeFileSync(mark, JSON.stringify({ pid: process.pid, at: now() }));
-      item = load(dir)!;
       const last = currentVersion(item);
       const lastDecided = !!readDecision(item, last.n);
       let n;
@@ -745,6 +762,9 @@ export function openStore(
   function fileAway(item: StoredItem) {
     fs.rmSync(ifile(item, 'waiter.json'), { force: true });
     if (!isQueued(item)) return;
+    // Not while a send is writing its next version: that send keeps writing where the item is, and the next
+    // version would be split from the rest of it. It stays queued, with the new version waiting.
+    if (replacing(item)) return;
     fs.mkdirSync(DONE, { recursive: true });
     try { fs.renameSync(item.dir, path.join(DONE, path.basename(item.dir))); } catch { /* already moved */ }
     forget(path.join(DONE, path.basename(item.dir)));

@@ -13,12 +13,13 @@ marked.use({ gfm: true, breaks: false });
  */
 const FORBID = {
   FORBID_TAGS: ['form', 'input', 'button', 'textarea', 'select', 'option', 'style'],
-  FORBID_ATTR: ['style', 'action', 'formaction', 'id'],
+  FORBID_ATTR: ['style', 'action', 'formaction', 'id', 'name'], // a name, like an id, can stand for a global of the page
 };
 // A link opens in a window of its own (the Mac app hands it to the browser): followed in place it would take
 // bateson away from under you, and send whatever decision you could still undo.
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-  if (node.nodeName === 'A' && node.hasAttribute('href')) { node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener noreferrer'); }
+  // An image map's <area> and an SVG <a> (whose nodeName is lowercase) are links too.
+  if ((node.nodeName.toUpperCase() === 'A' || node.nodeName === 'AREA') && (node.hasAttribute('href') || node.hasAttribute('xlink:href'))) { node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener noreferrer'); }
 });
 DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
   if (data.attrName === 'class' && !(node.nodeName === 'CODE' && /^language-[\w+#.-]+$/.test(data.attrValue))) data.keepAttr = false;

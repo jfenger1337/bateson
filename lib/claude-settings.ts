@@ -146,8 +146,14 @@ export function writeHooks({ file = SETTINGS, uninstall = false } = {}): { chang
   let backup: string | null = `${file}.bak-bateson-${Date.now()}`;
   if (fs.existsSync(file)) fs.copyFileSync(file, backup); else backup = null;
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, next);
-  fs.renameSync(tmp, file); // never a half-written settings file
+  // Through a link (dotfiles kept elsewhere), the file it points to is the one changed, and the link stays; and the
+  // file keeps who may read it, since settings can hold tokens.
+  let target = file;
+  try { target = fs.realpathSync(file); } catch { /* not there yet */ }
+  const mode = fs.statSync(target, { throwIfNoEntry: false })?.mode;
+  const tmp = `${target}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, next, mode === undefined ? undefined : { mode: mode & 0o777 });
+  if (mode !== undefined) fs.chmodSync(tmp, mode & 0o777);
+  fs.renameSync(tmp, target); // never a half-written settings file
   return { changed: true, backup, skipped };
 }
