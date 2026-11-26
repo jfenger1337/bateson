@@ -5,6 +5,7 @@ import { locate, newLines, proseChanges } from './changes';
 import { Markdown, markdownHtml } from './Markdown';
 import { Diff } from './Diff';
 import { isTyping, Reach } from './App';
+import { keyOf } from './lib/keys';
 import { easeNote, reduced } from '@/lib/motion';
 
 // Comment on the work. Select any passage and comment on it; on code the comment also records the file and line.
@@ -444,12 +445,13 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
         return;
       }
       if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'c' && picked) { e.preventDefault(); startComment(picked.anchor); }
-      else if (e.key === 'c' && pointed && !draft) { e.preventDefault(); commentOn(pointed.el); }
-      else if (e.key === 'a') { e.preventDefault(); approve(); }
-      else if (e.key === 's') { e.preventDefault(); sendBack(); }
-      else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); onLater(item); }
-      else if (e.key === 'D') { e.preventDefault(); onDecide(item, { decision: 'drop' }); }
+      const key = keyOf(e);
+      if (key === 'c' && picked) { e.preventDefault(); startComment(picked.anchor); }
+      else if (key === 'c' && pointed && !draft) { e.preventDefault(); commentOn(pointed.el); }
+      else if (key === 'a') { e.preventDefault(); approve(); }
+      else if (key === 's') { e.preventDefault(); sendBack(); }
+      else if (key === 'l' || key === 'L') { e.preventDefault(); onLater(item); }
+      else if (key === 'D') { e.preventDefault(); onDecide(item, { decision: 'drop' }); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

@@ -45,9 +45,15 @@ export function stableNode(exec = process.execPath, dirs = [...(process.env.PATH
  * Node in each folder on PATH is a file lookup per folder and more, on every tool call.
  */
 let node: string | undefined;
-const NODE = () => (node ??= `"${commandPath(stableNode())}" `);
+const NODE = () => (node ??= `${quoted(commandPath(stableNode()))} `);
+/**
+ * A path in double quotes, as sh and Git Bash read it: inside them $, ` and " (and \ before those) still mean
+ * something, so a folder named with them would run something else, or nothing. Escaped, they are only letters.
+ * A path without them is written as before, so settings from earlier installs still match.
+ */
+export const quoted = (p: string) => `"${p.replace(/[\\$`"]/g, '\\$&')}"`;
 /** The Node a hook command runs with: the quoted path it starts with. */
-const nodeOf = (command: string) => /^"([^"]+)"/.exec(command)?.[1] ?? null;
+const nodeOf = (command: string) => /^"((?:[^"\\]|\\.)+)"/.exec(command)?.[1]?.replace(/\\(.)/g, '$1') ?? null;
 
 /**
  * How long Claude Code lets the rewake hook wait, in seconds. The hook renews itself a little before this runs
@@ -55,7 +61,7 @@ const nodeOf = (command: string) => /^"([^"]+)"/.exec(command)?.[1] ?? null;
  */
 export const REWAKE_TIMEOUT_S = 14400;
 
-const hook = (file: string, extra: Loose = {}): Hook => ({ type: 'command', command: `${NODE()}"${HOOKS}/${file}"`, ...extra });
+const hook = (file: string, extra: Loose = {}): Hook => ({ type: 'command', command: `${NODE()}${quoted(`${HOOKS}/${file}`)}`, ...extra });
 let built: Record<string, Entry | Entry[]> | undefined;
 const ENTRIES = () => (built ??= {
   PreToolUse: { matcher: 'AskUserQuestion', hooks: [hook('ask.mjs', { timeout: 30 })] },
@@ -118,7 +124,7 @@ export function writeHooks({ file = SETTINGS, uninstall = false } = {}): { chang
     hooks[event] = listed.filter((x) => {
       const e = x as Loose | null | undefined;
       const its = e?.hooks;
-      return !e?.[MARK] && !(Array.isArray(its) && its.length && its.every((h) => String((h as Loose | null | undefined)?.command || '').includes(HOOKS + '/')));
+      return !e?.[MARK] && !(Array.isArray(its) && its.length && its.every((h) => String((h as Loose | null | undefined)?.command || '').includes(quoted(HOOKS + '/').slice(1, -1))));
     });
     if (!(hooks[event] as unknown[]).length) delete hooks[event];
   }

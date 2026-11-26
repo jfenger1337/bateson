@@ -447,11 +447,18 @@ export function openStore(
     try { return fs.readdirSync(vfile(item, n, 'files')).filter((f) => !f.startsWith('.')); } catch { return []; }
   }
 
-  /** An attachment's bytes, or null. The name is a plain file name: nothing outside the version's files. */
-  function readAttachment(item: StoredItem, n: number, name: string) {
+  /** Where an attachment is, with its size, or null. The name is a plain file name: nothing outside the version's files. */
+  function attachmentFile(item: StoredItem, n: number, name: string) {
     if (!Number.isInteger(n) || name !== path.basename(name) || name.startsWith('.')) return null;
     const file = path.join(vfile(item, n, 'files'), name);
-    return fs.statSync(file, { throwIfNoEntry: false })?.isFile() ? fs.readFileSync(file) : null;
+    const st = fs.statSync(file, { throwIfNoEntry: false });
+    return st?.isFile() ? { file, size: st.size } : null;
+  }
+
+  /** An attachment's bytes, or null. */
+  function readAttachment(item: StoredItem, n: number, name: string) {
+    const at = attachmentFile(item, n, name);
+    return at ? fs.readFileSync(at.file) : null;
   }
 
   // ---- Screenshots pasted into your own answer. Each is saved as it is pasted, and the answer names it.
@@ -1097,7 +1104,7 @@ export function openStore(
   return {
     ROOT: root, readConfig, writeConfig, ensureDirs,
     getItem, allQueued, allDone, doneKept, lately, recordSig, readCache, writeCache, isQueued, replacing, currentVersion, versionOf, readDecision, isDelivered, readBody,
-    readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
+    readQuestions, readFindings, attachments, attachmentFile, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
     readWithdrawn, withdraw, withdrawnSince,
     claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
     watchItem, beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,
@@ -1124,7 +1131,7 @@ export function Reviewer() {
 export const {
   ROOT, readConfig, writeConfig, ensureDirs,
   getItem, allQueued, allDone, doneKept, lately, recordSig, readCache, writeCache, isQueued, replacing, currentVersion, versionOf, readDecision, isDelivered, readBody,
-  readQuestions, readFindings, attachments, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
+  readQuestions, readFindings, attachments, attachmentFile, readAttachment, readReplies, savePasted, pastedPath, send, decide, later,
   readWithdrawn, withdraw, withdrawnSince,
   claimDelivery, fileAway, readSession, writeSession, readWaiter, writeWaiter, clearWaiter, waiter, undelivered,
   watchItem, beat, ownerGone, isConfirmed, confirmDelivery, claimRedelivery, unconfirmed,

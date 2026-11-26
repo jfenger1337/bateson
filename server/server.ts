@@ -1,6 +1,7 @@
 // The app's server: the queue as JSON, decisions in, live updates out, and the built UI. Only this machine's
 // own pages may talk to it: other websites, and DNS-rebinding tricks that pose as localhost, are refused.
 import fs from 'node:fs';
+import { Readable } from 'node:stream';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Hono } from 'hono';
@@ -182,25 +183,27 @@ export function createApp({ dist = DIST, updater: given, key = accessKey() }: { 
   app.get('/api/items/:id/files/:n/:name', (c) => {
     const item = store.getItem(c.req.param('id'));
     const name = c.req.param('name');
-    const bytes = item && store.readAttachment(item, Number(c.req.param('n')), name);
-    if (!bytes) return c.notFound();
+    const at = item && store.attachmentFile(item, Number(c.req.param('n')), name);
+    if (!at) return c.notFound();
+    // Read as it is sent, and only the part asked for: a long recording is asked for in many ranges.
+    const stream = (start: number, end: number) => Readable.toWeb(fs.createReadStream(at.file, { start, end })) as ReadableStream;
     // An agent's file never runs as a page on this origin: unknown types are plain text, and everything is sandboxed.
     const type = TYPES[name.split('.').pop()!.toLowerCase()] || 'text/plain; charset=utf-8';
     // A recording or a sound is asked for in ranges (the Mac app's web view plays nothing without them).
     const media = /^(video|audio)\//.test(type);
     const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') || '');
     if (media && range && (range[1] || range[2])) {
-      const size = bytes.length;
+      const size = at.size;
       const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
       const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
       if (start >= size || end < start) return c.body(null, 416, { 'content-range': `bytes */${size}` });
-      return c.body(bytes.subarray(start, end + 1), 206, {
+      return c.body(stream(start, end), 206, {
         'content-type': type, 'x-content-type-options': 'nosniff', 'accept-ranges': 'bytes',
         'content-range': `bytes ${start}-${end}/${size}`, 'content-length': String(end - start + 1),
       });
     }
-    return c.body(bytes, 200, {
-      'content-type': type,
+    return c.body(at.size ? stream(0, at.size - 1) : '', 200, {
+      'content-type': type, 'content-length': String(at.size),
       ...(media ? { 'accept-ranges': 'bytes' } : {}),
       'x-content-type-options': 'nosniff',
       // A PDF is left out of the sandbox, which can stop a browser's own viewer from showing it, but loads nothing either.
