@@ -34,6 +34,8 @@ export interface Reply { comment: number | string; addressed: boolean; text: str
 export interface Finding {
   id: string; title: string; severity: 'high' | 'medium' | 'low'; body: string; fix?: string;
   file?: string; line?: number; excerpt?: { start: number; lines: string[] };
+  /** Pictures of what the finding is about (a screenshot of the bug, before and after), by the name they are attached under. */
+  images?: string[];
 }
 export interface Mark { id: string; mark: 'keep' | 'dismiss'; reason?: string; comment?: string }
 

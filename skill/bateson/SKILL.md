@@ -53,8 +53,11 @@ bateson send --title "Plan: move billing to Stripe" --note "Check step 3." --std
 # Findings: a JSON list. Sorted by severity and numbered F1, F2, ...; the code around each line is captured.
 bateson send --title "Review of the sign-in code" --note "Five findings; F1 is the real one." --findings - <<'EOF'
 [ { "title": "Expired tokens pass the check", "severity": "high", "file": "src/auth.ts", "line": 42,
-    "body": "Markdown: what is wrong and why it matters.", "fix": "Optional markdown: the fix you would make." } ]
+    "body": "Markdown: what is wrong and why it matters.", "fix": "Optional markdown: the fix you would make.",
+    "show": "shots/expired.png" } ]
 EOF
+# "show" on a finding: an image path or a list of them (png, jpg, gif, webp, svg), shown under its body. Use it for a
+# finding about how something looks: a screenshot of the bug, or before and after. Not for decoration.
 # --attach <file> (repeatable) adds screenshots or other files under the body. On an interview round, prefer `show` (below).
 ```
 

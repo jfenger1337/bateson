@@ -281,7 +281,9 @@ async function cmdSend(o: Args) {
     const raw = o.findings === '-' ? readStdin() : fs.readFileSync(o.findings, 'utf8');
     let parsed: unknown;
     try { parsed = JSON.parse(raw); } catch (e) { die(`--findings is not valid JSON: ${(e as Error).message}`); }
-    body = check(() => KINDS.findings.validate(parsed));
+    const found = check(() => KINDS.findings.validate(parsed, process.cwd()));
+    body = found;
+    shown = found.files;
   } else if (o.questions) {
     bodyType = 'questions';
     const raw = o.questions === '-' ? readStdin() : fs.readFileSync(o.questions, 'utf8');

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import store from '../lib/store.ts';
-import { formatDecision, validateQuestions, checkDecision, kindOf } from '../lib/kinds.ts';
+import { formatDecision, validateQuestions, validateFindings, checkDecision, kindOf } from '../lib/kinds.ts';
 
 beforeEach(reset);
 
@@ -100,4 +100,21 @@ test('a round that could not be answered is refused as it is sent, with what is 
   assert.throws(() => validateQuestions(q({ recommended: 'length' })), /recommended must be an option index/);
   assert.throws(() => validateQuestions({ questions: [null, null] }), /question 1 is not an object/);
   assert.equal(validateQuestions(q({})).questions[1].id, 'Q2', 'a question without an id is numbered');
+});
+
+test('a finding shows images: each is attached under its own name, and anything but an image is refused', () => {
+  const dir = fs.mkdtempSync(path.join(REPO, 'shots-'));
+  fs.writeFileSync(path.join(dir, 'bug.png'), 'png');
+  fs.writeFileSync(path.join(dir, 'notes.txt'), 'text');
+  const body = validateFindings([
+    { title: 'Low one', severity: 'low', body: '' },
+    { title: 'Looks wrong', severity: 'high', body: '', show: ['bug.png', 'bug.png'] },
+  ], dir);
+  assert.equal(body.findings[0].title, 'Looks wrong');
+  assert.deepEqual(body.findings[0].images, ['show1-bug.png', 'show2-bug.png']);
+  assert.equal(body.findings[1].images, undefined);
+  assert.deepEqual(body.files.map((f) => typeof f === 'string' ? f : f.name), ['show1-bug.png', 'show2-bug.png']);
+  assert.ok(!('files' in JSON.parse(JSON.stringify(body))), 'the attachments are not stored in the body');
+  assert.throws(() => validateFindings([{ title: 't', show: 'notes.txt' }], dir), /show is the path of an image/);
+  assert.throws(() => validateFindings([{ title: 't', show: 'gone.png' }], dir), /no image gone.png/);
 });

@@ -24,6 +24,10 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
   );
   const [at, setAt] = useKept(`${kk}:at`, () => 0);
   const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
+  // A finding's picture, full size, over the page until a click or Esc.
+  const [zoom, setZoomNow] = useState<string | null>(null);
+  const setZoom = (src: string | null) => swap('zoom', () => flushSync(() => setZoomNow(src)));
+  const filesBase = `/api/items/${item.id}/files/${item.version.n}/`;
   const fieldRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
@@ -73,6 +77,7 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
     const onKey = (e: KeyboardEvent) => {
       // A key held down acts once (the arrows aside): its repeats would land on the next item as it arrives.
       if (e.repeat && !isTyping(e) && e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      if (zoom) { if (e.key === 'Escape') { e.preventDefault(); setZoom(null); } return; }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); if (isTyping(e)) (e.target as HTMLElement).blur(); send(); return; }
       if (isTyping(e)) {
         if (e.key === 'Escape') (e.target as HTMLElement).blur();
@@ -158,6 +163,14 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
             </div>
           )}
           {f.body && <Markdown className="prose q-body" text={f.body} />}
+          {!!f.images?.length && (
+            <div className="fd-shots">
+              {f.images.map((name) => {
+                const src = filesBase + encodeURIComponent(name);
+                return <img key={name} src={src} alt="" title="Click to see it large" onClick={() => setZoom(src)} />;
+              })}
+            </div>
+          )}
           {/* The fix before the choice: you decide having read what the agent would do. */}
           {f.fix && (
             <div className="fd-fix">
@@ -224,6 +237,12 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
             </div>
           </div>
         </section>
+      )}
+
+      {zoom && (
+        <div className="zoomed" role="dialog" aria-label="Picture, full size" onClick={() => setZoom(null)}>
+          <img src={zoom} alt="" />
+        </div>
       )}
 
       <footer className="decide">

@@ -377,12 +377,16 @@ function resolveShow(spec: string, cwd: string, files: Attachment[], what: strin
 const SEVERITY: Record<string, Finding['severity'] | undefined> = { critical: 'high', high: 'high', major: 'high', medium: 'medium', moderate: 'medium', low: 'low', minor: 'low', nit: 'low', info: 'low' };
 const RANK: Record<Finding['severity'], number> = { high: 0, medium: 1, low: 2 };
 
-/** Check findings, sort them highest severity first, number them, and keep the code around each line. */
-export function validateFindings(parsed: unknown, cwd = process.cwd()): { findings: Finding[] } {
+/**
+ * Check findings, sort them highest severity first, number them, and keep the code around each line. A finding's
+ * `show` (an image path, or a list of them) is copied in as an attachment, listed on the body's hidden `files`.
+ */
+export function validateFindings(parsed: unknown, cwd = process.cwd()): { findings: Finding[]; readonly files: Attachment[] } {
   const list = Array.isArray(parsed) ? parsed : (parsed as { findings?: unknown } | null | undefined)?.findings;
   if (!Array.isArray(list) || !list.length) throw new Error('--findings needs a list of findings: [ { "title": ..., "severity": ..., ... } ].');
   let top = cwd;
   try { top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* not a repo */ }
+  const files: Attachment[] = [];
   const out = (list as (Loose | null)[]).map((f, i) => {
     if (!f || typeof f.title !== 'string' || !f.title.trim()) throw new Error(`finding ${i + 1} needs a title.`);
     const severity = SEVERITY[String(f.severity || 'medium').toLowerCase()];
@@ -391,10 +395,23 @@ export function validateFindings(parsed: unknown, cwd = process.cwd()): { findin
     if (line != null && !(line > 0)) throw new Error(`finding ${i + 1}: line must be a positive number.`);
     const x: Omit<Finding, 'id'> = { title: f.title.trim(), severity, body: String(f.body || ''), ...(f.fix ? { fix: String(f.fix) } : {}) };
     if (f.file) Object.assign(x, { file: String(f.file), ...(line ? { line } : {}) }, excerpt([cwd, top], String(f.file), line));
+    if (f.show != null) {
+      const list: unknown[] = Array.isArray(f.show) ? f.show : [f.show];
+      if (!list.length || list.some((s) => typeof s !== 'string' || !IMAGE.test(s.trim()))) throw new Error(`finding ${i + 1}: show is the path of an image (png, jpg, gif, webp, svg), or a list of them.`);
+      x.images = (list as string[]).map((s) => {
+        const file = path.resolve(cwd, s.trim());
+        if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) throw new Error(`finding ${i + 1}: no image ${s.trim()} to show.`);
+        const name = `show${files.length + 1}-${path.basename(file)}`;
+        files.push({ path: file, name });
+        return name;
+      });
+    }
     return { x, i };
   });
   out.sort((a, b) => RANK[a.x.severity] - RANK[b.x.severity] || a.i - b.i);
-  return { findings: out.map(({ x }, k) => ({ id: `F${k + 1}`, ...x })) };
+  const body = { findings: out.map(({ x }, k) => ({ id: `F${k + 1}`, ...x })) };
+  Object.defineProperty(body, 'files', { value: files, enumerable: false });
+  return body as typeof body & { files: Attachment[] };
 }
 
 /** The lines around a finding, so the app can show the code as it was when the finding was sent. */

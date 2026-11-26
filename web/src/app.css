@@ -489,6 +489,9 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .fd-line.here { background: var(--highlight); }
 .fd-line.here::before { color: var(--ink); }
 .findings .fd-code + .q-body { margin-top: var(--space-20); }
+.fd-shots { margin-top: var(--space-20); display: flex; flex-direction: column; gap: var(--space-12); }
+.fd-shots img { display: block; max-width: 100%; max-height: 60vh; object-fit: contain; align-self: flex-start; border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: zoom-in; }
+.fd-shots + .fd-marks { margin-top: var(--space-20); }
 .fd-fix + .fd-marks { margin-top: var(--space-20); }
 .fd-fix { margin-top: var(--space-20); padding: var(--space-12) var(--space-16); border-radius: var(--radius-lg); background: var(--linen); }
 .fd-fix-head { margin-bottom: var(--space-6); font-size: var(--text-label); color: var(--muted); }
