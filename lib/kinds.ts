@@ -374,6 +374,41 @@ function resolveShow(spec: string, cwd: string, files: Attachment[], what: strin
   return { file: m[1], start, lines: lines.slice(start - 1, end) };
 }
 
+/**
+ * The pictures a markdown body shows by a path on this machine (`![flow](docs/flow.png)`, `<img src="flow.svg">`),
+ * relative to `base`: each is attached under a name of its own (its file name, unless `taken` has it), and the body
+ * names it by that, which the app serves from the version's files. Web addresses and data: pictures are left as
+ * they are. Throws when a picture is not there.
+ */
+export function attachImages(md: string, base: string, taken: Set<string> = new Set()): { body: string; files: Attachment[] } {
+  const files: Attachment[] = [];
+  const byPath = new Map<string, string>();
+  const nameFor = (src: string) => {
+    let rel = src;
+    try { rel = decodeURI(src); } catch { /* as written */ }
+    if (/^([a-z][\w+.-]*:|\/\/|#)/i.test(rel) || !IMAGE.test(rel.replace(/[?#].*$/, ''))) return null;
+    const file = path.resolve(base, rel.replace(/[?#].*$/, ''));
+    if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) throw new Error(`the body shows ${src}, and there is no such image (paths are from ${base}).`);
+    let name = byPath.get(file);
+    if (!name) {
+      name = path.basename(file);
+      for (let k = 2; taken.has(name); k++) name = `img${k}-${path.basename(file)}`;
+      taken.add(name); byPath.set(file, name); files.push({ path: file, name });
+    }
+    return encodeURIComponent(name);
+  };
+  const body = md
+    .replace(/(!\[[^\]]*\]\(\s*)(<[^>]+>|[^\s)]+)/g, (m, head: string, src: string) => {
+      const name = nameFor(src.replace(/^<|>$/g, ''));
+      return name ? head + name : m;
+    })
+    .replace(/(<img\b[^>]*?\bsrc\s*=\s*)(["'])(.*?)\2/gi, (m, head: string, q: string, src: string) => {
+      const name = nameFor(src.trim());
+      return name ? `${head}${q}${name}${q}` : m;
+    });
+  return { body, files };
+}
+
 const SEVERITY: Record<string, Finding['severity'] | undefined> = { critical: 'high', high: 'high', major: 'high', medium: 'medium', moderate: 'medium', low: 'low', minor: 'low', nit: 'low', info: 'low' };
 const RANK: Record<Finding['severity'], number> = { high: 0, medium: 1, low: 2 };
 

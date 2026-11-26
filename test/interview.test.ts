@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import store from '../lib/store.ts';
-import { formatDecision, validateQuestions, validateFindings, checkDecision, kindOf } from '../lib/kinds.ts';
+import { formatDecision, validateQuestions, validateFindings, attachImages, checkDecision, kindOf } from '../lib/kinds.ts';
 
 beforeEach(reset);
 
@@ -117,4 +117,17 @@ test('a finding shows images: each is attached under its own name, and anything 
   assert.ok(!('files' in JSON.parse(JSON.stringify(body))), 'the attachments are not stored in the body');
   assert.throws(() => validateFindings([{ title: 't', show: 'notes.txt' }], dir), /show is the path of an image/);
   assert.throws(() => validateFindings([{ title: 't', show: 'gone.png' }], dir), /no image gone.png/);
+});
+
+test('a plan shows its pictures: each path is attached once, by a name of its own, and the body names it by that', () => {
+  const dir = fs.mkdtempSync(path.join(REPO, 'plan-'));
+  fs.mkdirSync(path.join(dir, 'a')); fs.mkdirSync(path.join(dir, 'b'));
+  fs.writeFileSync(path.join(dir, 'a', 'flow chart.png'), 'png');
+  fs.writeFileSync(path.join(dir, 'b', 'flow chart.png'), 'png');
+  const md = '![one](a/flow%20chart.png)\n![again](<a/flow chart.png>)\n<img src="b/flow chart.png">\n![web](https://example.com/x.png)\n';
+  const { body, files } = attachImages(md, dir, new Set());
+  assert.deepEqual(files.map((f) => typeof f === 'string' ? f : f.name), ['flow chart.png', 'img2-flow chart.png']);
+  assert.equal(body, '![one](flow%20chart.png)\n![again](flow%20chart.png)\n<img src="img2-flow%20chart.png">\n![web](https://example.com/x.png)\n');
+  assert.equal(attachImages('no pictures', dir).files.length, 0);
+  assert.throws(() => attachImages('![x](gone.png)', dir), /shows gone.png, and there is no such image/);
 });

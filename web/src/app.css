@@ -819,3 +819,6 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 
 /* What is shown beside a question fades in as it changes with the option you point at. */
 .iv-preview-stage { animation: qr-fade var(--dur-fast) var(--ease-out); }
+
+/* A picture in a plan: as wide as the text at most, framed like an attachment. */
+.prose img { display: block; max-width: 100%; height: auto; margin: var(--space-16) 0; border: 1px solid var(--border); border-radius: var(--radius); }

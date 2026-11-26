@@ -38,9 +38,21 @@ const localSet = (srcset: string) => srcset.split(',').every((part) => { const u
  * its server that, and whatever the address carries, without a click. A remote picture becomes a link to it, which
  * you may follow; anything else that would load from elsewhere (a video, a poster, an SVG's image) loses the address.
  */
-function keepLocal(html: string) {
+function keepLocal(html: string, files?: string, used?: Set<string>) {
   const box = document.createElement('template');
   box.innerHTML = html;
+  // A picture named by a plain file name ("flow.png") is one sent along with the body (`bateson send` attaches
+  // the images a plan shows), served from the version's files.
+  if (files) {
+    for (const img of [...box.content.querySelectorAll('img')]) {
+      const raw = img.getAttribute('src')?.trim() ?? '';
+      let name = raw;
+      try { name = decodeURIComponent(raw); } catch { /* as written */ }
+      if (!name || /[/\\:?#]/.test(name) || name.startsWith('.')) continue;
+      img.setAttribute('src', files + encodeURIComponent(name));
+      used?.add(name);
+    }
+  }
   for (const el of [...box.content.querySelectorAll('*')]) {
     const src = el.getAttribute('src');
     // Each address is judged by itself: a picture here with a larger one elsewhere (srcset) keeps the one here.
@@ -60,11 +72,12 @@ function keepLocal(html: string) {
 }
 
 /** An agent's markdown as HTML that cannot run: whatever HTML it carries is cleaned of scripts and handlers. */
-export function markdownHtml(text: string) {
-  return keepLocal(DOMPurify.sanitize(marked.parse(text, { async: false }) as string, FORBID));
+/** With `files`, the address of the version's attachments: a picture named by one of them shows it, and is added to `used`. */
+export function markdownHtml(text: string, files?: string, used?: Set<string>) {
+  return keepLocal(DOMPurify.sanitize(marked.parse(text, { async: false }) as string, FORBID), files, used);
 }
 
-export function Markdown({ text, className }: { text: string; className?: string }) {
-  const html = useMemo(() => markdownHtml(text), [text]);
+export function Markdown({ text, className, files }: { text: string; className?: string; files?: string }) {
+  const html = useMemo(() => markdownHtml(text, files), [text, files]);
   return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
 }

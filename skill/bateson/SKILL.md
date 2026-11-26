@@ -59,6 +59,9 @@ EOF
 # "show" on a finding: an image path or a list of them (png, jpg, gif, webp, svg), shown under its body. Use it for a
 # finding about how something looks: a screenshot of the bug, or before and after. Not for decoration.
 # --attach <file> (repeatable) adds screenshots or other files under the body. On an interview round, prefer `show` (below).
+# A plan's diagrams: put them in the markdown where they belong, `![Who approves what](diagrams/approvals.png)`,
+# by a path from the .md file (or from here with --stdin). They go with it and show in place. Never a placeholder
+# like `[diagram: approvals.png]`: that shows as text.
 ```
 
 Run `bateson send` as a command of its own: not piped (`| tail`, `| head`), not chained after other output, not in the background. What it prints first is how your answer finds its way back to this session, and what it prints last is what to do next.

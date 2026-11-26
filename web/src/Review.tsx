@@ -5,7 +5,6 @@ import { locate, newLines, proseChanges } from './changes';
 import { Markdown, markdownHtml } from './Markdown';
 import { Diff } from './Diff';
 import { isTyping, Reach } from './App';
-import { MOD } from './lib/keys';
 import { easeNote, reduced } from '@/lib/motion';
 
 // Comment on the work. Select any passage and comment on it; on code the comment also records the file and line.
@@ -44,6 +43,10 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   // For each reply (a0, a1, ...), the change it made in this version.
   const links = useRef(new Map<string, Range[]>());
 
+  // The version's attachments, and those its markdown already shows in place: they are not listed again under it.
+  const filesBase = `/api/items/${item.id}/files/${v.n}/`;
+  const inline = useMemo(() => { const used = new Set<string>(); if (v.bodyType === 'markdown') markdownHtml(v.body as string, filesBase, used); return used; }, [v, filesBase]);
+  const listed = v.files.filter((f) => !inline.has(f));
   const freshLines = useMemo(() => (prev && v.bodyType === 'diff' && prev.bodyType === 'diff' ? newLines(prev.body, v.body as string) : undefined), [prev, v]);
 
   // A revision: each changed sentence takes a tint, whole, and each reply finds the change it made.
@@ -61,7 +64,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     }
     if (prev.bodyType === 'diff' || prev.bodyType === 'findings' || !reg || !H) return;
     const before = document.createElement('div');
-    if (prev.bodyType === 'markdown') before.innerHTML = markdownHtml(prev.body);
+    if (prev.bodyType === 'markdown') before.innerHTML = markdownHtml(prev.body, `/api/items/${item.id}/files/${prev.n}/`);
     else before.textContent = prev.body;
     const old = before.textContent ?? '';
     const changes = proseChanges(old, root.textContent ?? '');
@@ -383,15 +386,15 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
         {v.note && <p className="note">{v.note}</p>}
 
         <div ref={bodyRef} data-comments className={`body body-${v.bodyType}`} onMouseMove={onBodyMove} onMouseLeave={() => setHot(null)}>
-          {v.bodyType === 'markdown' && <Markdown className="prose" text={v.body as string} />}
+          {v.bodyType === 'markdown' && <Markdown className="prose" text={v.body as string} files={filesBase} />}
           {v.bodyType === 'text' && <div className="prose plain">{v.body as string}</div>}
           {v.bodyType === 'diff' && <Diff text={v.body as string} fresh={freshLines} />}
         </div>
 
-        {v.files.length > 0 && (
+        {listed.length > 0 && (
           <section className="files">
-            {v.files.map((f) => {
-              const src = `/api/items/${item.id}/files/${v.n}/${encodeURIComponent(f)}`;
+            {listed.map((f) => {
+              const src = filesBase + encodeURIComponent(f);
               return /\.(png|jpe?g|gif|webp|svg)$/i.test(f)
                 ? <figure key={f}><img src={src} alt={f} /><figcaption className="rec">{f}</figcaption></figure>
                 : <a key={f} className="rec file-link" href={src} target="_blank" rel="noreferrer">{f}</a>;
@@ -455,13 +458,14 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
                 value={draft.text}
                 onChange={(e) => setDraft({ ...draft, text: e.target.value })}
                 onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); save(); }
+                  // ⏎ adds the comment, shift ⏎ starts a new line in it.
+                  if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.nativeEvent.isComposing) { e.preventDefault(); e.stopPropagation(); if (draft.text.trim()) save(); }
                   if (e.key === 'Escape') setDraft(null);
                 }}
               />
               <div className="note-actions">
                 <button className="btn-quiet sm" onClick={() => setDraft(null)}>Cancel</button>
-                <button className="btn-primary sm" onClick={save} disabled={!draft.text.trim()}>{draft.send ? 'Send back' : draft.id ? 'Save' : 'Add'} <span className="key on-ink">{MOD}⏎</span></button>
+                <button className="btn-primary sm" onClick={save} disabled={!draft.text.trim()}>{draft.send ? 'Send back' : draft.id ? 'Save' : 'Add'} <span className="key on-ink">⏎</span></button>
               </div>
             </div>
           )}

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import store, { PORT, reviewer, Reviewer, BODY_TYPES } from '../lib/store.ts';
-import { KINDS, toAnswer } from '../lib/kinds.ts';
+import { KINDS, toAnswer, attachImages } from '../lib/kinds.ts';
 import { peek, awaitDecision, collect, own, claim, pendingFor } from '../lib/delivery.ts';
 import { agent, canWake, currentSession } from '../lib/agent.ts';
 import { recall, formatRecalled } from '../lib/recall.ts';
@@ -313,6 +313,12 @@ async function cmdSend(o: Args) {
   const names = attach.map((f) => path.basename(f));
   const twice = names.find((n, i) => names.indexOf(n) !== i);
   if (twice) die(`two attachments are named ${twice}: rename one, or copy it under another name.`);
+  // The pictures a plan shows by path go with it, and it names them by the name they are attached under.
+  if (bodyType === 'markdown') {
+    const pics = check(() => attachImages(body as string, o.file ? path.dirname(path.resolve(o.file)) : process.cwd(), new Set(names)));
+    body = pics.body;
+    shown = pics.files;
+  }
   const kind = bodyType === 'questions' ? 'decision' : 'review';
   if (o.item) {
     const it = findOrDie(o.item);
