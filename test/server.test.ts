@@ -312,3 +312,48 @@ test('the queue is answered only to who has the key: the command, the Mac app, a
   if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(HOME, 'key')).mode & 0o077, 0);
   fs.rmSync(dist, { recursive: true, force: true });
 });
+
+test('a ticket sends the browser back to this server only, never to a path that names another site', async () => {
+  const { app } = createApp({ dist: null });
+  const bare = { headers: { host: 'localhost:4848' } };
+  for (const url of ['//evil.example/?ticket=x', '/\\evil.example/?ticket=x', '///evil.example?ticket=x']) {
+    const to = (await app.request(url, bare)).headers.get('location') || '';
+    assert.ok(to.startsWith('/') && !to.startsWith('//') && !to.startsWith('/\\'), `${url} -> ${to}`);
+  }
+});
+
+test('an item.json without versions is left out of the queue, and the queue still reads', async () => {
+  const { app } = createApp({ dist: null });
+  const { id } = sent();
+  const bad = path.join(HOME, 'items', 'q_broken');
+  fs.mkdirSync(bad, { recursive: true });
+  fs.writeFileSync(path.join(bad, 'item.json'), JSON.stringify({ id: 'q_broken', kind: 'review', title: 'x', versions: [] }));
+  assert.equal(store.getItem('q_broken'), null);
+  const res = await app.request('/api/state', HOST);
+  assert.equal(res.status, 200);
+  assert.ok(JSON.stringify(await res.json()).includes(id));
+});
+
+test('a setting of the wrong type in config.json reads as its default', () => {
+  fs.mkdirSync(HOME, { recursive: true });
+  const file = path.join(HOME, 'config.json');
+  const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+  try {
+    fs.writeFileSync(file, JSON.stringify({ name: 5, sound: 'yes' }));
+    const c = store.readConfig();
+    assert.equal(c.name, '');
+    assert.equal(c.sound, true);
+  } finally { if (before == null) fs.rmSync(file, { force: true }); else fs.writeFileSync(file, before); }
+});
+
+test('a delivery that lands while a send is writing the next version leaves the item whole, in the queue', () => {
+  const { id } = sent();
+  store.decide(id, 1, { decision: 'approve' } as never);
+  const item = store.getItem(id)!;
+  fs.writeFileSync(path.join(item.dir, 'replacing.json'), JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
+  store.fileAway(item);
+  assert.ok(fs.existsSync(path.join(HOME, 'items', id, 'item.json')), 'not moved while a send is writing');
+  fs.rmSync(path.join(item.dir, 'replacing.json'));
+  store.fileAway(store.getItem(id)!);
+  assert.ok(fs.existsSync(path.join(HOME, 'done', id, 'item.json')), 'moved once the send is done');
+});
