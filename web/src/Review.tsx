@@ -348,8 +348,12 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       while (at && at.nodeType !== 1 && at.parentElement?.classList.contains('prose')) at = at.nextSibling;
       let b = !at ? n.parentElement! : at.nodeType === 1 ? at as Element : at.parentElement!;
       while (b.parentElement && b.parentElement !== root && !b.parentElement.classList.contains('prose')) b = b.parentElement;
+      // No room in the margin (a phone, where the words run to the edge): no number, rather than one over the last
+      // words of the line. The card under the passage carries the same number, and opens when you tap it.
+      const right = b.getBoundingClientRect().right;
+      if (right + 12 + 20 > box.right) { m.hidden = true; continue; }
       const top = Math.round(first.top - t + (first.height - 20) / 2);
-      let left = Math.min(b.getBoundingClientRect().right + 12, box.right - 24) - box.left;
+      let left = right + 12 - box.left;
       while (taken.some((x) => Math.abs(x.top - top) < 20 && Math.abs(x.left - left) < 24)) left += 24;
       taken.push({ top, left });
       m.hidden = false;
