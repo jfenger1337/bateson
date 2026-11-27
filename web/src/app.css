@@ -565,6 +565,36 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 
 /* ---- Diffs: line numbers are drawn from data attributes, so they are never part of a selection. */
 .diff-sum { margin-bottom: var(--space-12); font-size: var(--text-meta); color: var(--muted); }
+/* A jump to a file (Diff.tsx DiffFiles) stops with its header clear of the bar. */
+.diff-file { scroll-margin-top: calc(var(--bar-h) + var(--space-16)); }
+/* The list of files over a diff of more than three: what each holds, a click to go to it, a mark once read. The
+   list says the totals, so the line in the body that says them steps aside (it stays in the text comments count). */
+.page.review:has(.diff-files) .diff-sum { display: none; }
+.diff-files { margin-top: var(--space-32); }
+.diff-files-sum { display: flex; justify-content: space-between; gap: var(--space-12); margin-bottom: var(--space-8); font-size: var(--text-meta); color: var(--muted); }
+.diff-files-sum .all { color: var(--hue-ink, var(--ink)); }
+.diff-files ul { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.diff-files li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto 72px; align-items: center; gap: var(--space-10); min-height: 32px; padding: 0 var(--space-12) 0 var(--space-8); }
+.diff-files li + li { border-top: 1px solid var(--border-soft); }
+.diff-files-mark {
+  display: grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 1.5px solid var(--faint); border-radius: 4px;
+  background: transparent; color: transparent; cursor: pointer; transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.diff-files-mark:hover { border-color: var(--ink); }
+.diff-files-mark[aria-pressed='true'] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.diff-files-mark[aria-pressed='true'] svg { animation: bt-settle var(--dur-spring) var(--ease-spring); }
+.diff-files-path {
+  min-width: 0; padding: var(--space-6) 0; border: 0; background: none; color: var(--ink); font-size: var(--text-label); text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.diff-files-path:hover { text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.diff-files li.read .diff-files-path { color: var(--muted); }
+.diff-files-n { font-size: var(--text-micro); color: var(--muted); white-space: nowrap; }
+.diff-files-bar { display: flex; gap: 1px; height: 6px; justify-content: flex-end; }
+.diff-files-bar i { display: block; border-radius: 2px; }
+.diff-files-bar .add { background: rgba(141, 165, 131, 0.8); }
+.diff-files-bar .del { background: rgba(201, 137, 107, 0.75); }
+@media (max-width: 760px) { .diff-files li { grid-template-columns: auto minmax(0, 1fr) auto; } .diff-files-bar { display: none; } }
 .diff-file { margin-bottom: var(--space-20); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
 .diff-path { padding: var(--space-10) var(--space-14); border-bottom: 1px solid var(--border-soft); background: var(--linen); font-size: var(--text-label); color: var(--ink); }
 .diff-status { margin-left: var(--space-8); color: var(--muted); }

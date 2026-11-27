@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useKept } from './lib/kept';
 
 // A unified diff, file by file. Line numbers are drawn by CSS from data attributes, so they are not text:
 // a selection's offsets and quote stay inside the code.
@@ -70,7 +71,7 @@ export function Diff({ text, fresh }: { text: string; fresh?: Set<number> }) {
         {files.length} file{files.length === 1 ? '' : 's'}, <span className="rec">+{totals.add} −{totals.del}</span>
       </p>
       {files.map((f, fi) => (
-        <section key={fi} className="diff-file">
+        <section key={fi} id={`diff-file-${fi}`} className="diff-file">
           <header className="diff-path rec">
             {f.path}
             {f.status && <span className="diff-status">{f.status}</span>}
@@ -100,5 +101,54 @@ export function Diff({ text, fresh }: { text: string; fresh?: Set<number> }) {
         </section>
       ))}
     </div>
+  );
+}
+
+const sizeOf = (f: File) => {
+  let add = 0, del = 0;
+  for (const hk of f.hunks) for (const l of hk.lines) { if (l.t === 'add') add++; if (l.t === 'del') del++; }
+  return { add, del };
+};
+
+/** A diff of more than three files starts with a list of them: each with its size, a click to go to it, and a mark
+ *  for the ones you have read, kept with your other unsent work on the item (`keep`, lib/kept.ts). It sits above the
+ *  body, not in it, so nothing in it is ever part of what a comment quotes. */
+export function DiffFiles({ text, keep }: { text: string; keep: string }) {
+  const files = useMemo(() => parseDiff(text), [text]);
+  const [seen, setSeen] = useKept<string[]>(`${keep}:seen`, () => []);
+  if (files.length <= 3) return null;
+  const sizes = files.map(sizeOf);
+  const most = Math.max(1, ...sizes.map((s) => s.add + s.del));
+  const total = sizes.reduce((acc, s) => ({ add: acc.add + s.add, del: acc.del + s.del }), { add: 0, del: 0 });
+  const done = files.filter((f) => seen.includes(f.path)).length;
+  const flip = (path: string) => setSeen((was) => (was.includes(path) ? was.filter((p) => p !== path) : [...was, path]));
+  return (
+    <nav className="diff-files" aria-label="Files in this change">
+      <p className="diff-files-sum">
+        <span>{files.length} files, <span className="rec">+{total.add} −{total.del}</span></span>
+        <span className={done === files.length ? 'all' : undefined}>{done} of {files.length} read</span>
+      </p>
+      <ul>
+        {files.map((f, i) => {
+          const s = sizes[i];
+          const read = seen.includes(f.path);
+          return (
+            <li key={i} className={read ? 'read' : undefined}>
+              <button type="button" className="diff-files-mark" aria-pressed={read} aria-label={`${f.path}: read`} title={read ? 'Mark as not read' : 'Mark as read'} onClick={() => flip(f.path)}>
+                <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden><path d="M2 5.2l2 2L8 3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              <button type="button" className="diff-files-path rec" title={`Go to ${f.path}`} onClick={() => document.getElementById(`diff-file-${i}`)?.scrollIntoView({ block: 'start' })}>
+                {f.path}{f.status && <span className="diff-status">{f.status}</span>}
+              </button>
+              <span className="diff-files-n rec">+{s.add} −{s.del}</span>
+              <span className="diff-files-bar" aria-hidden>
+                <i className="add" style={{ width: `${(s.add / most) * 100}%` }} />
+                <i className="del" style={{ width: `${(s.del / most) * 100}%` }} />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }

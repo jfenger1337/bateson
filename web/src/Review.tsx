@@ -3,7 +3,7 @@ import { keptKey, useKept } from './lib/kept';
 import type { Anchor, Comment, Decision, Item } from '@lib/types';
 import { locate, newLines, proseChanges } from './changes';
 import { Markdown, markdownHtml } from './Markdown';
-import { Diff } from './Diff';
+import { Diff, DiffFiles } from './Diff';
 import { isTyping, Reach } from './App';
 import { keyOf } from './lib/keys';
 import { easeNote, reduced } from '@/lib/motion';
@@ -494,6 +494,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
         <h1 ref={titleRef} className="work-title commentable" onClick={() => startComment(whole)} title="Comment on the whole piece">{item.title}</h1>
         {v.note && <p className="note">{v.note}</p>}
 
+        {v.bodyType === 'diff' && <DiffFiles text={v.body as string} keep={keptKey(item)} />}
         <div ref={bodyRef} data-comments className={`body body-${v.bodyType}`} onMouseMove={onBodyMove} onMouseLeave={() => setHot(null)}>
           {v.bodyType === 'markdown' && <Markdown className="prose" text={v.body as string} files={filesBase} />}
           {v.bodyType === 'text' && <div className="prose plain">{v.body as string}</div>}
