@@ -47,6 +47,11 @@
    floats over the next item. The shortcut reads as a key and is always there. */
 .bar-sentence.said { color: var(--text-2); gap: var(--space-8); animation: bt-rise var(--dur-settle) var(--ease-out); }
 .bar-sentence .bar-undo { font-weight: 600; color: var(--ink); }
+/* How long the way back stays open: a line under the sentence that runs out with the time to undo (App.tsx). */
+.bar-sentence.said { position: relative; }
+.bar-drain { position: absolute; left: 0; right: 0; bottom: -5px; height: 2px; border-radius: 1px; background: var(--faint); transform-origin: left; animation: bar-drain linear both; }
+@keyframes bar-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+:root[data-motion="reduced"] .bar-drain { display: none; }
 .bar-key { margin-left: calc(-1 * var(--space-2)); padding: 1px var(--space-4); border-radius: var(--radius-sm); background: var(--hover); font-size: var(--text-micro); color: var(--muted); }
 
 /* Room under the work for the decision bar and a gap, no more: extra room makes a page that fits scroll anyway. */

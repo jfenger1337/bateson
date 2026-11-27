@@ -40,7 +40,7 @@ function early(): Promise<Answer> | undefined {
   return p instanceof Promise ? (p as Promise<Answer>) : undefined;
 }
 
-interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; done?: boolean; undone?: boolean; sent?: boolean; undo?: () => void }
+interface Held { id: string; n: number; at: string; decision: Decision; label: string; timer: number; until?: number; ms?: number; done?: boolean; undone?: boolean; sent?: boolean; undo?: () => void }
 
 export function App() {
   const [state, setState] = useState<State | null>(null);
@@ -206,6 +206,8 @@ export function App() {
     heldRef.current = [...heldRef.current, h]; // at once, not at the next render
     if (ms <= 0) { setHeld((hs) => [...hs, h]); commit(h); return; }
     h.timer = window.setTimeout(() => commit(h), ms);
+    h.until = Date.now() + ms;
+    h.ms = ms;
     const undo = () => {
       if (h.done) return;
       h.done = true;
@@ -366,6 +368,9 @@ export function App() {
               {said.label}
               <button type="button" className="btn-link inline bar-undo" onClick={said.undo}>Undo</button>
               <span className="bar-key" aria-hidden>{MOD}Z</span>
+              {/* Runs out with the time to undo. Keyed by the decision, and started as far in as that time already
+                  is, so a second decision or a render on the way starts it right. */}
+              {said.until && said.ms && <Drain key={said.id} until={said.until} ms={said.ms} />}
             </span>
           ) : item && (!titleOnPage || project) && (
             // Keyed by the item, so the name arrives (a rise, a tint in its colour) only when the item changes.
@@ -419,6 +424,13 @@ export function App() {
   );
 }
 
+
+/** The line under a decision on hold, running out with the time to undo it. How far in it starts is worked out
+ *  once, when it appears: worked out again on every render, it would jump ahead. */
+function Drain({ until, ms }: { until: number; ms: number }) {
+  const [delay] = useState(() => Math.min(0, until - Date.now() - ms));
+  return <span className="bar-drain" aria-hidden style={{ animationDuration: `${ms}ms`, animationDelay: `${delay}ms` }} />;
+}
 
 /** Where an answer goes when no agent is waiting for it, so you know it will not wake anything now. */
 /** Whether the answer reaches the agent that asked, said above the decision buttons when it would not at once. */
