@@ -22,6 +22,18 @@ type Place = Range[] | 'title' | 'end';
 const BLOCK = 'p, li, h1, h2, h3, h4, h5, h6, pre, blockquote, table, .dl, .plain';
 const POINTABLE = 'p, li, h1, h2, h3, h4, h5, h6, pre, blockquote, table';
 const GAP = 10;
+// Narrower than this, a reply under its passage is folded to one line until you open it: the reading column has
+// no margin beside it, so open replies would push the text apart.
+const NARROW = window.matchMedia('(max-width: 1000px)');
+function useNarrow() {
+  const [narrow, setNarrow] = useState(NARROW.matches);
+  useEffect(() => {
+    const on = () => setNarrow(NARROW.matches);
+    NARROW.addEventListener('change', on);
+    return () => NARROW.removeEventListener('change', on);
+  }, []);
+  return narrow;
+}
 
 export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: Item, d: Decision) => void; onLater: (i: Item) => void }) {
   const v = item.version;
@@ -47,6 +59,10 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   const homes = useRef(new Map<string, Range[]>());
   // A reply jumped to: its card and its passage light up for a moment.
   const [pulse, setPulse] = useState<string | null>(null);
+  const narrow = useNarrow();
+  // The replies opened on a narrow window. Jumping to one opens it too.
+  const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
+  const unfold = (key: string, open = true) => setUnfolded((u) => { const n = new Set(u); if (open) n.add(key); else n.delete(key); return n; });
   const pulseTimer = useRef<number | undefined>(undefined);
 
   // Where a reply is in this version: the change it made, else the passage it is about.
@@ -391,9 +407,13 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
   const toCard = (key: string) => {
     const card = notesRef.current?.querySelector<HTMLElement>(`[data-slot="${key}"]`);
     if (!card) return;
-    const r = card.getBoundingClientRect();
-    glide(r.top, r.bottom);
-    flash(key);
+    unfold(key);
+    // Measured once it has opened and the room under its passage has grown to fit it.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const r = card.getBoundingClientRect();
+      glide(r.top, r.bottom);
+      flash(key);
+    }));
   };
   const toPassage = (key: string) => {
     const p = placeOf(key);
@@ -494,27 +514,38 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
             // The passage first, as one muted line, then what you said, then the agent's answer.
             const about = fromFindings ? c.title ?? c.anchor.quote : c.anchor.kind === 'text' ? c.anchor.quote : null;
             const mine = c.text;
+            const folded = narrow && !unfolded.has(key);
             return (
               <div
                 key={c.id ?? k}
                 data-slot={key}
-                className={`note-card asked-card is-${st}${hot === key ? ' hot' : ''}${pulse === key ? ' flash' : ''}`}
+                className={`note-card asked-card is-${st}${folded ? ' folded' : ''}${hot === key ? ' hot' : ''}${pulse === key ? ' flash' : ''}`}
                 aria-label={`Your ${fromFindings ? 'finding' : 'comment'} ${num} on version ${prev!.n}: ${label}`}
+                aria-expanded={narrow ? !folded : undefined}
                 onMouseEnter={() => setHot(key)}
                 onMouseLeave={() => setHot(null)}
-                onClick={(e) => { if (!window.getSelection()?.toString() && !(e.target as Element).closest('a')) toPassage(key); }}
-                title={fromFindings ? undefined : 'Show the passage'}
+                onClick={(e) => {
+                  if (window.getSelection()?.toString() || (e.target as Element).closest('a')) return;
+                  // Folded, a click opens it; open on a narrow window, its top line folds it again.
+                  if (folded) unfold(key);
+                  else if (narrow && (e.target as Element).closest('.asked-head')) unfold(key, false);
+                  else toPassage(key);
+                }}
+                title={folded ? 'Open the reply' : fromFindings ? undefined : 'Show the passage'}
               >
                 <p className="asked-head">
                   <span className="asked-n">{num}</span>
                   <span className="asked-state">{label}</span>
                   {fromFindings && c.anchor.file && <span className="rec asked-file">{c.anchor.file}{c.anchor.line ? `:${c.anchor.line}` : ''}</span>}
+                  {/* Folded: the reply's first words, else what you said, on the one line there is. */}
+                  {folded && <span className="asked-gist">{c.reply?.text ?? mine}</span>}
+                  {narrow && <span className="asked-fold" aria-hidden="true" />}
                 </p>
-                {c.anchor.kind === 'item' && !fromFindings
+                {!folded && (c.anchor.kind === 'item' && !fromFindings
                   ? <p className="asked-was">On the whole piece</p>
-                  : about && <p className="asked-was">{st === 'done' && !fromFindings ? <s>{clip(about)}</s> : <q>{clip(about)}</q>}</p>}
-                {mine && <p className="asked-mine">{mine}</p>}
-                {c.reply && <p className="asked-reply">{c.reply.text}</p>}
+                  : about && <p className="asked-was">{st === 'done' && !fromFindings ? <s>{clip(about)}</s> : <q>{clip(about)}</q>}</p>)}
+                {!folded && mine && <p className="asked-mine">{mine}</p>}
+                {!folded && c.reply && <p className="asked-reply">{c.reply.text}</p>}
               </div>
             );
           })}

@@ -528,6 +528,11 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .is-kept .asked-state { background: rgba(214, 163, 92, 0.22); color: #8A5A3F; }
 .is-answered .asked-state { background: rgba(110, 132, 160, 0.2); color: #3F5470; }
 .is-none .asked-state { background: var(--border-soft); color: var(--muted); }
+.asked-gist { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-meta); color: var(--text-2); }
+/* On a narrow window: a chevron on the top line, down while folded, up once open. */
+.asked-fold { flex: none; margin-left: auto; width: 8px; height: 8px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: translateY(-2px) rotate(45deg); transition: transform var(--dur-fast) var(--ease-out); }
+.asked-card:not(.folded) .asked-fold { transform: translateY(2px) rotate(-135deg); }
+.asked-card.folded { padding-block: var(--space-8); }
 .asked-was { margin-top: var(--space-8); font-size: var(--text-meta); line-height: 1.45; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .asked-was q { font-style: italic; }
 .asked-was s { text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent); }
