@@ -46,6 +46,33 @@ test('a round sent early names the open questions and keeps the interview going'
   assert.doesNotMatch(msg, /If the interview is complete/);
 });
 
+test('a comment on a question\'s words goes with the answers, and the agent is told to ask again what it undermines', () => {
+  const { id, n } = round();
+  const anchor = { kind: 'text' as const, quote: 'Who owns', start: 0, end: 8, question: 'Q1' };
+  store.decide(id, n, { decision: 'answer', answers: [
+    { id: 'Q1', choice: 0, accepted: true }, { id: 'Q2', choice: 0, accepted: true }, { id: 'Q3', choice: 1, accepted: true },
+  ], comments: [{ id: 'c1', anchor, text: 'Teams have no owner today:\nadmins share it.' }] });
+  const msg = formatDecision(store.getItem(id)!, n)!;
+  assert.match(msg, /Q1 Who owns a team: The creator \(your recommendation, accepted\) \(they commented on this question, see below\)/);
+  assert.doesNotMatch(msg, /Q2 Invite by link: Yes \(your recommendation, accepted\) \(they commented/);
+  assert.match(msg, /commented on a passage of this round/);
+  assert.match(msg, /1\. In Q1 "Who owns a team", on "Who owns":\n {3}Teams have no owner today:\n {3}admins share it\./);
+  assert.match(msg, /go through every question of this round/);
+  assert.match(msg, /Ask that question again in the next round/);
+  // One round of accepted options would normally be acted on at once; with a comment, what was made of it is shown first.
+  assert.doesNotMatch(msg, /act on the answers now/);
+  assert.match(msg, /one line for each comment/);
+});
+
+test('a comment on a round is checked against its questions', () => {
+  const questions = [{ id: 'Q1', title: 'Who owns a team?', options: [{ label: 'The creator' }] }];
+  const comment = (question: unknown) => ({ decision: 'answer', answers: [{ id: 'Q1', choice: 0 }], comments: [{ id: 'c', text: 'Wrong', anchor: { kind: 'text', quote: 'Who', question } }] });
+  const kind = kindOf(store.getItem(round().id)!);
+  assert.equal(checkDecision(kind, comment('Q1'), questions).comments?.[0].anchor.question, 'Q1');
+  assert.throws(() => checkDecision(kind, comment('Q9'), questions), /comments do not fit/);
+  assert.throws(() => checkDecision(kind, comment(4), questions), /not of the right shape/);
+});
+
 test('a screenshot pasted into your own answer reaches the agent as a path it can open, after the item is filed away', () => {
   const { id, n } = round();
   const png = Buffer.from('89504e470d0a1a0a', 'hex');

@@ -27,6 +27,8 @@ export interface Anchor {
   file?: string;
   line?: number;
   side?: 'old' | 'new';
+  /** On an interview round: the question whose words the passage is in (its title and body). */
+  question?: string;
 }
 export interface Comment { id: string; anchor: Anchor; text: string }
 /** `answered`: the comment asked a question, and the reply answers it; nothing needed to change (`addressed` is false). */

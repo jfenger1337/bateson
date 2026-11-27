@@ -6,6 +6,7 @@ import { Markdown, markdownHtml } from './Markdown';
 import { Diff } from './Diff';
 import { isTyping, Reach } from './App';
 import { keyOf } from './lib/keys';
+import { anchorFrom, clip, rangeAt } from './lib/anchors';
 import { easeNote, reduced } from '@/lib/motion';
 
 // Comment on the work. Select any passage and comment on it; on code the comment also records the file and line.
@@ -713,13 +714,6 @@ function reveal() {
   window.scrollBy({ top: by, behavior: reduced() ? 'auto' : 'smooth' });
 }
 
-/** A long quote, cut at a word near 90 characters. */
-function clip(q: string) {
-  if (q.length <= 90) return q;
-  const cut = q.slice(0, 90);
-  return cut.slice(0, Math.max(cut.lastIndexOf(' '), 60)) + '…';
-}
-
 /** The lines of a file that a reply changed: in a revision of a diff, the run of new lines nearest the line the
  *  comment was on; after findings, the run of changed lines nearest the finding. */
 function changedRows(root: HTMLElement, file: string, line: number | undefined, freshOnly: boolean): Range[] {
@@ -745,47 +739,4 @@ function blockRange(el: HTMLElement): Range {
 
 function byPosition(a: Comment, b: Comment) {
   return (a.anchor.start ?? -1) - (b.anchor.start ?? -1);
-}
-
-// ---- Anchors: character offsets into the work's text, plus the quote and its surroundings, and for a diff the
-// file and line the selection starts on.
-
-function offsetOf(root: Node, node: Node, offset: number) {
-  const r = document.createRange();
-  r.setStart(root, 0);
-  r.setEnd(node, offset);
-  return r.toString().length;
-}
-
-function anchorFrom(root: HTMLElement, range: Range, quote: string): Anchor {
-  const start = offsetOf(root, range.startContainer, range.startOffset);
-  const end = offsetOf(root, range.endContainer, range.endOffset);
-  const all = root.textContent ?? '';
-  const el = (range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer as Element)?.closest('[data-line]') as HTMLElement | null;
-  return {
-    kind: 'text',
-    quote: quote.trim(),
-    prefix: all.slice(Math.max(0, start - 40), start),
-    suffix: all.slice(end, end + 40),
-    start, end,
-    ...(el ? { file: el.dataset.file, line: Number(el.dataset.line), side: el.dataset.side as 'old' | 'new' } : {}),
-  };
-}
-
-function rangeAt(root: HTMLElement, a: Anchor): Range | null {
-  if (a.kind !== 'text' || a.start == null || a.end == null) return null;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let pos = 0;
-  let startNode: Node | null = null, startOff = 0, endNode: Node | null = null, endOff = 0;
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const len = n.textContent?.length ?? 0;
-    if (!startNode && a.start <= pos + len) { startNode = n; startOff = a.start - pos; }
-    if (a.end <= pos + len) { endNode = n; endOff = a.end - pos; break; }
-    pos += len;
-  }
-  if (!startNode || !endNode) return null;
-  const r = document.createRange();
-  r.setStart(startNode, startOff);
-  r.setEnd(endNode, endOff);
-  return r;
 }

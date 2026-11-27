@@ -231,6 +231,10 @@ button.opt:active, .own-open:active { scale: 0.985; }
 @keyframes qr-in-back { from { opacity: 0; transform: translateX(-8px); } }
 .iv-title { font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.25; letter-spacing: -0.012em; color: var(--ink); }
 .interview .q-body { margin: var(--space-12) 0 0; }
+/* Your comments on the question's words sit under them, in the reading measure, before the choices. They are the
+   review's note cards (Review.tsx), here in the flow of the page rather than laid over it. */
+.iv-notes { display: flex; flex-direction: column; gap: var(--space-8); max-width: 68ch; margin-top: var(--space-16); }
+.iv-notes .note-card { position: relative; }
 /* A long question keeps every word, so the page does the work: paragraphs and bullets get room so the detail
    does not run together.
    The words keep a reading measure while the choices use the full column. */
@@ -389,6 +393,7 @@ button.opt:active, .own-open:active { scale: 0.985; }
 .iv-step-q { font-size: var(--text-label); color: var(--muted); }
 .iv-step-a { font-size: var(--text-meta); font-weight: 500; color: var(--ink); white-space: pre-wrap; }
 .iv-step-a.none { font-weight: 400; color: var(--late); }
+.iv-step-n { font-size: var(--text-label); color: var(--muted); }
 /* The dots sit above the question or finding, the first ring level with the title's first letter. */
 .findings > .iv-steps, .iv-main > .iv-head { margin: 0 0 var(--space-16) -6px; }
 /* The interview's name on the dots' line: small and muted, there when you look for it. With no dots it lines up

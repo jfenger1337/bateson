@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { easeHeight, press, swap } from './lib/motion';
-import type { Answer, Decision, Item, Question, Round, Show } from '@lib/types';
+import { easeHeight, easeNote, press, swap } from './lib/motion';
+import type { Anchor, Answer, Comment, Decision, Item, Question, Round, Show } from '@lib/types';
 import { Markdown } from './Markdown';
 import { Ring } from './Ring';
 import { isTyping, onTabbedButton, Reach } from './App';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { keptKey, useKept, useKeptRef } from './lib/kept';
 import { usePageHeight } from './lib/fit';
 import { keyOf } from './lib/keys';
+import { anchorFrom, clip, rangeAt } from './lib/anchors';
 
 // One question at a time. Choosing moves you on; the recommendation is preselected (dashed) until you touch it.
 
@@ -48,6 +49,17 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   const setZoom = (src: string | null) => swap('zoom', () => flushSync(() => setZoomNow(src)));
   const otherRef = useRef<HTMLTextAreaElement | null>(null);
   const advanceTimer = useRef<number | undefined>(undefined);
+
+  // Comments on a question's own words: select a passage that is wrong, out of date or missing something, and say
+  // so. They never hold up an answer. They go with the round, and the agent asks again any question they undermine.
+  // `noting` is the comment being written (`id`: one reopened to edit), kept like the answers.
+  const [notes, setNotes] = useKept<Comment[]>(`${kk}:notes`, () => []);
+  const [noting, setNoting] = useKept<{ anchor: Anchor; text: string; id?: string } | null>(`${kk}:noting`, () => null);
+  // A selection in the question's words: the Comment button over it.
+  const [picked, setPicked] = useState<{ anchor: Anchor; x: number; y: number } | null>(null);
+  // The comment under the pointer: its passage lights up.
+  const [hotNote, setHotNote] = useState<string | null>(null);
+  const saidRef = useRef<HTMLDivElement | null>(null);
 
   const answered = (id: string) => {
     const d = drafts[id];
@@ -130,6 +142,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
     root.setProperty('--q-dir', n > at ? '1' : '-1');
     root.setProperty('--q-from', `${from}px`);
     swap('question', () => flushSync(() => {
+      settleNote();
+      setPicked(null);
       if (n > at) {
         reportEarly(at);
         const id = qs[at]?.id;
@@ -236,7 +250,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
     if (addingRef.current) return;
     if (!ready) { go(qs.findIndex((x) => !answered(x.id))); return; }
     const answers: Answer[] = qs.map((x) => answerOf(x, drafts[x.id]));
-    onDecide(item, { decision: 'answer', answers });
+    onDecide(item, { decision: 'answer', answers, ...withComments() });
   };
 
   // Send the answers given so far, not the round: the rest go back to the agent as unanswered, and the next round
@@ -246,8 +260,54 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
     clearTimeout(advanceTimer.current);
     const answers: Answer[] = qs.filter((x) => given(x.id)).map((x) => answerOf(x, drafts[x.id]));
     if (!answers.length) return;
-    onDecide(item, { decision: 'answer', answers });
+    onDecide(item, { decision: 'answer', answers, ...withComments() });
   };
+
+  // The comments as they go with the answers: one still being written counts, so sending never leaves it behind.
+  // It is added as well, so an Undo brings the round back with it on.
+  const allNotes = (): Comment[] => {
+    const text = noting?.text.trim();
+    if (!noting || !text) return notes;
+    if (noting.id && notes.some((c) => c.id === noting.id)) return notes.map((c) => (c.id === noting.id ? { ...c, text } : c));
+    // In the order of the round: by question, then where in its words.
+    const place = (c: Comment) => qs.findIndex((x) => x.id === c.anchor.question);
+    return [...notes, { id: Math.random().toString(36).slice(2, 9), anchor: noting.anchor, text }]
+      .sort((a, b) => place(a) - place(b) || (a.anchor.start ?? -1) - (b.anchor.start ?? -1));
+  };
+  const withComments = () => {
+    const all = allNotes();
+    if (noting) { setNotes(all); setNoting(null); }
+    return all.length ? { comments: all } : {};
+  };
+  const settleNote = () => {
+    if (!noting) return;
+    setNotes(allNotes());
+    setNoting(null);
+  };
+
+  // A passage of the question's words, as the anchor of a comment; null when the range is not in them.
+  const anchorOf = (range: Range): Anchor | null => {
+    const root = saidRef.current;
+    if (!q || !root || !root.contains(range.startContainer)) return null;
+    if (!root.contains(range.endContainer)) range.setEnd(root, root.childNodes.length);
+    const a = anchorFrom(root, range, range.toString());
+    return a.quote?.trim() ? { ...a, question: q.id } : null;
+  };
+  // A comment with words in it not yet added is never replaced by another: a new one takes you back to it.
+  const startNote = (anchor: Anchor) => {
+    clearTimeout(advanceTimer.current);
+    setPicked(null);
+    if (noting?.text.trim() && !(noting.id && notes.find((c) => c.id === noting.id)?.text === noting.text.trim())) {
+      document.querySelector<HTMLTextAreaElement>('.iv-notes .note-field')?.focus();
+      return;
+    }
+    setNoting({ anchor, text: '' });
+  };
+  const saveNote = () => {
+    settleNote();
+    window.getSelection()?.removeAllRanges();
+  };
+
 
   // Enter: accept what is chosen here and go on; on the last question, send.
   const next = () => {
@@ -256,6 +316,47 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   };
 
   useEffect(() => () => clearTimeout(advanceTimer.current), []);
+
+  // A selection in the question's words offers a comment, just above it.
+  const anchorRef = useRef(anchorOf);
+  anchorRef.current = anchorOf;
+  const startRef = useRef(startNote);
+  startRef.current = startNote;
+  useEffect(() => {
+    const onUp = () => {
+      window.setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.rangeCount) { setPicked(null); return; }
+        const range = sel.getRangeAt(0).cloneRange();
+        const anchor = anchorRef.current(range);
+        if (!anchor) { setPicked(null); return; }
+        const first = range.getClientRects()[0] ?? range.getBoundingClientRect();
+        setPicked({ anchor, x: first.left, y: Math.max(60, first.top - 38) });
+      }, 0);
+    };
+    // Comment, from the right-click menu (Menu.tsx), on the selection as it was when the menu opened.
+    const onComment = (e: Event) => {
+      const anchor = anchorRef.current((e as CustomEvent<Range>).detail);
+      if (anchor) startRef.current(anchor);
+    };
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('keyup', onUp);
+    window.addEventListener('qr-comment', onComment);
+    return () => { document.removeEventListener('mouseup', onUp); document.removeEventListener('keyup', onUp); window.removeEventListener('qr-comment', onComment); };
+  }, []);
+
+  // The highlighter on each commented passage of the question on screen; a stronger one on the comment you point
+  // at or are writing.
+  useLayoutEffect(() => {
+    const root = saidRef.current;
+    const reg = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights;
+    const H = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight;
+    if (!root || !reg || !H) return;
+    const ranges = (list: Anchor[]) => list.filter((a) => a.question === q?.id).map((a) => rangeAt(root, a)).filter((r): r is Range => !!r);
+    reg.set('qr-note', new H(...ranges(notes.filter((c) => c.id !== hotNote && c.id !== noting?.id).map((c) => c.anchor))));
+    reg.set('qr-note-active', new H(...ranges([...notes.filter((c) => c.id === hotNote).map((c) => c.anchor), ...(noting ? [noting.anchor] : [])])));
+    return () => { reg.delete('qr-note'); reg.delete('qr-note-active'); };
+  }, [notes, noting, hotNote, q?.id]);
 
   // Two-finger swipe on a trackpad: left for the next question, right for the one before. The question follows
   // the fingers a little, and one swipe moves one question however long the gesture runs on.
@@ -363,6 +464,10 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   const qSoundKey = `${q.id}:q`;
   // A live page starts again each time it is shown, so pointing at an option plays that option from the start.
   const live = !!preview?.some((p) => 'url' in p);
+  const here = notes.filter((c) => c.anchor.question === q.id);
+  const noteHere = !!noting && noting.anchor.question === q.id;
+  const noteCount = notes.length + (noting?.text.trim() && !noting.id ? 1 : 0);
+  const notesOn = (id: string) => notes.filter((c) => c.anchor.question === id).length;
   // A question with something to look at has the panel beside it; one with nothing keeps the normal layout.
 
   return (
@@ -406,6 +511,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
                   <span className="iv-step-tip" aria-hidden>
                     <span className="iv-step-q">{x.title}</span>
                     <span className={`iv-step-a${answer ? '' : ' none'}`}>{answer || 'Not answered'}</span>
+                    {notesOn(x.id) > 0 && <span className="iv-step-n">{notesOn(x.id) === 1 ? 'Your comment on it' : `Your ${notesOn(x.id)} comments on it`}</span>}
                   </span>
                 </button>
               );
@@ -420,8 +526,11 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
       {(
       <section key={q.id} ref={qRef} className={`iv-q iv-${dir}`}>
         <div className="iv-text">
+        {/* The question's words: select any of them to comment (data-comments lets the right-click menu offer it). */}
+        <div ref={saidRef} className="iv-said" data-comments>
         <h1 className="iv-title">{q.title}</h1>
         {q.body && <Markdown className="prose q-body" text={q.body} />}
+        </div>
         {qSound && (
           <button
             className="btn-pill iv-sound"
@@ -429,6 +538,45 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
           >
             {sound.on === qSoundKey ? <><Pause size={14} /> Stop</> : <><Play size={14} /> Play</>}
           </button>
+        )}
+        {(here.length > 0 || noteHere) && (
+          <div className="iv-notes" aria-label="Your comments on this question">
+            {here.filter((c) => c.id !== noting?.id).map((c) => (
+              <div
+                key={c.id}
+                className={`note-card mine${hotNote === c.id ? ' active' : ''}`}
+                onMouseEnter={() => setHotNote(c.id)}
+                onMouseLeave={() => setHotNote(null)}
+                onClick={(e) => { if (!(e.target as Element).closest('button')) { settleNote(); setNoting({ anchor: c.anchor, text: c.text, id: c.id }); } }}
+              >
+                <p className="note-where"><q>{clip(c.anchor.quote ?? '')}</q></p>
+                <p className="note-text">{c.text}</p>
+                <button className="btn-quiet sm note-remove" onClick={() => { setNotes((cs) => cs.filter((x) => x.id !== c.id)); setHotNote(null); }}>Remove</button>
+              </div>
+            ))}
+            {noteHere && noting && (
+              <div key={noting.id ?? 'new'} ref={easeNote} className="note-card composing drop-in">
+                <p className="note-where"><q>{clip(noting.anchor.quote ?? '')}</q></p>
+                <textarea
+                  className="note-field"
+                  rows={2}
+                  autoFocus
+                  placeholder="What is wrong or missing here?"
+                  value={noting.text}
+                  onChange={(e) => setNoting({ ...noting, text: e.target.value })}
+                  onKeyDown={(e) => {
+                    // ⏎ adds the comment, shift ⏎ starts a new line in it.
+                    if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing) { e.preventDefault(); e.stopPropagation(); if (noting.text.trim()) saveNote(); }
+                    if (e.key === 'Escape') { e.stopPropagation(); setNoting(null); }
+                  }}
+                />
+                <div className="note-actions">
+                  <button className="btn-quiet sm" onClick={() => setNoting(null)}>Cancel</button>
+                  <button className="btn-primary sm" onClick={saveNote} disabled={!noting.text.trim()}>{noting.id ? 'Save' : 'Add'} <span className="key on-ink">⏎</span></button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
         </div>
         <div className="options" role="radiogroup" aria-label={q.title}>
@@ -550,11 +698,23 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
         </div>
       )}
 
+      {picked && !noting && (
+        <button
+          className="pick-btn drop-in"
+          style={{ left: Math.min(picked.x, window.innerWidth - 140), top: picked.y }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => startNote(picked.anchor)}
+          title="Say what is wrong or missing. It goes with your answers, and does not stop you answering."
+        >
+          Comment
+        </button>
+      )}
+
       <footer className="decide">
         <div className="decide-in">
           <p className="decide-sentence">
             <Reach item={item} />
-            {adding ? 'Adding your screenshot…' : !answered(q.id) ? 'Pick one, or write your own, to go on.' : ''}
+            {adding ? 'Adding your screenshot…' : !answered(q.id) ? 'Pick one, or write your own, to go on.' : noteCount > 0 ? `${noteCount === 1 ? 'Your comment goes' : `Your ${noteCount} comments go`} with the answers.` : ''}
           </p>
           <div className="decide-actions">
             <button className="btn-quiet" onClick={() => onDecide(item, { decision: 'drop' })} title="Stop this interview and send nothing">End interview</button>

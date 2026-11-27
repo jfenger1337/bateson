@@ -110,10 +110,21 @@ const INTERVIEW = {
     if (d.decision === 'drop') return DROPPED;
     const qs = store.readQuestions(item, v);
     const answers = d.answers || [];
+    // Comments on the round's own words: most often a fact in a question that is wrong. They never held up an
+    // answer, so each question they touch was answered as it stood.
+    const notes = d.comments || [];
     const lines = answers.map((a) => {
       const q: Partial<Question> = qs.find((x) => x.id === a.id) || {};
-      return `- ${a.id} ${q.title || a.id}: ${describeAnswer(item, v.n, q, a)}`;
+      const noted = notes.some((c) => c.anchor.question === a.id) ? ' (they commented on this question, see below)' : '';
+      return `- ${a.id} ${q.title || a.id}: ${describeAnswer(item, v.n, q, a)}${noted}`;
     });
+    const corrections = notes.length
+      ? `\n\n${Who} commented on ${notes.length === 1 ? 'a passage' : `${notes.length} passages`} of this round, most likely because what it says is wrong, out of date or missing something:\n${notes.map((c, k) => {
+        const q = qs.find((x) => x.id === c.anchor.question);
+        return `${k + 1}. ${q ? `In ${q.id} "${q.title}", o` : 'O'}${describeAnchor(c.anchor).slice(1)}\n   ${c.text.replace(/\n/g, '\n   ')}`;
+      }).join('\n')}\n\nDeal with these before you act on any answer. First correct your own understanding: look up what you need to, and take ${who}'s word over what you had. Then go through every question of this round, not only the one commented on. An answer to a question whose facts, framing or options rested on what was wrong was given on a wrong premise: do not act on it. Ask that question again in the next round, reworded or with new options, its body saying in one sentence what you corrected. Answers the comments do not touch stand. If a comment asks you something, answer it in the body of the question it is about, or of the next question it touches.`
+      : '';
+    const reread = notes.length ? ' and comments' : '';
     // Send now: the round went with only the answers given so far. The rest are open, not accepted.
     const open = qs.filter((q) => !answers.some((a) => a.id === q.id && (a.choice != null || isOwn(a))));
     const sentEarly = open.length
@@ -121,16 +132,19 @@ const INTERVIEW = {
       : '';
     const draft = store.readDraft(item, v.n);
     const drafted = draft?.questions?.length
-      ? `\n\nYou drafted ${plural(draft.questions.length, 'follow-up')} while ${who} answered (${draft.questions.map((q) => `${q.id} ${q.title}`).join('; ')}). Print them with \`bateson draft ${item.id} --show\`, check them against all the answers above, add what else the frontier needs, and send the next round now with \`${resend} --questions -\`.`
+      ? `\n\nYou drafted ${plural(draft.questions.length, 'follow-up')} while ${who} answered (${draft.questions.map((q) => `${q.id} ${q.title}`).join('; ')}). Print them with \`bateson draft ${item.id} --show\`, check them against all the answers${reread} above, add what else the frontier needs, and send the next round now with \`${resend} --questions -\`.`
       : '';
     // One round, every answer an option: the answers already say what was decided, so no summary follows it.
-    const plain = item.versions.filter((x) => x.bodyType === 'questions').length === 1 && answers.every((a) => !isOwn(a));
+    // Not with comments: what the agent made of them needs a look too.
+    const plain = item.versions.filter((x) => x.bodyType === 'questions').length === 1 && answers.every((a) => !isOwn(a)) && !notes.length;
     const after = open.length
       ? `Send the next round with \`${resend} --questions -\`.`
-      : plain
-        ? `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, act on the answers now: one round where ${who} picked an option every time needs no summary to approve. Say in one line what you will do.`
-        : `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, send the shared understanding for review as the interview's last version (see the ama skill).`;
-    return `Answers for round ${v.n}:\n${lines.join('\n')}${sentEarly}${drafted}\n\n${after}`;
+      : notes.length
+        ? `Send the next round with \`${resend} --questions -\`: every question the comments undermined, asked again, and any new ones they or the answers open. If they undermined none and nothing else is open, send the shared understanding for review as the interview's last version (see the ama skill), with one line for each comment saying what you now take as true.`
+        : plain
+          ? `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, act on the answers now: one round where ${who} picked an option every time needs no summary to approve. Say in one line what you will do.`
+          : `If this opens new questions, send the next round with \`${resend} --questions -\`. If the interview is complete, send the shared understanding for review as the interview's last version (see the ama skill).`;
+    return `Answers for round ${v.n}:\n${lines.join('\n')}${corrections}${sentEarly}${drafted}\n\n${after}`;
   },
   validate: validateQuestions,
 } satisfies Kind;
@@ -184,13 +198,15 @@ export function checkDecision(kind: Kind, body: unknown, questions?: Question[])
   };
   const comments = list('comments', (c) => typeof c.id === 'string' && typeof c.text === 'string' && !!c.anchor && typeof c.anchor === 'object'
     && ['text', 'item'].includes((c.anchor as Loose).kind as string)
-    && ['quote', 'prefix', 'suffix', 'file'].every((k) => str((c.anchor as Loose)[k]))
+    && ['quote', 'prefix', 'suffix', 'file', 'question'].every((k) => str((c.anchor as Loose)[k]))
     && ['start', 'end', 'line'].every((k) => num((c.anchor as Loose)[k]))
     && [undefined, null, 'old', 'new'].includes((c.anchor as Loose).side as string));
   const answers = list('answers', (a) => typeof a.id === 'string' && (a.choice == null || Number.isInteger(a.choice)) && str(a.other) && (a.accepted == null || typeof a.accepted === 'boolean')
     && (a.images == null || (Array.isArray(a.images) && a.images.length <= 20 && a.images.every((x) => typeof x === 'string' && PASTED_NAME.test(x)))));
   const marks = list('marks', (m) => typeof m.id === 'string' && ['keep', 'dismiss'].includes(m.mark as string) && str(m.reason) && str(m.comment));
   if (decision === 'send-back' && !comments?.length) throw new Error('Send back needs a comment');
+  // A comment on a round is on one of its questions.
+  if (questions && comments?.some((c) => (c.anchor as Loose).question != null && !questions.some((q) => q.id === (c.anchor as Loose).question))) throw new Error('comments do not fit the questions');
   if (questions && answers) {
     const seen = new Set<unknown>();
     for (const a of answers as Answer[]) {
