@@ -563,6 +563,10 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .diff-status { margin-left: var(--space-8); color: var(--muted); }
 .diff-gap { height: 12px; background: var(--linen); border-block: 1px solid var(--border-soft); }
 .dl { display: grid; grid-template-columns: 44px 44px 1fr; grid-template-areas: 'o n c'; font-family: var(--mono); font-size: 13px; line-height: 20px; }
+/* A line off screen is not laid out until it comes near: each line is a grid with two numbers drawn beside it, and
+   a diff of 16,000 lines took 8s to appear with every one laid out at once, 2s like this. A line not yet seen
+   counts as one line high; once seen, it keeps the height it had (auto). */
+.dl { content-visibility: auto; contain-intrinsic-size: auto 20px; }
 .dl::before, .dl::after { color: var(--faint-3); text-align: right; padding-right: var(--space-10); user-select: none; -webkit-user-select: none; font-size: var(--text-micro); }
 .dl::before { content: attr(data-o); grid-area: o; }
 .dl::after { content: attr(data-n); grid-area: n; }
