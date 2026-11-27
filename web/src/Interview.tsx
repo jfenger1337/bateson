@@ -523,6 +523,13 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
         </div>
       </section>
       )}
+      {/* The round's questions again, out of sight, for the height of the tallest (lib/fit.ts): every title of the
+          round then starts on the same line. Only where the drop applies: a question on its own, in a round of more. */}
+      {!preview && qs.length > 1 && (
+        <div className="iv-measure" aria-hidden inert>
+          {qs.map((x) => <Unanswered key={x.id} q={x} />)}
+        </div>
+      )}
       </div>
 
       {preview && q && (
@@ -576,6 +583,48 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
 }
 
 // Your answer as the dots show it: the letter and label you picked, or what you wrote.
+/** A question as it first shows, before it is answered, drawn only to be measured (.iv-measure): the same parts and
+ *  classes as the question on screen, without what reacts to you. */
+function Unanswered({ q }: { q: Question }) {
+  return (
+    <section className="iv-q">
+      <div className="iv-text">
+        <h1 className="iv-title">{q.title}</h1>
+        {q.body && <Markdown className="prose q-body" text={q.body} />}
+        {q.show?.some(isSound) && <span className="btn-pill iv-sound"><Play size={14} /> Play</span>}
+      </div>
+      <div className="options">
+        {q.options.map((o, oi) => (
+          <div key={oi} className="opt">
+            <span className="opt-ring"><Ring kind="open" size={20} letter={LETTERS[oi]?.toUpperCase()} /></span>
+            <span className="opt-text">
+              <span className="opt-label">
+                <span className="opt-name">
+                  <span>{o.label}</span>
+                  {q.recommended === oi && <span className="opt-rec">Recommended</span>}
+                </span>
+              </span>
+              {o.description && <span className="opt-desc">{o.description}</span>}
+              {q.recommended === oi && q.recommendation && (
+                <span className="opt-why">
+                  <ArrowRight className="opt-why-arrow" size={16} />
+                  <Markdown className="prose" text={q.recommendation} />
+                </span>
+              )}
+            </span>
+          </div>
+        ))}
+        <div className="opt own">
+          <span className="own-open">
+            <span className="opt-ring"><Ring kind="open" size={20} letter="W" /></span>
+            <span className="opt-label muted">Write your own</span>
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function shownAnswer(x: Question, d: Draft): string {
   if (d.writing) return withPics(d.other.trim(), pics(d).length);
   if (d.choice == null) return '';

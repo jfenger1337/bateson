@@ -235,12 +235,19 @@ button.opt:active, .own-open:active { scale: 0.985; }
    does not run together.
    The words keep a reading measure while the choices use the full column. */
 .interview .iv-text .prose, .interview .opt-desc { max-width: 68ch; }
+/* The round's questions again, drawn out of sight to be measured (Interview.tsx Unanswered): laid out at the
+   question's width, taking no room on the page and never seen, read or found. */
+.asks .iv-main { position: relative; }
+.iv-measure { position: absolute; top: 0; left: 0; right: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
+.iv-measure * { animation: none !important; transition: none !important; }
 /* It also starts a fifth of the way down the window, not just under the bar, so a question that fits does not
    leave the lower half empty. A fixed drop and not a centred one: every title starts on the same line, so after
    Next your eye is already where the question is. Findings start on the same line. A phone keeps the small top.
    The drop gives way to a page that would fit without it: it is never more than the room the question or finding
    leaves between the bar and the decision bar (--page-h is its height, measured by usePageHeight in lib/fit.ts),
-   so the choices are in view without a scroll. Only a page taller than the window starts under the bar and scrolls. */
+   so the choices are in view without a scroll. Only a page taller than the window starts under the bar and scrolls.
+   In an interview round --page-h is the tallest of its questions, so the drop gives way the same for all of them
+   and the title stays on its line from one question to the next. */
 @media (min-width: 761px) {
   .work:has(> .page.interview.asks:not(.with-preview), > .page.findings) {
     padding-top: clamp(var(--space-40), calc(100dvh - var(--bar-h) - var(--decide-h, 60px) - var(--space-24) - var(--page-h, 0px)), min(20vh, 280px));
@@ -822,7 +829,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 :root[data-swap] .bar { view-transition-name: bar; }
 :root[data-swap] .decide { view-transition-name: decide; }
 :root[data-swap='item'] .work { view-transition-name: work; }
-:root[data-swap='question'] .iv-q { view-transition-name: question; }
+:root[data-swap='question'] .iv-main > .iv-q { view-transition-name: question; } /* not the copies in .iv-measure: a name is one element's */
 :root[data-swap='question'] .iv-preview { view-transition-name: preview; }
 :root[data-swap='zoom'] .zoomed { view-transition-name: zoomed; }
 ::view-transition-group(*) { animation-duration: var(--dur-swap); animation-timing-function: var(--ease-out); }
