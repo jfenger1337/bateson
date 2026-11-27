@@ -211,12 +211,13 @@ button.opt:active, .own-open:active { scale: 0.985; }
 .iv-step.here { color: var(--ink); }
 /* The dots are in the item's colour, each round a little apart from the next. The question you are on is in the
    colour's ink, a step stronger than the rest. */
-.iv-round { display: flex; align-items: center; gap: var(--space-2); color: rgb(var(--hue-rgb)); }
-/* On dark ground the mid-tone hues turn muddy; their light inks read clearly. */
-[data-theme='dark'] .iv-round { color: var(--hue-ink); }
+/* The rings are in the colour's ink, not its mid tone: at 10px in the mid tone a dashed ring was all but gone on
+   the light ground (2:1). The one you are on is ink, so it stands out from the rest by more than its shape. */
+.iv-round { display: flex; align-items: center; gap: var(--space-2); color: var(--hue-ink); }
 .iv-round + .iv-round { margin-left: var(--space-6); }
 .iv-round .iv-step { color: inherit; }
-.iv-round .iv-step.here { color: var(--hue-ink); }
+.iv-round .iv-step.here { color: var(--ink); }
+.iv-count { margin-left: var(--space-8); font-size: var(--text-meta); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* The page wears its item's colour in its accents: the Recommended tag. The words and the buttons stay ink. */
 .interview .opt-rec { background: rgba(var(--hue-rgb), 0.22); color: var(--hue-ink); }
 .iv-step.past { cursor: default; }
@@ -454,6 +455,10 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .page.review { position: relative; }
 .notes { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
 .notes > [data-slot] { position: absolute; left: 0; right: 0; pointer-events: auto; }
+/* On prose, a card under its passage is as wide as the words (68ch of the 16px prose, counted here in the 14px
+   the notes are set in), so it reads as part of the text and not a band across the page. On code it keeps the
+   full width, as the code does. */
+.page.review:has(.body-markdown, .body-text) .notes > [data-slot] { right: auto; width: min(100%, calc(68ch * 16 / 14)); }
 .note-card.mine { cursor: text; }
 /* Beside the bullet or paragraph you point at: comment on the whole of it. */
 .point-mark {

@@ -341,8 +341,12 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
       const p = placeOf(m.dataset.mark!);
       const first = Array.isArray(p) ? p[0].getClientRects()[0] : undefined;
       if (!root || !first || !Array.isArray(p)) { m.hidden = true; continue; }
+      // A passage that starts on a paragraph's edge starts in the prose itself, or in the line break between two
+      // blocks: its block is the next one, not the whole column, so its number sits by the words like the others.
       const n = p[0].startContainer;
-      let b = n.nodeType === 1 ? n as Element : n.parentElement!;
+      let at: Node | null = n.nodeType === 1 ? n.childNodes[p[0].startOffset] ?? n : n;
+      while (at && at.nodeType !== 1 && at.parentElement?.classList.contains('prose')) at = at.nextSibling;
+      let b = !at ? n.parentElement! : at.nodeType === 1 ? at as Element : at.parentElement!;
       while (b.parentElement && b.parentElement !== root && !b.parentElement.classList.contains('prose')) b = b.parentElement;
       const top = Math.round(first.top - t + (first.height - 20) / 2);
       let left = Math.min(b.getBoundingClientRect().right + 12, box.right - 24) - box.left;

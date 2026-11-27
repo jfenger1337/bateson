@@ -378,7 +378,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
             {past.length > 0 && (
               <span className="iv-round">
                 <span className="iv-step past earlier" aria-label={`${past.reduce((n, r) => n + r.questions.length, 0)} answers from earlier rounds`}>
-                  <Ring kind="dot" size={10} />
+                  <Ring kind="dot" size={12} />
                   <span className="iv-step-tip" aria-hidden>
                     {[...past].reverse().flatMap((r) => r.questions.map((x) => (
                       <span key={`${r.n}:${x.id}`} className="iv-step-pair">
@@ -401,7 +401,7 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
                   aria-current={i === at ? 'step' : undefined}
                   aria-label={`${x.title} ${answer || 'Not answered'}`}
                 >
-                  <Ring kind={i !== at && answered(x.id) && drafts[x.id].touched ? 'dot' : i !== at && answered(x.id) ? 'dashed' : 'open'} size={10} />
+                  <Ring kind={i !== at && answered(x.id) && drafts[x.id].touched ? 'dot' : i !== at && answered(x.id) ? 'dashed' : 'open'} size={12} />
                   {/* Pointing at a dot shows that question and your answer, so you can check one without leaving this one. */}
                   <span className="iv-step-tip" aria-hidden>
                     <span className="iv-step-q">{x.title}</span>
@@ -411,6 +411,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
               );
             })}
             </span>
+            {/* The dots say where you are by shape; this says it in words. */}
+            {qs.length > 1 && <span className="iv-count">{at + 1} of {qs.length}</span>}
           </nav>
         )}
           <span className="iv-name" title={item.title}>{item.title}</span>

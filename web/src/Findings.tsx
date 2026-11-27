@@ -119,9 +119,10 @@ export function Findings({ item, onDecide, onLater }: { item: Item; onDecide: (i
               aria-current={i === at ? 'step' : undefined}
               title={`${x.id} ${x.title}`}
             >
-              <Ring kind={i === at ? 'open' : ring(x)} size={10} />
+              <Ring kind={i === at ? 'open' : ring(x)} size={12} />
             </button>
           ))}
+          {list.length > 1 && !reviewing && <span className="iv-count">{at + 1} of {list.length}</span>}
         </nav>
       {at === 0 && item.version.note && <p className="note">{item.version.note}</p>}
 
