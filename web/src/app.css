@@ -55,9 +55,14 @@
    two gutters; the decision bar lays its contents out on the same three, so its words and buttons start and end
    where the work does. */
 .page {
-  --main-w: 800px; --cols: minmax(0, 1fr) minmax(0, var(--main-w)) minmax(0, 1fr);
-  max-width: var(--main-w); margin: 0 auto;
+  --main-w: 800px; --edge-w: 800px;
+  --cols: minmax(0, max(0px, (100% - var(--edge-w)) / 2)) minmax(0, var(--main-w)) minmax(0, 1fr);
+  max-width: var(--main-w); margin: 0 auto 0 max(0px, (100% - var(--edge-w)) / 2);
 }
+/* The left edge is the 800px column's, whatever the page's width: a wider page (a diff) grows to the right, so
+   going from a plan to a diff to a question your eye finds the words where it left them. The decision bar takes the
+   same edge from --cols. A question beside its preview is a different layout, centred in the window. */
+.page.interview.with-preview { --cols: minmax(0, 1fr) minmax(0, var(--main-w)) minmax(0, 1fr); margin: 0 auto; }
 
 /* ---- The head of an item */
 .kicker { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-size: var(--text-meta); color: var(--muted); }
@@ -227,9 +232,6 @@ button.opt:active, .own-open:active { scale: 0.985; }
    does not run together.
    The words keep a reading measure while the choices use the full column. */
 .interview .iv-text .prose, .interview .opt-desc { max-width: 68ch; }
-/* A question on its own is as wide as those words, so the column is centred on what you read: in the 800px
-   column a 68ch measure left the words a hand's width short of the right edge, and the page leaned left. */
-.page.interview.asks:not(.with-preview) { --main-w: 700px; }
 /* It also starts a fifth of the way down the window, not just under the bar, so a question that fits does not
    leave the lower half empty. A fixed drop and not a centred one: every title starts on the same line, so after
    Next your eye is already where the question is. Findings start on the same line. A phone keeps the small top.
@@ -654,7 +656,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 
 /* ---- The empty queue: the day so far, and who is at work. */
 /* Anchored from the top, not centred: agents coming and going below never move what is above. */
-.calm { max-width: 720px; margin: 0 auto; padding-top: clamp(48px, 16vh, 180px); display: flex; flex-direction: column; }
+.calm { max-width: 720px; margin: 0 auto 0 max(0px, (100% - 800px) / 2); padding-top: clamp(48px, 16vh, 180px); display: flex; flex-direction: column; }
 .calm-update { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-12); font-size: var(--text-meta); color: var(--muted); animation: bt-rise var(--dur-arrive) var(--ease-out) both; }
 .calm-update .px { color: var(--faint); }
 .calm.again .calm-update { animation: none; }
