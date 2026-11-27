@@ -139,7 +139,7 @@ An example, before and after:
 It arrives as a reminder starting `bateson:`.
 
 - **Approved**: carry on with your task.
-- **Sent back** with comments: each comment is numbered and quotes what it is about (a passage, or a file and line). Address every one, then send the next version with `bateson send --item <id>`, the same body flags, and one line per comment: `--done "1: what you changed"` or `--not "2: why not"`. They see each line next to their comment. End your turn.
+- **Sent back** with comments: each comment is numbered and quotes what it is about (a passage, or a file and line). Address every one, then send the next version with `bateson send --item <id>`, the same body flags, and one line per comment: `--done "1: what you changed"`, `--not "2: why not"`, or `--answered "3: the answer"` when the comment asked a question and nothing needed to change (if answering it changed the text, it is `--done`). Start each line with the verdict, then the reason. They see each line next to their comment. End your turn.
 - **Findings back**: fix the kept ones (their comment says how), and do not raise the dismissed ones again. Then send the fixes back the way the response says: a short report in plain words with screenshots of anything visual, or the diff if they asked for code. Answer each kept finding in one line: `--done "F1: what you fixed"` or `--not "F3: why not"`. They look at the result, and send it back if it is not fixed.
 - **Dropped**: stop that line of work. Leave the changes in place. Do not revert anything unless asked.
 - **Early answer** to a question marked `opens`: draft only its follow-ups with `bateson draft <id> --questions -` (or `--none`), then end your turn. See the ama skill.

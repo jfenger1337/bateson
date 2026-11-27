@@ -29,6 +29,7 @@ const HELP = `bateson: a review queue for what needs human judgment.
       --item <id>              the next version of an item: a revision, or the next interview round
       --done "<n>: <text>"     on a revision: comment <n> addressed, and what you changed (repeat per comment)
       --not "<n>: <text>"      on a revision: comment <n> not addressed, and why
+      --answered "<n>: <text>" on a revision: comment <n> asked a question, and the answer (nothing changed)
 
   bateson draft <id> --questions -|--none|--show
                              follow-ups drafted after an early answer; hidden until the round is sent
@@ -73,14 +74,14 @@ const VALUE_FLAGS = new Set(['title', 'note', 'file', 'type', 'item', 'timeout',
 
 /** The command line as parsed: the words, then each flag's value (true for a flag that takes none). */
 interface Args {
-  _: string[]; attach: (string | undefined)[]; replies: { addressed: boolean; raw: string | undefined }[];
+  _: string[]; attach: (string | undefined)[]; replies: { how: 'done' | 'not' | 'answered'; raw: string | undefined }[];
   title?: string; note?: string; file?: string; type?: string; item?: string; timeout?: string; questions?: string; findings?: string; limit?: string;
   diff?: string; set?: string | true; stdin?: true; none?: true; show?: true;
   [flag: string]: unknown;
 }
 
 /** Every flag the commands read; anything else is a typo, said at once rather than quietly ignored. */
-const FLAGS = new Set([...VALUE_FLAGS, 'attach', 'done', 'not', 'stdin', 'none', 'show', 'diff', 'set', 'help']);
+const FLAGS = new Set([...VALUE_FLAGS, 'attach', 'done', 'not', 'answered', 'stdin', 'none', 'show', 'diff', 'set', 'help']);
 
 function parseArgs(argv: string[]) {
   const out: Args = { _: [], attach: [], replies: [] };
@@ -100,9 +101,9 @@ function parseArgs(argv: string[]) {
       out[key] = next; took(); continue;
     }
     // These always take a value: the next flag is never mistaken for one (--attach --title T).
-    if (key === 'attach' || key === 'done' || key === 'not') {
+    if (key === 'attach' || key === 'done' || key === 'not' || key === 'answered') {
       if (!takesValue) die(`--${key} needs a value.`);
-      if (key === 'attach') out.attach.push(next); else out.replies.push({ addressed: key === 'done', raw: next });
+      if (key === 'attach') out.attach.push(next); else out.replies.push({ how: key, raw: next });
       took(); continue;
     }
     if (['stdin', 'none', 'show', 'help'].includes(key)) {
@@ -347,23 +348,24 @@ async function cmdSend(o: Args) {
     : `${Reviewer()} will see it in bateson. Nothing can wake you here, so wait for the response: run \`bateson wait ${res.id}\` now, and again each time it tells you to. Do not ask the same thing in chat.`);
 }
 
-// A revision answers everything it was asked: each comment by number (--done "1: ..." or --not "2: ..."), or
-// after findings each kept finding by its id (--done "F1: ...").
+// A revision answers everything it was asked: each comment by number (--done "1: ...", --not "2: ...", or
+// --answered "3: ..." for a question), or after findings each kept finding by its id (--done "F1: ...").
 function parseReplies(o: Args): Reply[] {
-  const replies = o.replies.map(({ addressed, raw }): Reply => {
+  const replies = o.replies.map(({ how, raw }): Reply => {
     const m = /^\s*([A-Za-z]?\d+)\s*[:.)-]\s*([\s\S]+)$/.exec(raw || '');
-    if (!m) die(`--${addressed ? 'done' : 'not'} needs "<comment number or finding id>: <one line>", got ${JSON.stringify(raw ?? '')}.`);
+    if (!m) die(`--${how} needs "<comment number or finding id>: <one line>", got ${JSON.stringify(raw ?? '')}.`);
     const key = m[1].toUpperCase();
-    return { comment: /^\d+$/.test(key) ? Number(key) : key, addressed, text: m[2].trim() };
+    return { comment: /^\d+$/.test(key) ? Number(key) : key, addressed: how === 'done', ...(how === 'answered' ? { answered: true } : {}), text: m[2].trim() };
   });
-  if (!o.item) { if (replies.length) die('--done and --not answer comments on a revision; they need --item.'); return replies; }
+  if (!o.item) { if (replies.length) die('--done, --not and --answered answer comments on a revision; they need --item.'); return replies; }
   const item = findOrDie(o.item);
   const { keys, noun } = toAnswer(item);
   const what = noun || 'comment';
+  if (what !== 'comment' && replies.some((r) => r.answered)) die(`a ${what} is fixed or not: answer it with --done or --not, not --answered.`);
   const extra = replies.filter((r) => !keys.includes(String(r.comment)));
   if (extra.length) die(`${keys.length ? `the ${what}s to answer are ${keys.join(', ')}` : 'there is nothing to answer'}; not ${extra.map((r) => r.comment).join(', ')}.`);
   const missing = keys.filter((k) => !replies.some((r) => String(r.comment) === k));
-  if (missing.length) die(`answer every ${what}: add --done "<${what === 'comment' ? 'n' : 'id'}>: what you changed" or --not "<${what === 'comment' ? 'n' : 'id'}>: why not" for ${missing.join(', ')}. \`bateson status ${item.id}\` shows them.`);
+  if (missing.length) die(`answer every ${what}: add --done "<${what === 'comment' ? 'n' : 'id'}>: what you changed" or --not "<${what === 'comment' ? 'n' : 'id'}>: why not"${what === 'comment' ? ' (or --answered "<n>: the answer" for a question)' : ''} for ${missing.join(', ')}. \`bateson status ${item.id}\` shows them.`);
   return replies;
 }
 

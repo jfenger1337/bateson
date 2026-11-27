@@ -97,7 +97,7 @@ const REVIEW = {
   tell({ d, asks, resend, Who }) {
     if (d.decision === 'approve') return 'Approved. Carry on with your task.';
     if (d.decision === 'drop') return DROPPED;
-    return `Sent back with ${plural(asks.length, 'comment')}:\n\n${numbered(asks).join('\n')}\n\nRevise, then send the next version with \`${resend}\` (same body flags as before) and answer every comment by its number in one line: \`--done "1: what you changed"\` if you addressed it, \`--not "2: why not"\` if you did not. ${Who} sees each answer next to the comment. End your turn after sending.`;
+    return `Sent back with ${plural(asks.length, 'comment')}:\n\n${numbered(asks).join('\n')}\n\nRevise, then send the next version with \`${resend}\` (same body flags as before) and answer every comment by its number in one line: \`--done "1: what you changed"\` if you addressed it, \`--not "2: why not"\` if you did not, \`--answered "3: the answer"\` if it asked a question that needed an answer and no change (if the answer changes the text too, use --done). ${Who} sees each answer next to the comment. End your turn after sending.`;
   },
 } satisfies Kind;
 

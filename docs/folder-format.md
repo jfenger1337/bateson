@@ -105,10 +105,11 @@ A version sent after a send-back answers every comment on the version before it,
 
 ```json
 [ { "comment": 1, "addressed": true, "text": "Moved to Tuesday." },
-  { "comment": 2, "addressed": false, "text": "Kept out: passkeys need the new auth library." } ]
+  { "comment": 2, "addressed": false, "text": "Kept out: passkeys need the new auth library." },
+  { "comment": 3, "addressed": false, "answered": true, "text": "Yes, the FAQ says so in section 3.8." } ]
 ```
 
-The CLI writes it from `--done "1: ..."` and `--not "2: ..."`, and refuses a revision that leaves a comment unanswered. The app shows the revision with what is new since the version before tinted, and each comment with its answer in the margin.
+The CLI writes it from `--done "1: ..."`, `--not "2: ..."` and `--answered "3: ..."` (a comment that asked a question: answered, nothing changed), and refuses a revision that leaves a comment unanswered. The app shows the revision with what is new since the version before tinted, and each comment with its answer in the margin.
 
 ## config.json
 

@@ -403,8 +403,8 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
     flash(key);
   };
   // What the agent did with each comment on the version before, counted, each count a way to step through them.
-  const stateOf = (c: (typeof asked)[number]) => (!c.reply ? 'none' : c.reply.addressed ? 'done' : 'kept');
-  const tally = (['done', 'kept', 'none'] as const).map((st) => ({ st, keys: asked.flatMap((c, k) => (stateOf(c) === st ? [`a${k}`] : [])) })).filter((x) => x.keys.length);
+  const stateOf = (c: (typeof asked)[number]) => (!c.reply ? 'none' : c.reply.addressed ? 'done' : c.reply.answered ? 'answered' : 'kept');
+  const tally = (['done', 'answered', 'kept', 'none'] as const).map((st) => ({ st, keys: asked.flatMap((c, k) => (stateOf(c) === st ? [`a${k}`] : [])) })).filter((x) => x.keys.length);
   const stepped = useRef<Record<string, number>>({});
   const step = (st: string, keys: string[]) => {
     const i = ((stepped.current[st] ?? -1) + 1) % keys.length;
@@ -489,7 +489,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
           {asked.map((c, k) => {
             const key = `a${k}`;
             const st = stateOf(c);
-            const label = st === 'none' ? 'No reply' : st === 'done' ? (fromFindings ? 'Fixed' : 'Changed') : (fromFindings ? 'Not fixed' : 'Kept');
+            const label = st === 'none' ? 'No reply' : st === 'done' ? (fromFindings ? 'Fixed' : 'Changed') : st === 'answered' ? 'Answered' : (fromFindings ? 'Not fixed' : 'Kept');
             const num = fromFindings ? c.id : String(k + 1);
             // The passage first, as one muted line, then what you said, then the agent's answer.
             const about = fromFindings ? c.title ?? c.anchor.quote : c.anchor.kind === 'text' ? c.anchor.quote : null;
@@ -609,7 +609,7 @@ export function Review({ item, onDecide, onLater }: { item: Item; onDecide: (i: 
                   <span key={x.st}>
                     {i > 0 && ', '}
                     <button className={`tally-btn is-${x.st}`} onClick={() => step(x.st, x.keys)} title="Go to the next one">
-                      {x.keys.length} {x.st === 'done' ? (fromFindings ? 'fixed' : 'changed') : x.st === 'kept' ? (fromFindings ? 'not fixed' : 'kept') : 'without a reply'}
+                      {x.keys.length} {x.st === 'done' ? (fromFindings ? 'fixed' : 'changed') : x.st === 'answered' ? 'answered' : x.st === 'kept' ? (fromFindings ? 'not fixed' : 'kept') : 'without a reply'}
                     </button>
                   </span>
                 ))}

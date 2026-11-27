@@ -521,11 +521,12 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 .notes > .asked-mark { position: absolute; pointer-events: auto; cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .notes > .asked-mark[hidden] { display: none; }
 .asked-mark.hot, .asked-mark:hover { background: var(--ink); border-color: var(--ink); color: var(--surface); }
-/* What the agent did, at a glance: changed in green, kept in amber, no reply in grey. */
+/* What the agent did, at a glance: changed in green, answered in slate, kept in amber, no reply in grey. */
 .asked-state { padding: 1px var(--space-8); border-radius: var(--radius-full); font-size: var(--text-label); font-weight: 500; line-height: 1.5; }
 .is-done .asked-state { background: rgba(141, 165, 131, 0.24); color: #4E6346; }
 .is-done .asked-state::before { content: '✓ '; }
 .is-kept .asked-state { background: rgba(214, 163, 92, 0.22); color: #8A5A3F; }
+.is-answered .asked-state { background: rgba(110, 132, 160, 0.2); color: #3F5470; }
 .is-none .asked-state { background: var(--border-soft); color: var(--muted); }
 .asked-was { margin-top: var(--space-8); font-size: var(--text-meta); line-height: 1.45; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .asked-was q { font-style: italic; }
@@ -779,6 +780,7 @@ button.btn-primary > .key, button.btn-pill > .key, button.btn-ghost > .key, butt
 [data-theme='dark'] .fd-sev.fd-high { color: #DDA084; }
 [data-theme='dark'] .is-done .asked-state { color: #A9C09F; }
 [data-theme='dark'] .is-kept .asked-state { color: #D0A084; }
+[data-theme='dark'] .is-answered .asked-state { color: #A9BBD3; }
 [data-theme='dark']::highlight(qr-note-active), [data-theme='dark'] ::highlight(qr-note-active) { background-color: #7D651C; }
 [data-theme='dark'] .key.on-ink, [data-theme='dark'] .toast .key { border-color: rgba(20, 20, 20, 0.3); color: rgba(20, 20, 20, 0.75); }
 /* The knob is the opposite of its track: light on the grey one, dark on the lit one. */

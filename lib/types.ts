@@ -29,7 +29,8 @@ export interface Anchor {
   side?: 'old' | 'new';
 }
 export interface Comment { id: string; anchor: Anchor; text: string }
-export interface Reply { comment: number | string; addressed: boolean; text: string }
+/** `answered`: the comment asked a question, and the reply answers it; nothing needed to change (`addressed` is false). */
+export interface Reply { comment: number | string; addressed: boolean; answered?: boolean; text: string }
 
 export interface Finding {
   id: string; title: string; severity: 'high' | 'medium' | 'low'; body: string; fix?: string;
