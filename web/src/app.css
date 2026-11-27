@@ -378,7 +378,12 @@ button.opt:active, .own-open:active { scale: 0.985; }
 .iv-step-a { font-size: var(--text-meta); font-weight: 500; color: var(--ink); white-space: pre-wrap; }
 .iv-step-a.none { font-weight: 400; color: var(--late); }
 /* The dots sit above the question or finding, the first ring level with the title's first letter. */
-:is(.iv-main, .findings) > .iv-steps { margin: 0 0 var(--space-16) -6px; }
+.findings > .iv-steps, .iv-main > .iv-head { margin: 0 0 var(--space-16) -6px; }
+/* The interview's name on the dots' line: small and muted, there when you look for it. With no dots it lines up
+   with the question. While it shows, the bar leaves the name out (App.tsx). */
+.iv-head { flex: none; display: flex; align-items: center; gap: var(--space-12); min-width: 0; min-height: 22px; }
+.iv-name { min-width: 0; font-size: var(--text-meta); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iv-head > .iv-name:first-child { margin-left: 6px; }
 
 /* ---- Rings */
 .ring { flex: none; display: block; }
