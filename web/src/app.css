@@ -164,10 +164,12 @@ button.opt:active, .own-open:active { scale: 0.985; }
    choice and what it costs, and the reason under the recommended one. What separates them is weight, not size. */
 .interview { --iv-text: 16px; --iv-leading: 1.55; }
 .interview .iv-text .prose, .interview .opt-label, .interview .opt-desc, .interview .own-field { font-size: var(--iv-text); line-height: var(--iv-leading); }
-/* Two inks: everything you read is ink, and grey is for hints (Write your own, a label). The reading text is a
-   notch over regular (450), because regular looks thin under antialiased smoothing on a bright ground, so a
-   choice's name is semibold to stay clear of it. */
-.interview .iv-text .prose, .interview .opt-desc, .interview .opt.chosen .opt-desc { font-weight: 450; color: var(--ink); }
+/* The question and the reason under the recommendation are ink. A choice's description is the warm grey a step
+   below (--text-2), so the names read down the list at a glance and what each costs is there under them. Hints
+   (Write your own, a label) are greyer still. The reading text is a notch over regular (450), because regular
+   looks thin under antialiased smoothing on a bright ground, so a choice's name is semibold to stay clear of it. */
+.interview .iv-text .prose { font-weight: 450; color: var(--ink); }
+.interview .opt-desc, .interview .opt.chosen .opt-desc { font-weight: 450; color: var(--text-2); }
 .interview .opt-label { font-weight: 600; }
 .interview .opt-label.muted { font-weight: 450; }
 .opt-key { align-self: center; margin-left: var(--space-12); }
