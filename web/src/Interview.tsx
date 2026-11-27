@@ -368,7 +368,9 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
   return (
     <article ref={pageRef} className={`page interview asks arrive hue-${item.hue}${preview ? ' with-preview' : ''}`}>
       <div className="iv-main">
-        {/* The dots sit just above the question, where you are reading: how far through the round you are, at a glance. */}
+        {/* The dots sit just above the question, where you are reading: how far through the round you are, at a glance.
+            The interview's name rides on the same line, quiet, so what it is about is where you look too. */}
+        <div className="iv-head">
         {(qs.length > 1 || past.length > 0) && (
           <nav className="iv-steps" aria-label="Questions">
             {/* The earlier rounds, all in one dot a little apart from this round's: pointing at it lists what you
@@ -411,6 +413,8 @@ export function Interview({ item, panel, onDecide }: { item: Item; panel: boolea
             </span>
           </nav>
         )}
+          <span className="iv-name" title={item.title}>{item.title}</span>
+        </div>
       {(
       <section key={q.id} ref={qRef} className={`iv-q iv-${dir}`}>
         <div className="iv-text">

@@ -309,10 +309,11 @@ export function App() {
   // nothing carried from the one it replaced (answers, marks and comments belong to what you read).
   const viewKey = item ? `${item.id}:${item.version.n}:${item.version.createdAt}` : '';
 
-  // A review opens with its title on the page, so the bar names the item only once that title has scrolled under it.
+  // A review opens with its title on the page, an interview with its name beside the dots, so the bar names the item
+  // only once that has scrolled under it.
   const [titleOnPage, setTitleOnPage] = useState(false);
   useLayoutEffect(() => {
-    const title = settings ? null : document.querySelector<HTMLElement>('.work-title');
+    const title = settings ? null : document.querySelector<HTMLElement>('.work-title, .iv-name');
     if (!title) { setTitleOnPage(false); return; }
     const barH = Math.round(document.querySelector('.bar')?.getBoundingClientRect().height ?? 0);
     setTitleOnPage(title.getBoundingClientRect().bottom > barH);
